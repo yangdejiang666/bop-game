@@ -1,0 +1,61 @@
+Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在已经有雏形了然后现在就还差一些细节上没有优化你现在要做的就是做一个大厅的ui然后把大厅的各种各样的都做好可以仿造一下球球大作战真实的然后来做又开始游戏之类的先把这些简单的做好接口可以先不管它但是又玩又有但是现在我已经做好了游戏界面所以你要做一个点击开始游戏然后就可以玩了然后其他ui就先看着先要有设置之类的
+
+- 2026-03-16: Read current Vite + TypeScript game structure and confirmed gameplay bootstraps directly from `src/main.ts`.
+- 2026-03-16: Implementation target locked to lobby-first flow with a mountable game session, reusable settings modal, local persistence, and build-green baseline cleanup.
+- 2026-03-16: Added lobby overlay, settings persistence, sessionized game boot/destroy flow, HUD visibility controls, and global snapshot/time-step hooks.
+- 2026-03-16: Verified production build and preview flow: lobby loads first, start enters a fresh session, in-game settings apply immediately, return-to-lobby resets the session, and repeated start works.
+- 2026-03-16: Reworked split mechanic to per-cell binary split with official-like thresholds (36 -> 18), mass-conserving behavior, split boost timer, and longer merge lock.
+- 2026-03-16: Added split diagnostics to session snapshot (`playerCellCount`, `playerCellMasses`, `splitState`) for automation and balancing.
+- 2026-03-16: Reduced grid shimmer on heavy zoom by pixel-step-aware grid spacing, adaptive alpha, and pixel alignment.
+- 2026-03-16: Enhanced lobby interactions (mode selection, CTA linkage, parallax), improved responsive text layout, and reset lobby scroll/focus when returning from game.
+- 2026-03-16: Added unified gameplay tuning layer at `src/gameplay/tuning.ts` with preset `split_v01` and normalized mapping constants (`splitImpulseScale`, `ejectSpeedScale`, `spikeImpulseScale`).
+- 2026-03-16: Converted split/eject/spike systems to parameter-driven logic, including dash velocity layer, split grace push tuning, eject loss + reabsorb lock, spike mass allocation with spread randomness, and merge lock unification.
+- 2026-03-16: Added runtime balancing telemetry to snapshot (`tuningVersion`, `lastSplitMetrics`, `lastEjectMetrics`, `lastSpikeMetrics`) and enabled deterministic tuning checks via `window.advanceTime`.
+- 2026-03-16: Updated decay to segmented total-mass model with cell-count weighting; verified monotonic 30s decay at mass points 200/800/2000/5000.
+- 2026-03-16: Verified lobby -> game -> lobby session lifecycle remains clean (no duplicate canvas/HUD/session nodes after repeated enter/exit).
+- 2026-03-16: Split telemetry now reports dash-dominant metrics (distance/time/peak) with `timeToMax` centered around ~416ms and clear mass-dependent trend (100 > 1000 > 10000).
+- 2026-03-16: Mass conservation check after 10,000 mass split-to-16 stayed within 0.03% (food/virus disabled).
+- 2026-03-16: Eject behavior check: 1s hold reduced mass from 1000 -> 806 (matches 16-cost cadence plus decay), and short-window check showed no immediate reabsorb before lock expiry.
+- 2026-03-16: Spike check via high-virus stress run produced non-zero `lastSpikeMetrics` with `mainRatio=0.34` and randomized piece masses.
+- 2026-03-16: Applied "min mass floor = 35 for all mass-decrease paths" rule and aligned split threshold to 70/35; start/respawn mass now uses the same floor.
+- 2026-03-16: Fixed split spawn overlap model to `parentRadius + childRadius` with `touch_epsilon`, plus grace-window anti-stick correction in same-owner collision handling.
+- 2026-03-16: Replaced step decay buckets with anchor-based light decay curve (`200~0.8%/30s`, `1000~2.0%/30s`, `5000~5.5%/30s` target) and reduced multi-cell decay weighting.
+- 2026-03-16: Added snapshot fields `massFloor` and `decayRateNow` for runtime acceptance checks from `render_game_to_text`.
+- 2026-03-16: Verified threshold behavior (`69` no split, `70` split), light decay approximation (`200->198`, `1000->980`, `5000->4737` over 30s idle), and clean lobby/game lifecycle without duplicated nodes.
+- 2026-03-17: Added a gameplay tuning toolbox in the in-game debug panel with grouped sliders/number inputs for split/eject/decay/spike/limits, plus local save/reset and JSON export for parameter handoff.
+- 2026-03-17: Refactored `src/gameplay/tuning.ts` into a mutable tuning service with sanitization, storage load/save/reset helpers, and new `limits.max_cells` support for count tuning.
+- 2026-03-17: Replaced hardcoded max-cell checks in `AbilitySystem` and virus explode logic with `gameplayTuning.limits.max_cells`; session snapshot now includes a concise `tuning` block for live verification.
+- 2026-03-17: Exposed runtime tuning hooks on `window` (`export_gameplay_tuning`, `apply_gameplay_tuning`, `reset_gameplay_tuning`) to speed up deterministic debug loops and future permanent-write commits.
+- 2026-03-17: Validation: `npm run build` passed; Playwright run confirmed toolbox visible in-game, `split.base_impulse` changed `26 -> 31` in live snapshot, localStorage persisted under `bop:gameplay-tuning`, copy JSON action worked, and console had zero errors.
+- 2026-03-17: Fixed player arrow inconsistency by decoupling arrow direction from per-cell velocity and binding it to a shared player aim direction (`Player.setAimDirection/getAimDirection` + render-side unified arrow direction).
+- 2026-03-17: Fixed heavy-mass movement stall feel by softening mass speed exponent and adding a minimum movement floor for both player and bots; this prevents "can eject but feels not moving" at very large mass.
+- 2026-03-17: Added `playerCenter` and `playerAimDirection` to session snapshot for repeatable movement diagnostics via `render_game_to_text`.
+- 2026-03-17: Verification: with mass set to 10000, automated run (`advanceTime(1200)`) moved player center from `(3000,3000)` to `(3043.97,2859.23)` while aim direction tracked mouse (`~(0.9997,-0.0257)`), and console stayed error-free.
+- 2026-03-17: Implemented dynamic merge-lock timing based on both total controller mass and per-piece mass ratio (instead of fixed 8s), to match requested behavior: small pieces can merge faster, but high total mass still extends lock.
+- 2026-03-17: Extended tuning schema (`merge.min_lock_time/max_lock_time/small_piece_* / total_mass_*`) and exposed the new controls in tuning toolbox for live fitting.
+- 2026-03-17: Added `playerMergeTimers` plus lock range fields (`splitLockMin/splitLockMax`) to session snapshot for deterministic checks.
+- 2026-03-17: Validation on fresh preview build (`:4276`) with debug scripts: `1000kg` one-split timers `6.37s`, two-split small pieces `3.70s`; `10000kg` one-split timers `13.27s`, two-split small pieces `7.70s`, confirming both "small pieces faster" and "large total mass slower overall"; console errors remained zero.
+- 2026-03-17: Updated same-owner cohesion/merge behavior to better mimic requested flow: small cells now preferentially cling to the largest cell, with directional bias (behind main cell => stronger pull, ahead => weaker pull to keep forward drift), and added short-range small-small buddy attraction for natural regrouping.
+- 2026-03-17: Added owner-level merge-state updates for all controllers inside physics cohesion (not bot-only), enabling smoother automatic merge progression once lock timers expire.
+- 2026-03-17: Added direction-aware merge overlap priority (`getMergePriorityOverlapFactor`): small-behind-big merges sooner, small-in-front merges later, supporting "big in front absorbs trailing small first" behavior.
+- 2026-03-17: Verification (`:4276`): after `1000kg` double split, timers observed as `[6.37, 6.37, 3.7, 3.7]`; after advancing time, merge chain completed naturally to single cell (`~1005kg`) with logged order showing early small-cell merges then absorption by larger merged cell.
+- 2026-03-17: Added developer-mode gating for in-game debug toolbox: `GameSettings.showDebugPanel` migrated to `GameSettings.developerMode`, settings UI now exposes “开发者模式（显示调参工具箱）”, and session HUD debug/toolbox visibility now follows `developerMode`.
+- 2026-03-17: Added backward-compatible settings migration in `mergeGameSettings` to map legacy localStorage key `showDebugPanel` -> `developerMode`, preserving existing user preferences.
+- 2026-03-17: Added eject spawn-distance tuning parameter `eject.spawn_distance` (default `20`) in unified tuning schema, sanitization, assignment, JSON export, and runtime snapshot (`session.tuning.ejectSpawnDistance`).
+- 2026-03-17: Wired eject spawn distance into gameplay (`AbilitySystem.eject`) replacing hardcoded `+20` spawn offset with `gameplayTuning.eject.spawn_distance`.
+- 2026-03-17: Extended toolbox “吐球成本与节奏” section with a live control for `吐球出生距离`, enabling direct in-game fitting without code edits.
+- 2026-03-17: Validation: `npm run build` passed; Playwright web-game client run against preview (`http://127.0.0.1:4276`) produced clean screenshots/state with `developerMode=false` hiding toolbox; interactive Playwright check confirmed toggling developer mode shows/hides toolbox and control list includes “吐球出生距离”; runtime hook check confirmed `apply_gameplay_tuning({ eject: { spawn_distance: 60 } })` updates snapshot to `ejectSpawnDistance: 60`.
+- 2026-03-17: Reworked virus-spike explosion to “around virus center” distribution: when a cell hits virus and triggers explode, resulting pieces are generated on a circular ring around the spike center (uniform angular spacing by default), instead of forward-sector spray.
+- 2026-03-17: Updated spike split composition to be parameter-driven with fixed-target behavior (default ~9 cells): added tuning fields `spike.target_cell_count`, `spike.max_piece_ratio`, `spike.ring_radius_factor`, `spike.circle_jitter_angle`; kept existing `main_cell_ratio/min_piece_mass/piece_random_factor/burst_impulse/spread_angle` and integrated them into the new circular explosion model.
+- 2026-03-17: Main cell now participates in spike redistribution (repositioned on the same ring as generated pieces), and each piece gets outward dash/merge-lock/grace values for consistent “炸开” feel.
+- 2026-03-17: Added mass-bounds handling during spike distribution so per-piece mass can be constrained by `max_piece_ratio` while honoring min floor and total-mass conservation as much as possible.
+- 2026-03-17: Toolbox “扎刺分裂数量与占比” now includes full spike fitting controls: `扎刺目标分身数`, `单球最大占比`, `扎刺圆周角度(°)`, `扎刺圆环半径系数`, `圆周角度抖动(°)` plus existing spike controls.
+- 2026-03-17: Session snapshot tuning block now exposes `spikeTargetCells` and `spikeMaxPieceRatio` for deterministic text-based verification via `render_game_to_text`.
+- 2026-03-17: Validation: `npm run build` passed; interactive Playwright run on preview (`:4277`) confirmed new spike controls present in toolbox JSON/UI and runtime snapshot reflects new fields (`spikeTargetCells=9`, `spikeMaxPieceRatio=0.52`) with no console errors.
+- 2026-03-17: Updated spike behavior per latest request to center-preserving burst: exploding cell now remains as a larger center cell, while surrounding smaller cells are spawned in equal-angle ring around that center (instead of putting all pieces on the ring with no center).
+- 2026-03-17: Added feasibility logic for spike piece count: if current mass cannot satisfy floor/main/small-piece constraints, target piece count is stepped down automatically to keep distribution stable.
+- 2026-03-17: Interpreted `spike.max_piece_ratio` as `small/main` mass ratio cap (rather than total-mass cap), so peripheral pieces remain clearly smaller than center cell.
+- 2026-03-17: Added new spike tuning fields and toolbox controls: `spike.burst_impulse_jitter` (speed consistency) and `spike.virus_bonus_mass` (total mass increase when consuming virus), plus updated labels to better match center+ring model.
+- 2026-03-17: Physics virus reward now reads from tuning (`spike.virus_bonus_mass`) for both explode and max-cell consume paths, replacing hardcoded `+200`.
+- 2026-03-17: Session snapshot tuning now also exposes `spikeVirusBonusMass` to verify mass-gain tuning via `render_game_to_text`.
+- 2026-03-17: Validation: `npm run build` passed; Playwright preview check on `:4278` confirmed toolbox shows the new spike controls and tuning JSON includes `burst_impulse_jitter` + `virus_bonus_mass`; runtime text snapshot showed `{ spikeMainRatio: 0.4, spikeTargetCells: 9, spikeMaxPieceRatio: 0.52, spikeVirusBonusMass: 200 }`.
