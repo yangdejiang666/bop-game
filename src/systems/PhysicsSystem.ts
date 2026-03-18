@@ -66,6 +66,10 @@ export class PhysicsSystem {
             }
         });
 
+        // Prioritize "ejected mass feeds virus" before player-virus body collisions.
+        // This makes feed-to-threshold splitting deterministic when the player is near the virus.
+        this.resolveEjectedMassVsViruses(foods, viruses, worldWidth, worldHeight);
+
         // --- 3. Physics Loop with Time Budget ---
         const startTime = performance.now();
         const TIME_BUDGET_MS = 18; // Soft cap for non-player collision work per frame
@@ -234,21 +238,28 @@ export class PhysicsSystem {
             }
         }
 
-        // Additional collision check: EjectedMass (in foods array) vs Viruses
-        // User request: ejected mass should feed viruses
+        // Run once more after movement/collision resolution to catch late-frame contacts.
+        this.resolveEjectedMassVsViruses(foods, viruses, worldWidth, worldHeight);
+    }
+
+    private resolveEjectedMassVsViruses(
+        foods: Food[],
+        viruses: Virus[],
+        worldWidth: number,
+        worldHeight: number
+    ) {
         for (const food of foods) {
-            // Only check EjectedMass, skip regular Food
-            if (!this.isEjectedMass(food)) {
+            if (!this.isEjectedMass(food) || food.mass <= 0) {
                 continue;
             }
 
             for (const virus of viruses) {
                 const dist = food.position.dist(virus.position).mag();
                 const minDist = food.radius + virus.radius;
-
                 if (dist < minDist) {
-                    // Hit! Feed the virus
                     this.resolveCollision(food, virus, foods, viruses, worldWidth, worldHeight);
+                    // One ejected mass can feed at most one virus.
+                    break;
                 }
             }
         }
@@ -301,6 +312,10 @@ export class PhysicsSystem {
         else if (other instanceof Virus) {
             // User request: Check if blob is ejected mass feeding the virus
             if (this.isEjectedMass(blob)) {
+                if (blob.mass <= 0) {
+                    return;
+                }
+
                 // Feed the virus
                 const virus = other as Virus;
                 virus.feed(gameplayTuning.spike.virus_feed_mass_gain);
@@ -443,6 +458,19 @@ export class PhysicsSystem {
 
         this.constrainToBounds(virus, worldWidth, worldHeight);
         this.constrainToBounds(childVirus, worldWidth, worldHeight);
+
+        // Guarantee visible separation even near map bounds.
+        const minSeparation = Math.max(4, (virus.radius + childVirus.radius) * 0.9);
+        const separation = virus.position.dist(childVirus.position).mag();
+        if (separation < minSeparation) {
+            const correctionDir = splitDirection.mag() > 0
+                ? splitDirection.normalize()
+                : new Vector(1, 0);
+            const correction = correctionDir.mult(minSeparation - separation);
+            childVirus.position = childVirus.position.add(correction);
+            this.constrainToBounds(childVirus, worldWidth, worldHeight);
+        }
+
         viruses.push(childVirus);
     }
 
