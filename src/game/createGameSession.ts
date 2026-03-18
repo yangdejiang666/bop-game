@@ -21,6 +21,7 @@ import type { GameSettings } from '../app/settings';
 import { gameplayTuning } from '../gameplay/tuning';
 import { TuningToolbox } from '../ui/TuningToolbox';
 import type { LobbyModeId } from '../ui/LobbyUI';
+import { GameAudioManager } from '../audio/GameAudioManager';
 
 const WORLD_SIZE = 6000;
 const DEFAULT_FOOD_COUNT = 1200;
@@ -232,6 +233,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let viruses: Virus[] = [];
     let gameLoop: GameLoop | null = null;
     let tuningToolbox: TuningToolbox | null = null;
+    let audioManager: GameAudioManager | null = null;
 
     let targetFoodCount = DEFAULT_FOOD_COUNT;
     let targetVirusCount = DEFAULT_VIRUS_COUNT;
@@ -244,6 +246,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let winnerLabel = '';
     let playerWon = false;
     let bestMassRecord = loadBestMassRecord();
+    let lastPlayerSpikeEventId = 0;
 
     function ensureMounted() {
         if (!sessionRoot || !worldRoot || !hudRefs) {
@@ -655,6 +658,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         matchFinished = false;
         winnerLabel = '';
         playerWon = false;
+        lastPlayerSpikeEventId = 0;
 
         input?.setMouseScreenPosition(window.innerWidth / 2, window.innerHeight / 2);
 
@@ -997,7 +1001,10 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         if (input.isEjecting) {
             const ejectTarget = mouseWorld || playerCenter;
-            abilitySystem.eject(player, foods, ejectTarget);
+            const ejectCount = abilitySystem.eject(player, foods, ejectTarget);
+            if (ejectCount > 0) {
+                audioManager?.playEject();
+            }
         }
 
         frameCount += 1;
@@ -1035,6 +1042,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         physics.update(activeBlobs, foods as Food[], viruses, quadTree, WORLD_SIZE, WORLD_SIZE, dt);
         abilitySystem.tickRuntime(dt);
+
+        const spikeEventId = abilitySystem.getSpikeEventId(player);
+        if (spikeEventId > lastPlayerSpikeEventId) {
+            lastPlayerSpikeEventId = spikeEventId;
+            audioManager?.playSpikeBurst();
+        }
 
         const foodIndices: number[] = [];
         let foodCount = 0;
@@ -1156,6 +1169,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         abilitySystem = new AbilitySystem();
         physics = new PhysicsSystem(abilitySystem);
         aiSystem = new AISystem();
+        audioManager = new GameAudioManager();
+        audioManager.start();
 
         input.setCamera(camera);
         input.onSplit = () => {
@@ -1163,12 +1178,17 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 return;
             }
 
+            const beforeCount = player.cells.length;
             const playerCenter = player.getCenter();
             const mouseWorld = input?.getMouseWorldPosition();
             if (mouseWorld) {
                 abilitySystem?.split(player, mouseWorld.sub(playerCenter));
             } else {
                 abilitySystem?.split(player);
+            }
+
+            if (player.cells.length > beforeCount) {
+                audioManager?.playSplit();
             }
         };
 
@@ -1183,12 +1203,14 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         ensureMounted();
         stop();
         initializeWorld();
+        audioManager?.requestMusicStart();
         gameLoop?.start();
         isRunning = true;
     }
 
     function stop() {
         gameLoop?.stop();
+        audioManager?.stopMusic();
         isRunning = false;
     }
 
@@ -1198,6 +1220,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         camera?.destroy();
         renderer?.destroy();
         tuningToolbox?.destroy();
+        audioManager?.destroy();
         sessionRoot?.remove();
 
         hudRefs = null;
@@ -1217,6 +1240,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         viruses = [];
         gameLoop = null;
         tuningToolbox = null;
+        audioManager = null;
     }
 
     function applySettings(nextSettings: GameSettings) {

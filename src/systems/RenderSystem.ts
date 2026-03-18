@@ -236,33 +236,13 @@ export class RenderSystem {
             ctx.fillStyle = blob.color;
             ctx.fill();
         } else {
-            // Player / Bot Cell - JELLY EFFECT
-            const hasStretch = blob.stretchTimer > 0 && blob.stretchDirection.mag() > 0;
-            if (hasStretch) {
-                const stretchProgress = this.clamp(blob.stretchTimer / 0.1, 0, 1);
-                const forwardScale = 1 + 0.08 * stretchProgress;
-                const sideScale = 1 - 0.06 * stretchProgress;
-                const stretchAngle = Math.atan2(blob.stretchDirection.y, blob.stretchDirection.x);
-
-                ctx.save();
-                ctx.translate(screenPos.x, screenPos.y);
-                ctx.rotate(stretchAngle);
-                ctx.scale(forwardScale, sideScale);
-                this.drawSoftCircle(ctx, 0, 0, screenRadius, blob);
-                ctx.fillStyle = blob.color;
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.restore();
-            } else {
-                this.drawSoftCircle(ctx, screenPos.x, screenPos.y, screenRadius, blob);
-                ctx.fillStyle = blob.color;
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            }
+            // Player / Bot Cell - keep a stable perfect circle (no jelly deformation)
+            ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
+            ctx.fillStyle = blob.color;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
 
             this.drawDashTrail(ctx, screenPos.x, screenPos.y, screenRadius, blob);
         }
@@ -381,56 +361,6 @@ export class RenderSystem {
             ctx.fill();
         }
         ctx.restore();
-    }
-
-    private drawSoftCircle(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, blob: Blob) {
-        // Optimization & Visual Preference: 
-        // Only wobble if intensity > 0.01 (triggered by split/impact)
-        if (blob.wobbleIntensity <= 0.01) {
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.closePath();
-            return;
-        }
-
-        // High resolution for smoothness during wobble
-        // Cap max points to prevent rendering freeze on huge blobs
-        const points = Math.min(150, Math.max(40, Math.floor(radius * 1.5)));
-        const step = (Math.PI * 2) / points;
-        const time = performance.now() / 150;
-
-        // Use stored intensity
-        const intensity = blob.wobbleIntensity;
-
-        // Generate points
-        const coords: { x: number, y: number }[] = [];
-        for (let i = 0; i < points; i++) {
-            const theta = i * step;
-            // Lower frequency noise for smoother wobble
-            const offset = Math.sin(theta * 2 + time + blob.wobblePhase) *
-                Math.cos(theta * 3 - time) *
-                (radius * 0.05 * intensity);
-
-            const r = radius + offset;
-            coords.push({
-                x: x + Math.cos(theta) * r,
-                y: y + Math.sin(theta) * r
-            });
-        }
-
-        ctx.beginPath();
-        // Smooth curve
-        const first = coords[0];
-        const last = coords[coords.length - 1];
-        ctx.moveTo((last.x + first.x) / 2, (last.y + first.y) / 2);
-
-        for (let i = 0; i < coords.length; i++) {
-            const p1 = coords[i];
-            const p2 = coords[(i + 1) % coords.length];
-            const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-            ctx.quadraticCurveTo(p1.x, p1.y, mid.x, mid.y);
-        }
-        ctx.closePath();
     }
 
     private drawVirusShape(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number) {

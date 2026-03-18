@@ -109,3 +109,8 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Validation: `npm run build` passed; Playwright verified lobby -> matching overlay appears with live人数变化 -> auto-enter gameplay; fast cancel path returns to lobby with `phase=lobby` and no active session.
 - 2026-03-18: Updated all six modes to support entering matchmaking (with `测试中` labels for peak/speed/battleRoyale) so “任意模式先匹配再开局” now holds consistently.
 - 2026-03-18: Validation: Playwright recheck confirmed selecting `巅峰赛` enters the same matching flow and displays mode-specific matching title (`正在匹配 巅峰赛`).
+- 2026-03-18: Removed split-time jelly deformation in render path: player/bot cells now always draw as stable circles (no stretch/wobble mesh), while retaining existing dash trail and arrow direction cues.
+- 2026-03-18: Added runtime audio system `src/audio/GameAudioManager.ts` using WebAudio: split SFX, eject SFX, spike-burst SFX, and in-game procedural BGM loop (auto-unlocks on user interaction).
+- 2026-03-18: Wired audio lifecycle into game session (`createGameSession`): initialize on mount, start BGM on new game, stop BGM on stop, cleanup on destroy; split/eject/spike events now trigger corresponding SFX.
+- 2026-03-18: Extended `AbilitySystem` with spike event IDs and `eject()` return count to support deterministic SFX triggers without polling guesses.
+- 2026-03-18: Validation: `npm run build` passed; Playwright gameplay screenshots confirmed circular split rendering and no UI/runtime regression in lobby->matching->playing flow.

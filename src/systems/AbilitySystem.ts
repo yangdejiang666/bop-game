@@ -46,6 +46,7 @@ export class AbilitySystem {
     private readonly splitMetricsByController = new WeakMap<Controller, SplitMetrics>();
     private readonly ejectMetricsByController = new WeakMap<Controller, EjectMetrics>();
     private readonly spikeMetricsByController = new WeakMap<Controller, SpikeMetrics>();
+    private readonly spikeEventByController = new WeakMap<Controller, number>();
     private readonly splitTracks: SplitTrack[] = [];
 
     tickRuntime(dt: number) {
@@ -233,6 +234,8 @@ export class AbilitySystem {
             pieceCount: targetCount,
             pieceMasses: normalizedPieceMasses
         });
+        const prevEvent = this.spikeEventByController.get(controller) ?? 0;
+        this.spikeEventByController.set(controller, prevEvent + 1);
     }
 
     split(controller: Controller, targetDirection?: Vector) {
@@ -336,7 +339,7 @@ export class AbilitySystem {
         }
     }
 
-    eject(controller: Controller, foodList: Blob[], targetPos: Vector) {
+    eject(controller: Controller, foodList: Blob[], targetPos: Vector): number {
         const costMass = gameplayTuning.eject.cost_mass;
         const spawnMass = gameplayTuning.eject.spawn_mass;
         const spawnDistance = gameplayTuning.eject.spawn_distance;
@@ -385,6 +388,8 @@ export class AbilitySystem {
                 lastCooldownMs: cooldown * 1000
             });
         }
+
+        return ejectedCount;
     }
 
     getSplitState(controller: Controller): SplitStateSnapshot {
@@ -419,6 +424,10 @@ export class AbilitySystem {
             pieceCount: 0,
             pieceMasses: []
         };
+    }
+
+    getSpikeEventId(controller: Controller): number {
+        return this.spikeEventByController.get(controller) ?? 0;
     }
 
     canSplit(controller: Controller): boolean {
