@@ -90,3 +90,10 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Fixed name-clearing behavior: player name can now be empty in settings without auto-reverting to the old default; UI/in-game display now uses fallback label `未命名玩家` only for rendering.
 - 2026-03-18: Updated `GameSettings` merge logic to preserve empty playerName values (instead of forcing default), while still sanitizing max length and storage compatibility.
 - 2026-03-18: Validation: `npm run build` passed after icon/topbar/name-empty fixes.
+- 2026-03-18: Enabled timed gameplay flow for `经典模式 / 排位赛 / 团队模式` with 6-minute limit and end-of-match settlement trigger in session runtime.
+- 2026-03-18: Added mode-aware settlement overlay in game HUD: winner display, current mass, best-mass record, replay/lobby actions, and dynamic celebration ball with burst effects.
+- 2026-03-18: Added local best-mass persistence key (`bop:best-mass-record`) and new-record celebration banner logic.
+- 2026-03-18: Team mode settlement now resolves by team total mass (player + alternating bots as one side), while classic/ranked resolve by individual top mass.
+- 2026-03-18: Extended `GameSessionSnapshot.match` with mode/timer/result fields (`modeId/modeName/timed/durationSeconds/remainingSeconds/isFinished/winnerLabel/playerWon/bestMassRecord`) for deterministic testing via `render_game_to_text`.
+- 2026-03-18: Updated lobby mode availability so `排位赛` and `团队模式` are playable entries (with timed-settlement intent), while remaining unopened modes stay locked.
+- 2026-03-18: Validation: `npm run build` passed after timed-match + settlement UI integration.

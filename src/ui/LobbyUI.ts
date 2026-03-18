@@ -1,15 +1,17 @@
 import type { GameSettings } from '../app/settings';
 
+export type LobbyModeId = 'ranked' | 'peak' | 'classic' | 'speed' | 'team' | 'battleRoyale';
+
 interface LobbyUIOptions {
     settings: GameSettings;
-    onStartGame: () => void;
+    onStartGame: (modeId: LobbyModeId) => void;
     onSettingsChange: (settings: GameSettings) => void;
     onSettingsOpened: () => void;
     onSettingsClosed: () => void;
 }
 
 interface ModeOption {
-    id: string;
+    id: LobbyModeId;
     name: string;
     subtitle: string;
     icon: string;
@@ -72,8 +74,8 @@ export class LobbyUI {
     private settings: GameSettings;
     private readonly options: LobbyUIOptions;
     private readonly keydownHandler: (event: KeyboardEvent) => void;
-    private readonly modeOptions: Record<string, ModeOption>;
-    private selectedModeId: string;
+    private readonly modeOptions: Record<LobbyModeId, ModeOption>;
+    private selectedModeId: LobbyModeId;
     private previewCanvas: HTMLCanvasElement | null = null;
     private previewCtx: CanvasRenderingContext2D | null = null;
     private previewFrameId: number | null = null;
@@ -90,9 +92,9 @@ export class LobbyUI {
                 name: '排位赛',
                 subtitle: '积分晋级 · 赛季结算',
                 icon: '🏆',
-                status: '即将开放',
-                footerHint: '排位赛需要联机匹配与赛季数据支持，当前为占位预览。',
-                playable: false
+                status: '已开放',
+                footerHint: '排位赛为 6 分钟限时，结束后按体重排名结算。',
+                playable: true
             },
             peak: {
                 id: 'peak',
@@ -126,9 +128,9 @@ export class LobbyUI {
                 name: '团队模式',
                 subtitle: '队伍配合 · 吐球协同',
                 icon: '👥',
-                status: '即将开放',
-                footerHint: '团队模式暂未接入组队系统，当前为占位预览。',
-                playable: false
+                status: '已开放',
+                footerHint: '团队模式为 6 分钟限时，结束后按队伍总质量结算。',
+                playable: true
             },
             battleRoyale: {
                 id: 'battleRoyale',
@@ -456,7 +458,7 @@ export class LobbyUI {
             }
 
             this.hideAll();
-            this.options.onStartGame();
+            this.options.onStartGame(this.selectedModeId);
         });
 
         this.root.querySelectorAll<HTMLElement>('[data-mode-id]').forEach((card) => {
@@ -559,7 +561,7 @@ export class LobbyUI {
     }
 
     private selectMode(modeId: string) {
-        if (!this.modeOptions[modeId]) {
+        if (!this.isLobbyModeId(modeId)) {
             return;
         }
 
@@ -737,6 +739,10 @@ export class LobbyUI {
         return SKIN_OPTIONS.some((skin) => skin.id === rawSkinId)
             ? rawSkinId
             : SKIN_OPTIONS[0].id;
+    }
+
+    private isLobbyModeId(modeId: string): modeId is LobbyModeId {
+        return modeId in this.modeOptions;
     }
 
     private showFeatureTip(message: string) {

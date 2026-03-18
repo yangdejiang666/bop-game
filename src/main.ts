@@ -13,7 +13,7 @@ import {
     saveGameplayTuningToStorage,
     type GameplayTuningPatch
 } from './gameplay/tuning';
-import { LobbyUI } from './ui/LobbyUI';
+import { LobbyUI, type LobbyModeId } from './ui/LobbyUI';
 
 declare global {
     interface Window {
@@ -82,11 +82,12 @@ function closeSettings() {
     applyReducedMotionState();
 }
 
-function startNewGame() {
+function startNewGame(modeId: LobbyModeId = 'classic') {
     destroyCurrentSession();
 
     currentSession = createGameSession({
         settings,
+        modeId,
         onReturnToLobby: showLobby,
         onOpenSettings: () => openSettings(true)
     });

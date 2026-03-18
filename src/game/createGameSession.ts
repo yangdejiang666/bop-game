@@ -20,6 +20,7 @@ import { EjectedMass } from '../entities/EjectedMass';
 import type { GameSettings } from '../app/settings';
 import { gameplayTuning } from '../gameplay/tuning';
 import { TuningToolbox } from '../ui/TuningToolbox';
+import type { LobbyModeId } from '../ui/LobbyUI';
 
 const WORLD_SIZE = 6000;
 const DEFAULT_FOOD_COUNT = 1200;
@@ -27,6 +28,61 @@ const DEFAULT_VIRUS_COUNT = 12;
 const MAX_VIRUS_COUNT = 64;
 const BOT_COUNT = 49;
 const LEADERBOARD_SIZE = 10;
+const MATCH_DURATION_SECONDS = 6 * 60;
+const BEST_MASS_RECORD_KEY = 'bop:best-mass-record';
+
+interface MatchModeConfig {
+    id: LobbyModeId;
+    name: string;
+    timed: boolean;
+    durationSeconds: number;
+    teamMode: boolean;
+}
+
+const MATCH_MODE_CONFIG: Record<LobbyModeId, MatchModeConfig> = {
+    ranked: {
+        id: 'ranked',
+        name: '排位赛',
+        timed: true,
+        durationSeconds: MATCH_DURATION_SECONDS,
+        teamMode: false
+    },
+    peak: {
+        id: 'peak',
+        name: '巅峰赛',
+        timed: false,
+        durationSeconds: 0,
+        teamMode: false
+    },
+    classic: {
+        id: 'classic',
+        name: '经典模式',
+        timed: true,
+        durationSeconds: MATCH_DURATION_SECONDS,
+        teamMode: false
+    },
+    speed: {
+        id: 'speed',
+        name: '极速模式',
+        timed: false,
+        durationSeconds: 0,
+        teamMode: false
+    },
+    team: {
+        id: 'team',
+        name: '团队模式',
+        timed: true,
+        durationSeconds: MATCH_DURATION_SECONDS,
+        teamMode: true
+    },
+    battleRoyale: {
+        id: 'battleRoyale',
+        name: '大逃杀',
+        timed: false,
+        durationSeconds: 0,
+        teamMode: false
+    }
+};
 
 export interface GameSessionSnapshot {
     isMounted: boolean;
@@ -86,6 +142,17 @@ export interface GameSessionSnapshot {
         showLeaderboard: boolean;
         developerMode: boolean;
     };
+    match: {
+        modeId: LobbyModeId;
+        modeName: string;
+        timed: boolean;
+        durationSeconds: number;
+        remainingSeconds: number;
+        isFinished: boolean;
+        winnerLabel: string;
+        playerWon: boolean;
+        bestMassRecord: number;
+    };
 }
 
 export interface GameSession {
@@ -100,6 +167,7 @@ export interface GameSession {
 
 interface CreateGameSessionOptions {
     settings: GameSettings;
+    modeId: LobbyModeId;
     onReturnToLobby: () => void;
     onOpenSettings: () => void;
 }
@@ -120,10 +188,20 @@ interface SessionHudRefs {
     massInput: HTMLInputElement;
     foodInput: HTMLInputElement;
     virusInput: HTMLInputElement;
+    modeBadgeEl: HTMLDivElement;
+    resultOverlay: HTMLDivElement;
+    resultTitleEl: HTMLHeadingElement;
+    resultSubEl: HTMLDivElement;
+    resultWinnerEl: HTMLDivElement;
+    resultMassEl: HTMLDivElement;
+    resultBestEl: HTMLDivElement;
+    resultRecordBannerEl: HTMLDivElement;
+    resultBallEl: HTMLDivElement;
 }
 
 export function createGameSession(options: CreateGameSessionOptions): GameSession {
     let settings = { ...options.settings };
+    const modeConfig = MATCH_MODE_CONFIG[options.modeId] ?? MATCH_MODE_CONFIG.classic;
 
     let mountRoot: HTMLElement | null = null;
     let sessionRoot: HTMLDivElement | null = null;
@@ -151,11 +229,47 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let frameCount = 0;
     let fps = 60;
     let isRunning = false;
+    let matchFinished = false;
+    let winnerLabel = '';
+    let playerWon = false;
+    let bestMassRecord = loadBestMassRecord();
 
     function ensureMounted() {
         if (!sessionRoot || !worldRoot || !hudRefs) {
             throw new Error('Game session must be mounted before use.');
         }
+    }
+
+    function loadBestMassRecord(): number {
+        try {
+            const raw = window.localStorage.getItem(BEST_MASS_RECORD_KEY);
+            const parsed = raw ? Number.parseInt(raw, 10) : 0;
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    function saveBestMassRecord(value: number) {
+        try {
+            window.localStorage.setItem(BEST_MASS_RECORD_KEY, String(Math.max(0, Math.floor(value))));
+        } catch (error) {
+            console.error('Failed to persist best mass record:', error);
+        }
+    }
+
+    function getElapsedSeconds(now = performance.now()): number {
+        if (gameStartTime === 0) {
+            return 0;
+        }
+        return Math.max(0, Math.floor((now - gameStartTime) / 1000));
+    }
+
+    function getRemainingSeconds(now = performance.now()): number {
+        if (!modeConfig.timed) {
+            return 0;
+        }
+        return Math.max(0, modeConfig.durationSeconds - getElapsedSeconds(now));
     }
 
     function resolvePlayerDisplayName(rawName: string): string {
@@ -190,6 +304,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         const gameTimerEl = document.createElement('div');
         gameTimerEl.className = 'hud-timer-value';
         timerWrap.appendChild(gameTimerEl);
+
+        const modeBadgeEl = document.createElement('div');
+        modeBadgeEl.className = 'hud-timer-mode';
+        modeBadgeEl.textContent = modeConfig.name;
+        timerWrap.appendChild(modeBadgeEl);
 
         const actionBar = document.createElement('div');
         actionBar.className = 'hud-action-bar';
@@ -294,6 +413,63 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             }
         });
 
+        const resultOverlay = document.createElement('div');
+        resultOverlay.className = 'match-result-overlay';
+        resultOverlay.innerHTML = `
+            <div class="match-result-panel">
+                <div class="match-result-kicker">对局结算</div>
+                <h2 class="match-result-title" data-result-title>比赛结束</h2>
+                <div class="match-result-subtitle" data-result-subtitle>正在统计结果...</div>
+                <div class="match-result-ball-stage">
+                    <div class="match-result-burst"></div>
+                    <div class="match-result-ball" data-result-ball></div>
+                </div>
+                <div class="match-result-stats">
+                    <div class="match-result-stat">
+                        <span>本局体重</span>
+                        <strong data-result-mass>0 kg</strong>
+                    </div>
+                    <div class="match-result-stat">
+                        <span>历史纪录</span>
+                        <strong data-result-best>0 kg</strong>
+                    </div>
+                    <div class="match-result-stat">
+                        <span>胜出方</span>
+                        <strong data-result-winner>--</strong>
+                    </div>
+                </div>
+                <div class="match-record-banner" data-result-record-banner>新纪录达成！</div>
+                <div class="match-result-actions">
+                    <button type="button" class="hud-action-button hud-action-button--secondary" data-result-lobby>返回大厅</button>
+                    <button type="button" class="hud-action-button match-result-replay" data-result-replay>再来一局</button>
+                </div>
+            </div>
+        `;
+        root.appendChild(resultOverlay);
+
+        const resultTitleEl = resultOverlay.querySelector<HTMLHeadingElement>('[data-result-title]');
+        const resultSubEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-subtitle]');
+        const resultWinnerEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-winner]');
+        const resultMassEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-mass]');
+        const resultBestEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-best]');
+        const resultRecordBannerEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-record-banner]');
+        const resultBallEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-ball]');
+
+        if (!resultTitleEl || !resultSubEl || !resultWinnerEl || !resultMassEl || !resultBestEl || !resultRecordBannerEl || !resultBallEl) {
+            throw new Error('Failed to initialize match result overlay.');
+        }
+
+        resultOverlay.querySelector<HTMLButtonElement>('[data-result-lobby]')?.addEventListener('click', () => {
+            hideMatchResultOverlay();
+            stop();
+            options.onReturnToLobby();
+        });
+
+        resultOverlay.querySelector<HTMLButtonElement>('[data-result-replay]')?.addEventListener('click', () => {
+            hideMatchResultOverlay();
+            startNewGame();
+        });
+
         sessionRoot?.appendChild(root);
 
         const minimapCtx = minimapCanvas.getContext('2d');
@@ -316,7 +492,16 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             toolboxHost,
             massInput,
             foodInput,
-            virusInput
+            virusInput,
+            modeBadgeEl,
+            resultOverlay,
+            resultTitleEl,
+            resultSubEl,
+            resultWinnerEl,
+            resultMassEl,
+            resultBestEl,
+            resultRecordBannerEl,
+            resultBallEl
         };
     }
 
@@ -348,6 +533,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         lastFrameTime = performance.now();
         frameCount = 0;
         fps = 60;
+        matchFinished = false;
+        winnerLabel = '';
+        playerWon = false;
 
         input?.setMouseScreenPosition(window.innerWidth / 2, window.innerHeight / 2);
 
@@ -356,7 +544,98 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             camera.scale = 1;
         }
 
+        hideMatchResultOverlay();
         syncHud();
+    }
+
+    function getControllerMass(controller: { cells: Blob[] }): number {
+        return Math.floor(controller.cells.reduce((sum, cell) => sum + cell.mass, 0));
+    }
+
+    function hideMatchResultOverlay() {
+        if (!hudRefs) {
+            return;
+        }
+        hudRefs.resultOverlay.classList.remove('is-visible', 'is-record', 'is-win');
+    }
+
+    function finalizeTimedMatch(now = performance.now()) {
+        if (matchFinished || !player || !hudRefs) {
+            return;
+        }
+
+        const allControllers = [player, ...bots];
+        const playerMass = getControllerMass(player);
+        let resultSubtitle = `${modeConfig.durationSeconds / 60} 分钟结束，按体重排名结算。`;
+
+        if (modeConfig.teamMode) {
+            let teamATotal = 0;
+            let teamBTotal = 0;
+
+            allControllers.forEach((controller, index) => {
+                const mass = getControllerMass(controller);
+                const isTeamA = index === 0 || index % 2 === 0;
+                if (isTeamA) {
+                    teamATotal += mass;
+                } else {
+                    teamBTotal += mass;
+                }
+            });
+
+            const winnerIsTeamA = teamATotal >= teamBTotal;
+            const winnerTeamName = winnerIsTeamA ? '红队' : '蓝队';
+            const winnerTeamMass = winnerIsTeamA ? teamATotal : teamBTotal;
+            winnerLabel = `${winnerTeamName} ${winnerTeamMass}kg`;
+            playerWon = winnerIsTeamA;
+            resultSubtitle = `${modeConfig.durationSeconds / 60} 分钟结束，按队伍总质量结算。`;
+        } else {
+            const ranked = allControllers
+                .map((controller) => ({
+                    controller,
+                    mass: getControllerMass(controller)
+                }))
+                .sort((a, b) => b.mass - a.mass);
+
+            const winner = ranked[0];
+            if (winner) {
+                const winnerName = winner.controller === player
+                    ? resolvePlayerDisplayName(settings.playerName)
+                    : (winner.controller as Bot).name;
+                winnerLabel = `${winnerName} ${winner.mass}kg`;
+                playerWon = winner.controller === player;
+            } else {
+                winnerLabel = '未产生胜者';
+                playerWon = false;
+            }
+        }
+
+        const previousBest = bestMassRecord;
+        const isNewRecord = playerMass > previousBest;
+        if (isNewRecord) {
+            bestMassRecord = playerMass;
+            saveBestMassRecord(bestMassRecord);
+        }
+
+        hudRefs.resultTitleEl.textContent = playerWon ? '胜利！' : '比赛结束';
+        hudRefs.resultSubEl.textContent = resultSubtitle;
+        hudRefs.resultWinnerEl.textContent = winnerLabel;
+        hudRefs.resultMassEl.textContent = `${playerMass} kg`;
+        hudRefs.resultBestEl.textContent = `${bestMassRecord} kg`;
+        hudRefs.resultRecordBannerEl.style.display = isNewRecord ? 'block' : 'none';
+
+        const ballScale = Math.max(0, Math.min(1, Math.log(playerMass + 1) / Math.log(16000)));
+        const ballSize = 108 + ballScale * 180;
+        hudRefs.resultBallEl.style.setProperty('--result-ball-size', `${ballSize.toFixed(0)}px`);
+        hudRefs.resultBallEl.style.setProperty('--result-ball-glow', `${(0.42 + ballScale * 0.33).toFixed(2)}`);
+
+        hudRefs.resultOverlay.classList.add('is-visible');
+        hudRefs.resultOverlay.classList.toggle('is-record', isNewRecord);
+        hudRefs.resultOverlay.classList.toggle('is-win', playerWon);
+        matchFinished = true;
+        stop();
+
+        // Keep snapshot clock stable at match end.
+        gameStartTime = now - modeConfig.durationSeconds * 1000;
     }
 
     function syncHud() {
@@ -369,10 +648,20 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.massEl.innerText = `质量 ${totalMass} kg`;
         hudRefs.fpsEl.innerText = `FPS ${fps}`;
 
-        const elapsedSeconds = Math.max(0, Math.floor((performance.now() - gameStartTime) / 1000));
-        const minutes = Math.floor(elapsedSeconds / 60);
-        const seconds = elapsedSeconds % 60;
-        hudRefs.gameTimerEl.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        const now = performance.now();
+        const elapsedSeconds = getElapsedSeconds(now);
+        if (modeConfig.timed) {
+            const remainingSeconds = getRemainingSeconds(now);
+            const minutes = Math.floor(remainingSeconds / 60);
+            const seconds = remainingSeconds % 60;
+            hudRefs.gameTimerEl.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            hudRefs.modeBadgeEl.innerText = `${modeConfig.name} · 限时模式`;
+        } else {
+            const minutes = Math.floor(elapsedSeconds / 60);
+            const seconds = elapsedSeconds % 60;
+            hudRefs.gameTimerEl.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            hudRefs.modeBadgeEl.innerText = modeConfig.name;
+        }
 
         hudRefs.leaderboardContainer.style.display = settings.showLeaderboard ? 'block' : 'none';
         hudRefs.minimapContainer.style.display = settings.showMinimap ? 'block' : 'none';
@@ -532,6 +821,10 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             return;
         }
 
+        if (matchFinished) {
+            return;
+        }
+
         respawnControllers();
 
         const playerCenter = player.getCenter();
@@ -563,6 +856,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         syncHud();
         syncLeaderboard();
+
+        if (modeConfig.timed && getRemainingSeconds(currentTime) <= 0) {
+            finalizeTimedMatch(currentTime);
+            return;
+        }
 
         aiSystem.update(bots, player, quadTree, dt, WORLD_SIZE, WORLD_SIZE, abilitySystem);
 
@@ -798,9 +1096,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             ? abilitySystem.getSplitState(player)
             : { lastSplitMs: 0, canSplitNow: false };
 
-        const elapsedSeconds = gameStartTime === 0
-            ? 0
-            : Math.max(0, Math.floor((performance.now() - gameStartTime) / 1000));
+        const elapsedSeconds = getElapsedSeconds();
+        const remainingSeconds = getRemainingSeconds();
 
         return {
             isMounted: sessionRoot !== null,
@@ -862,6 +1159,17 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 showMinimap: settings.showMinimap,
                 showLeaderboard: settings.showLeaderboard,
                 developerMode: settings.developerMode
+            },
+            match: {
+                modeId: modeConfig.id,
+                modeName: modeConfig.name,
+                timed: modeConfig.timed,
+                durationSeconds: modeConfig.durationSeconds,
+                remainingSeconds,
+                isFinished: matchFinished,
+                winnerLabel,
+                playerWon,
+                bestMassRecord
             }
         };
     }
