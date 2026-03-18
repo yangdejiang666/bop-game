@@ -2,6 +2,7 @@ import { Bot, BOT_STATES } from '../entities/Bot';
 import { Player } from '../entities/Player';
 import { Food } from '../entities/Food';
 import { Virus } from '../entities/Virus';
+import { EjectedMass } from '../entities/EjectedMass';
 import { QuadTree, Rectangle } from '../utils/QuadTree';
 import { Vector } from '../utils/Vector';
 import { AbilitySystem } from './AbilitySystem';
@@ -83,7 +84,7 @@ export class AISystem {
                 }
             }
             // Food and EjectedMass
-            else if (entity instanceof Food || entity.constructor.name === 'EjectedMass') {
+            else if (entity instanceof Food || entity instanceof EjectedMass || entity.isEjected) {
                 foods.push({ pos: entity.position, dist });
             }
             // Other players/bots

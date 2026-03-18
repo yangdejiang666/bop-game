@@ -6,6 +6,7 @@ import { QuadTree, Rectangle } from '../utils/QuadTree';
 import { Vector } from '../utils/Vector';
 import { AbilitySystem } from './AbilitySystem';
 import { gameplayTuning } from '../gameplay/tuning';
+import { Player } from '../entities/Player';
 
 export class PhysicsSystem {
     private abilitySystem: AbilitySystem;
@@ -28,11 +29,10 @@ export class PhysicsSystem {
         const totalEntities = foods.length + viruses.length;
         if (totalEntities > MAX_ENTITIES) {
             const toRemove = totalEntities - MAX_ENTITIES;
-            // User request: Don't remove EjectedMass - only remove regular Food
-            // Separate regular food from ejected mass
+            // Keep regular pellets stable for gameplay; trim non-pellet entities first.
             const regularFoodIndices: number[] = [];
             for (let i = 0; i < foods.length; i++) {
-                if (!(foods[i] instanceof EjectedMass || foods[i].constructor.name === 'EjectedMass')) {
+                if (!this.isEjectedMass(foods[i])) {
                     regularFoodIndices.push(i);
                 }
             }
@@ -67,7 +67,7 @@ export class PhysicsSystem {
 
         // --- 3. Physics Loop with Time Budget ---
         const startTime = performance.now();
-        const TIME_BUDGET_MS = 12; // Max time allowed for physics per frame
+        const TIME_BUDGET_MS = 18; // Soft cap for non-player collision work per frame
 
         // --- Cohesion Step: Pull same-owner cells together ---
         this.applyCohesion(activeBlobs);
@@ -76,8 +76,9 @@ export class PhysicsSystem {
             // Always enforce boundary constraints (cheap & critical)
             this.constrainToBounds(blob, worldWidth, worldHeight);
 
-            // Safety: Skip expensive collision checks if frame takes too long
-            if (performance.now() - startTime > TIME_BUDGET_MS) {
+            // Keep player collisions deterministic even under low-end device load.
+            const isPlayerBlob = blob.owner instanceof Player;
+            if (!isPlayerBlob && performance.now() - startTime > TIME_BUDGET_MS) {
                 continue;
             }
 
@@ -143,9 +144,6 @@ export class PhysicsSystem {
                                         console.error('Invalid total mass in merge:', totalMass, 'from', smaller.mass, larger.mass);
                                         continue;
                                     }
-
-                                    // DEBUG: Log merge
-                                    console.log(`🔗 MERGE: ${smaller.mass.toFixed(2)}kg + ${larger.mass.toFixed(2)}kg = ${totalMass.toFixed(2)}kg`);
 
                                     // Apply total mass to larger cell
                                     larger.mass = totalMass;
@@ -255,7 +253,7 @@ export class PhysicsSystem {
         // User request: ejected mass should feed viruses
         for (const food of foods) {
             // Only check EjectedMass, skip regular Food
-            if (!(food instanceof EjectedMass || food.constructor.name === 'EjectedMass')) {
+            if (!this.isEjectedMass(food)) {
                 continue;
             }
 
@@ -275,55 +273,49 @@ export class PhysicsSystem {
         // Prevent double eating (if mass is 0, it's already eaten this frame)
         if (other.mass <= 0) return;
 
-        // 1. Eat Food
-        if (other instanceof Food || other.constructor.name === 'EjectedMass') {
-            let massGain = 0;
-            if (other instanceof Food) {
-                massGain = 1; // 1 kg per pellet
-                if (blob.owner) blob.owner.score += 1;
+        // 1. Eat Ejected Mass
+        if (this.isEjectedMass(other)) {
+            if (other.ownerRef && blob.owner === other.ownerRef && other.reabsorbLockTimer > 0) {
+                return;
+            }
 
-                // Mark eaten
-                other.mass = 0;
+            const massGain = Math.max(0, other.mass);
+            if (blob.owner) blob.owner.score += Math.floor(massGain);
 
-                // Respawn Food
-                const index = foods.indexOf(other as Food);
-                if (index > -1) {
-                    foods.splice(index, 1);
-                    foods.push(new Food(Math.random() * worldWidth, Math.random() * worldHeight));
-                }
-            } else {
-                const ejected = other as EjectedMass;
-                if (ejected.ownerRef && blob.owner === ejected.ownerRef && ejected.reabsorbLockTimer > 0) {
-                    return;
-                }
+            other.mass = 0;
+            const index = foods.indexOf(other as unknown as Food);
+            if (index > -1) foods.splice(index, 1);
 
-                // Ejected Mass (worth ~15kg)
-                // Gain exactly spawned mass
-                massGain = Math.max(0, other.mass);
-                if (blob.owner) blob.owner.score += Math.floor(massGain);
+            blob.mass += massGain;
+            if (isNaN(blob.mass) || blob.mass < 0 || !isFinite(blob.mass)) {
+                console.error('Invalid mass after eating ejected mass:', blob.mass);
+                blob.mass = 50;
+            }
+            blob.updateRadiusFromMass();
+        }
+        // 2. Eat Food
+        else if (other instanceof Food) {
+            const massGain = 1; // 1 kg per pellet
+            if (blob.owner) blob.owner.score += 1;
 
-                // Mark eaten immediately to prevent double-consumption
-                other.mass = 0;
-
-                // Remove Ejected
-                const index = foods.indexOf(other as any);
-                if (index > -1) foods.splice(index, 1);
+            other.mass = 0;
+            const index = foods.indexOf(other as Food);
+            if (index > -1) {
+                foods.splice(index, 1);
+                foods.push(new Food(Math.random() * worldWidth, Math.random() * worldHeight));
             }
 
             blob.mass += massGain;
-
-            // CRITICAL: Validate mass after eating
             if (isNaN(blob.mass) || blob.mass < 0 || !isFinite(blob.mass)) {
-                console.error('Invalid mass after eating:', blob.mass);
+                console.error('Invalid mass after eating food:', blob.mass);
                 blob.mass = 50;
             }
-
             blob.updateRadiusFromMass();
         }
         // 2. Hit Virus
         else if (other instanceof Virus) {
             // User request: Check if blob is ejected mass feeding the virus
-            if (blob instanceof EjectedMass || blob.constructor.name === 'EjectedMass') {
+            if (this.isEjectedMass(blob)) {
                 // Feed the virus
                 (other as Virus).feed();
 
@@ -682,6 +674,10 @@ export class PhysicsSystem {
         }
 
         return 0.82;
+    }
+
+    private isEjectedMass(blob: Blob | Food): blob is EjectedMass {
+        return blob instanceof EjectedMass || blob.isEjected === true;
     }
 }
 

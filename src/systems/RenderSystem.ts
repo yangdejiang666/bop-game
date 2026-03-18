@@ -4,6 +4,9 @@ import { Blob } from '../entities/Blob';
 import { Player } from '../entities/Player';
 import { Bot } from '../entities/Bot';
 import { gameplayTuning } from '../gameplay/tuning';
+import { Food } from '../entities/Food';
+import { Virus } from '../entities/Virus';
+import { EjectedMass } from '../entities/EjectedMass';
 
 export class RenderSystem {
     private ctxGame: CanvasRenderingContext2D;
@@ -214,8 +217,8 @@ export class RenderSystem {
         // Check owner type
         let isPlayer = false;
         let isBot = false;
-        let isVirus = blob.constructor.name === 'Virus';
-        let isFood = blob.constructor.name === 'Food' || blob.constructor.name === 'EjectedMass';
+        const isVirus = blob instanceof Virus;
+        const isFood = blob instanceof Food || blob instanceof EjectedMass || blob.isEjected;
 
         if (blob.owner instanceof Player) isPlayer = true;
         if (blob.owner instanceof Bot) isBot = true;
