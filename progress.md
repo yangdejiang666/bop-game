@@ -69,3 +69,8 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Spike explosion now scales with consumed virus size using tuning-driven bonuses (extra piece count, ring radius gain, impulse gain) while keeping circular spread structure.
 - 2026-03-18: Extended developer tuning toolbox with new controls for split spawn distance factor and all fed-virus parameters; snapshot tuning payload now includes fed-virus split settings for deterministic checks.
 - 2026-03-18: Validation: `npm run build` passed after all changes.
+- 2026-03-18: Added merge-cohesion PID-style tuning path for post-split regrouping: far distance returns faster, near distance slows down, plus damping and lock-phase multiplier to avoid overshoot and improve controllable regroup feel.
+- 2026-03-18: Refactored tuning toolbox into clearer categories (split dash, merge timing, merge cohesion PID, eject, decay, spike, global mapping) and exposed new merge cohesion parameters for live fitting.
+- 2026-03-18: Enforced developer mode default-off on page load (`developerMode` now resets to `false` when settings are loaded), so toolbox appears only after manual enable in current session.
+- 2026-03-18: Added merge cohesion snapshot fields (`cohesionNearRatio/cohesionFarRatio/cohesionNearGain/cohesionFarGain/cohesionDamping`) for deterministic validation via `render_game_to_text`.
+- 2026-03-18: Validation: `npm run build` passed after cohesion PID and toolbox category changes.

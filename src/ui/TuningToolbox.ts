@@ -37,7 +37,7 @@ const SECOND_FORMATTER = (value: number) => `${value.toFixed(2)}s`;
 
 const CONTROL_GROUPS: ControlGroup[] = [
     {
-        title: '分身惯性与距离',
+        title: '分身冲刺与出生',
         controls: [
             { path: 'split.base_impulse', label: '分身基础冲量', min: 5, max: 60, step: 0.1 },
             { path: 'split.mass_impulse_factor', label: '质量阻尼系数', min: 0.05, max: 1, step: 0.01 },
@@ -47,7 +47,12 @@ const CONTROL_GROUPS: ControlGroup[] = [
             { path: 'split.touch_epsilon', label: '贴边偏移', min: 0, max: 0.08, step: 0.001 },
             { path: 'split.grace_time', label: '分身保护时间', min: 0, max: 0.8, step: 0.01, formatter: SECOND_FORMATTER },
             { path: 'split.self_push_factor', label: '分身软推挤强度', min: 0.05, max: 1, step: 0.01 },
-            { path: 'split.direction_random_angle', label: '分身角度抖动(°)', min: 0, max: 8, step: 0.1 },
+            { path: 'split.direction_random_angle', label: '分身角度抖动(°)', min: 0, max: 8, step: 0.1 }
+        ]
+    },
+    {
+        title: '合球时间与阈值',
+        controls: [
             { path: 'merge.lock_time', label: '合球基础锁定', min: 0.5, max: 20, step: 0.1, formatter: SECOND_FORMATTER },
             { path: 'merge.min_lock_time', label: '合球最短锁定', min: 0.2, max: 12, step: 0.1, formatter: SECOND_FORMATTER },
             { path: 'merge.max_lock_time', label: '合球最长锁定', min: 4, max: 40, step: 0.1, formatter: SECOND_FORMATTER },
@@ -57,6 +62,21 @@ const CONTROL_GROUPS: ControlGroup[] = [
             { path: 'merge.high_total_mass_factor', label: '高总质量锁定系数', min: 0.5, max: 3.5, step: 0.01 },
             { path: 'merge.low_total_mass_anchor', label: '低总质量锚点', min: 35, max: 4000, step: 5 },
             { path: 'merge.high_total_mass_anchor', label: '高总质量锚点', min: 500, max: 50000, step: 50 }
+        ]
+    },
+    {
+        title: '分身回拢（PID风格）',
+        controls: [
+            { path: 'merge.cohesion_near_ratio', label: '近距离慢回拢阈值', min: 0, max: 2, step: 0.01 },
+            { path: 'merge.cohesion_far_ratio', label: '远距离快回拢阈值', min: 0.1, max: 6, step: 0.01 },
+            { path: 'merge.cohesion_near_gain', label: '近距离回拢增益', min: 0, max: 80, step: 0.1 },
+            { path: 'merge.cohesion_far_gain', label: '远距离回拢增益', min: 0.1, max: 140, step: 0.1 },
+            { path: 'merge.cohesion_pd_damping', label: '回拢阻尼（D项）', min: 0, max: 4, step: 0.01 },
+            { path: 'merge.cohesion_max_pull', label: '回拢最大拉力', min: 10, max: 1200, step: 1 },
+            { path: 'merge.cohesion_lock_multiplier', label: '锁定期回拢倍率', min: 0.1, max: 3, step: 0.01 },
+            { path: 'merge.buddy_pull_gain', label: '小球互相回拢增益', min: 0, max: 40, step: 0.1 },
+            { path: 'merge.buddy_max_pull', label: '小球互相最大拉力', min: 0, max: 1000, step: 1 },
+            { path: 'merge.attract_factor', label: '全局回拢缩放', min: 0.01, max: 1.5, step: 0.01 }
         ]
     },
     {
@@ -438,6 +458,21 @@ export class TuningToolbox {
             draft.merge.low_total_mass_factor,
             draft.merge.high_total_mass_factor
         );
+        draft.merge.cohesion_near_ratio = Math.max(0, draft.merge.cohesion_near_ratio);
+        draft.merge.cohesion_far_ratio = Math.max(
+            draft.merge.cohesion_near_ratio + 0.01,
+            draft.merge.cohesion_far_ratio
+        );
+        draft.merge.cohesion_near_gain = Math.max(0, draft.merge.cohesion_near_gain);
+        draft.merge.cohesion_far_gain = Math.max(
+            draft.merge.cohesion_near_gain,
+            draft.merge.cohesion_far_gain
+        );
+        draft.merge.cohesion_pd_damping = Math.max(0, draft.merge.cohesion_pd_damping);
+        draft.merge.cohesion_max_pull = Math.max(10, draft.merge.cohesion_max_pull);
+        draft.merge.cohesion_lock_multiplier = Math.max(0.1, draft.merge.cohesion_lock_multiplier);
+        draft.merge.buddy_pull_gain = Math.max(0, draft.merge.buddy_pull_gain);
+        draft.merge.buddy_max_pull = Math.max(0, draft.merge.buddy_max_pull);
     }
 
     private notifyChange() {
@@ -464,7 +499,7 @@ export class TuningToolbox {
         }
 
         this.versionInput.value = gameplayTuning.presetVersion;
-        this.derivedEl.textContent = `分身门槛 ${gameplayTuning.split.min_trigger_mass.toFixed(1)} / 子球下限 ${gameplayTuning.split.min_result_mass.toFixed(1)} / 细胞下限 ${gameplayTuning.limits.min_cell_mass.toFixed(1)}`;
+        this.derivedEl.textContent = `分身门槛 ${gameplayTuning.split.min_trigger_mass.toFixed(1)} / 子球下限 ${gameplayTuning.split.min_result_mass.toFixed(1)} / 回拢近远阈值 ${gameplayTuning.merge.cohesion_near_ratio.toFixed(2)}→${gameplayTuning.merge.cohesion_far_ratio.toFixed(2)}`;
         this.previewEl.value = JSON.stringify(cloneGameplayTuning(), null, 2);
     }
 

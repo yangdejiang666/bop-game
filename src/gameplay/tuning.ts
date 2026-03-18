@@ -70,6 +70,15 @@ export interface GameplayTuning {
         high_total_mass_factor: number;
         overlap_push_factor: number;
         attract_factor: number;
+        cohesion_near_ratio: number;
+        cohesion_far_ratio: number;
+        cohesion_near_gain: number;
+        cohesion_far_gain: number;
+        cohesion_pd_damping: number;
+        cohesion_max_pull: number;
+        cohesion_lock_multiplier: number;
+        buddy_pull_gain: number;
+        buddy_max_pull: number;
     };
 }
 
@@ -160,7 +169,16 @@ export const DEFAULT_GAMEPLAY_TUNING: GameplayTuning = {
         low_total_mass_factor: 0.72,
         high_total_mass_factor: 1.85,
         overlap_push_factor: 0.28,
-        attract_factor: 0.16
+        attract_factor: 0.16,
+        cohesion_near_ratio: 0.18,
+        cohesion_far_ratio: 1.4,
+        cohesion_near_gain: 5.5,
+        cohesion_far_gain: 21,
+        cohesion_pd_damping: 0.45,
+        cohesion_max_pull: 320,
+        cohesion_lock_multiplier: 1.2,
+        buddy_pull_gain: 7.5,
+        buddy_max_pull: 120
     }
 };
 
@@ -283,6 +301,30 @@ function sanitizeGameplayTuning(raw: GameplayTuningPatch | GameplayTuning | unde
         lowTotalMassFactor,
         4
     );
+    const cohesionNearRatio = toFiniteNumber(
+        mergeSource.cohesion_near_ratio,
+        defaults.merge.cohesion_near_ratio,
+        0,
+        4
+    );
+    const cohesionFarRatio = toFiniteNumber(
+        mergeSource.cohesion_far_ratio,
+        defaults.merge.cohesion_far_ratio,
+        cohesionNearRatio + 0.01,
+        8
+    );
+    const cohesionNearGain = toFiniteNumber(
+        mergeSource.cohesion_near_gain,
+        defaults.merge.cohesion_near_gain,
+        0,
+        100
+    );
+    const cohesionFarGain = toFiniteNumber(
+        mergeSource.cohesion_far_gain,
+        defaults.merge.cohesion_far_gain,
+        cohesionNearGain,
+        160
+    );
 
     const anchorMasses = toMassAnchors(
         decaySource.anchor_masses,
@@ -372,7 +414,16 @@ function sanitizeGameplayTuning(raw: GameplayTuningPatch | GameplayTuning | unde
             low_total_mass_factor: lowTotalMassFactor,
             high_total_mass_factor: highTotalMassFactor,
             overlap_push_factor: toFiniteNumber(mergeSource.overlap_push_factor, defaults.merge.overlap_push_factor, 0.01, 1.5),
-            attract_factor: toFiniteNumber(mergeSource.attract_factor, defaults.merge.attract_factor, 0.01, 1.5)
+            attract_factor: toFiniteNumber(mergeSource.attract_factor, defaults.merge.attract_factor, 0.01, 1.5),
+            cohesion_near_ratio: cohesionNearRatio,
+            cohesion_far_ratio: cohesionFarRatio,
+            cohesion_near_gain: cohesionNearGain,
+            cohesion_far_gain: cohesionFarGain,
+            cohesion_pd_damping: toFiniteNumber(mergeSource.cohesion_pd_damping, defaults.merge.cohesion_pd_damping, 0, 4),
+            cohesion_max_pull: toFiniteNumber(mergeSource.cohesion_max_pull, defaults.merge.cohesion_max_pull, 10, 1200),
+            cohesion_lock_multiplier: toFiniteNumber(mergeSource.cohesion_lock_multiplier, defaults.merge.cohesion_lock_multiplier, 0.1, 3),
+            buddy_pull_gain: toFiniteNumber(mergeSource.buddy_pull_gain, defaults.merge.buddy_pull_gain, 0, 40),
+            buddy_max_pull: toFiniteNumber(mergeSource.buddy_max_pull, defaults.merge.buddy_max_pull, 0, 1000)
         }
     };
 }
@@ -444,6 +495,15 @@ function assignGameplayTuning(target: GameplayTuning, source: GameplayTuning) {
     target.merge.high_total_mass_factor = source.merge.high_total_mass_factor;
     target.merge.overlap_push_factor = source.merge.overlap_push_factor;
     target.merge.attract_factor = source.merge.attract_factor;
+    target.merge.cohesion_near_ratio = source.merge.cohesion_near_ratio;
+    target.merge.cohesion_far_ratio = source.merge.cohesion_far_ratio;
+    target.merge.cohesion_near_gain = source.merge.cohesion_near_gain;
+    target.merge.cohesion_far_gain = source.merge.cohesion_far_gain;
+    target.merge.cohesion_pd_damping = source.merge.cohesion_pd_damping;
+    target.merge.cohesion_max_pull = source.merge.cohesion_max_pull;
+    target.merge.cohesion_lock_multiplier = source.merge.cohesion_lock_multiplier;
+    target.merge.buddy_pull_gain = source.merge.buddy_pull_gain;
+    target.merge.buddy_max_pull = source.merge.buddy_max_pull;
 }
 
 export function cloneGameplayTuning(source: GameplayTuning = gameplayTuning): GameplayTuning {

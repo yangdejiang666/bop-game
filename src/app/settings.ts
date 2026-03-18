@@ -47,7 +47,12 @@ export function loadGameSettings(): GameSettings {
         }
 
         const parsed = JSON.parse(raw) as LegacyGameSettingsShape;
-        return mergeGameSettings(parsed);
+        const merged = mergeGameSettings(parsed);
+        // Keep developer mode opt-in on every fresh page load.
+        return {
+            ...merged,
+            developerMode: false
+        };
     } catch (error) {
         console.error('Failed to load game settings:', error);
         return { ...DEFAULT_GAME_SETTINGS };

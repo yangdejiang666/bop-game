@@ -484,7 +484,7 @@ export class PhysicsSystem {
 
             const ownerMoveDir = this.getOwnerMoveDirection(mainBall.owner, cells);
             for (const cell of cells) {
-                if (cell === mainBall || cell.mergeTimer > 0) {
+                if (cell === mainBall) {
                     continue;
                 }
 
@@ -496,6 +496,7 @@ export class PhysicsSystem {
                 const relToMain = cell.position.sub(mainBall.position);
                 const relNorm = relToMain.mag() > 0 ? relToMain.normalize() : Vector.zero;
                 const aheadDot = ownerMoveDir.mag() > 0.0001 ? relNorm.dot(ownerMoveDir) : 0;
+                const toMainDir = toMain.normalize();
 
                 let directionalFactor = 1;
                 if (aheadDot > 0.18) {
@@ -511,8 +512,29 @@ export class PhysicsSystem {
                 else if (cell.mergeState === 'arranged') stateFactor = 1.05;
                 else if (cell.mergeState === 'ready') stateFactor = 1.35;
 
-                const gapToMain = Math.max(0, distToMain - idealMainDist * 0.92);
-                let mainPull = Math.min(gapToMain * 10, 220) * directionalFactor * stateFactor;
+                const targetDistance = idealMainDist * 0.92;
+                const gapToMain = Math.max(0, distToMain - targetDistance);
+                const gapRatio = this.clamp(gapToMain / Math.max(1, idealMainDist), 0, 8);
+                const rangeT = this.smoothstep(
+                    this.invLerp(
+                        gameplayTuning.merge.cohesion_near_ratio,
+                        gameplayTuning.merge.cohesion_far_ratio,
+                        gapRatio
+                    )
+                );
+                const adaptiveGain = this.lerp(
+                    gameplayTuning.merge.cohesion_near_gain,
+                    gameplayTuning.merge.cohesion_far_gain,
+                    rangeT
+                );
+                const relativeVelocity = cell.velocity.sub(mainBall.velocity);
+                const approachSpeed = relativeVelocity.dot(toMainDir);
+                const pdPull = gapToMain * adaptiveGain - approachSpeed * gameplayTuning.merge.cohesion_pd_damping;
+                const lockFactor = cell.mergeTimer > 0 ? gameplayTuning.merge.cohesion_lock_multiplier : 1;
+                let mainPull = this.clamp(pdPull, 0, gameplayTuning.merge.cohesion_max_pull)
+                    * directionalFactor
+                    * stateFactor
+                    * lockFactor;
 
                 if (aheadDot > 0.25 && distToMain < idealMainDist * 1.45) {
                     mainPull *= 0.1;
@@ -520,7 +542,7 @@ export class PhysicsSystem {
 
                 if (mainPull > 0) {
                     cell.velocity = cell.velocity.add(
-                        toMain.normalize().mult(mainPull * gameplayTuning.merge.attract_factor)
+                        toMainDir.mult(mainPull * gameplayTuning.merge.attract_factor)
                     );
                 }
 
@@ -539,7 +561,11 @@ export class PhysicsSystem {
                 const buddyGap = Math.max(0, buddyDistance - idealBuddyDist * 0.9);
                 if (buddyGap <= 0) continue;
 
-                const buddyPull = Math.min(buddyGap * 7.5, 120);
+                const buddyPull = this.clamp(
+                    buddyGap * gameplayTuning.merge.buddy_pull_gain,
+                    0,
+                    gameplayTuning.merge.buddy_max_pull
+                );
                 cell.velocity = cell.velocity.add(
                     toBuddy.normalize().mult(buddyPull * gameplayTuning.merge.attract_factor * 0.75)
                 );
@@ -674,6 +700,26 @@ export class PhysicsSystem {
         }
 
         return 0.82;
+    }
+
+    private clamp(value: number, min: number, max: number): number {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private invLerp(min: number, max: number, value: number): number {
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+            return 1;
+        }
+        return this.clamp((value - min) / (max - min), 0, 1);
+    }
+
+    private smoothstep(t: number): number {
+        const safeT = this.clamp(t, 0, 1);
+        return safeT * safeT * (3 - 2 * safeT);
+    }
+
+    private lerp(start: number, end: number, t: number): number {
+        return start + (end - start) * t;
     }
 
     private isEjectedMass(blob: Blob | Food): blob is EjectedMass {

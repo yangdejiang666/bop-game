@@ -62,6 +62,11 @@ export interface GameSessionSnapshot {
         splitLockTime: number;
         splitLockMin: number;
         splitLockMax: number;
+        cohesionNearRatio: number;
+        cohesionFarRatio: number;
+        cohesionNearGain: number;
+        cohesionFarGain: number;
+        cohesionDamping: number;
         ejectCostMass: number;
         ejectSpawnDistance: number;
         decayLoss30sAt200: number;
@@ -823,6 +828,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 splitLockTime: gameplayTuning.merge.lock_time,
                 splitLockMin: gameplayTuning.merge.min_lock_time,
                 splitLockMax: gameplayTuning.merge.max_lock_time,
+                cohesionNearRatio: gameplayTuning.merge.cohesion_near_ratio,
+                cohesionFarRatio: gameplayTuning.merge.cohesion_far_ratio,
+                cohesionNearGain: gameplayTuning.merge.cohesion_near_gain,
+                cohesionFarGain: gameplayTuning.merge.cohesion_far_gain,
+                cohesionDamping: gameplayTuning.merge.cohesion_pd_damping,
                 ejectCostMass: gameplayTuning.eject.cost_mass,
                 ejectSpawnDistance: gameplayTuning.eject.spawn_distance,
                 decayLoss30sAt200: gameplayTuning.decay.anchor_loss_30s[1] ?? 0,
