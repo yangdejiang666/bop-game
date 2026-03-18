@@ -21,7 +21,7 @@ import type { GameSettings } from '../app/settings';
 import { gameplayTuning } from '../gameplay/tuning';
 import { TuningToolbox } from '../ui/TuningToolbox';
 import type { LobbyModeId } from '../ui/LobbyUI';
-import { GameAudioManager } from '../audio/GameAudioManager';
+import { GameAudioManager, type GameAudioDebugState } from '../audio/GameAudioManager';
 
 const WORLD_SIZE = 6000;
 const DEFAULT_FOOD_COUNT = 1200;
@@ -143,6 +143,7 @@ export interface GameSessionSnapshot {
         showLeaderboard: boolean;
         developerMode: boolean;
     };
+    audio: GameAudioDebugState;
     match: {
         modeId: LobbyModeId;
         modeName: string;
@@ -1276,6 +1277,16 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const elapsedSeconds = getElapsedSeconds();
         const remainingSeconds = getRemainingSeconds();
+        const audioState = audioManager?.getDebugState() ?? {
+            supported: false,
+            contextState: 'unavailable',
+            unlocked: false,
+            wantsMusic: false,
+            musicLoopRunning: false,
+            splitSfxCount: 0,
+            ejectSfxCount: 0,
+            spikeSfxCount: 0
+        };
 
         return {
             isMounted: sessionRoot !== null,
@@ -1338,6 +1349,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 showLeaderboard: settings.showLeaderboard,
                 developerMode: settings.developerMode
             },
+            audio: audioState,
             match: {
                 modeId: modeConfig.id,
                 modeName: modeConfig.name,

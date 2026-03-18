@@ -114,6 +114,18 @@ export class PhysicsSystem {
 
                     // Push away or Merge
                     if (dist < minDist) {
+                        const smaller = blob.mass < other.mass ? blob : other;
+                        const larger = blob.mass < other.mass ? other : blob;
+                        const touchingSeparation = larger.radius + smaller.radius;
+                        const targetSeparation = touchingSeparation * (1 + gameplayTuning.split.touch_epsilon);
+                        const isSplitGrace = blob.splitGraceTimer > 0 || other.splitGraceTimer > 0;
+                        const isContainment = dist + smaller.radius < larger.radius * 0.995;
+
+                        // Only let one side of the pair resolve same-owner correction/merge.
+                        if (blob !== larger) {
+                            continue;
+                        }
+
                         // Check Merge Capability
                         if (blob.mergeTimer <= 0 && other.mergeTimer <= 0) {
                             // User request: Only merge when cells are arranged or ready
@@ -122,78 +134,42 @@ export class PhysicsSystem {
                             const otherReady = other.mergeState === 'arranged' || other.mergeState === 'ready';
 
                             if (blobReady && otherReady) {
-                                // Determine smaller and larger cells
-                                const smaller = blob.mass < other.mass ? blob : other;
-                                const larger = blob.mass < other.mass ? other : blob;
-
-                                // CRITICAL: Only process merge if THIS blob is the larger one
-                                // This prevents double-processing (both blob and other trying to merge)
-                                if (blob !== larger) {
-                                    continue; // Skip - let the larger blob handle the merge
-                                }
-
-                                // User request: Gradual merge - only merge when deeply overlapped
-                                // Condition: One cell's edge passes the other's center
-                                // This means: dist < larger.radius (larger cell covers smaller's center)
-                                // OR dist < smaller.radius (smaller cell's edge past larger's center)
+                                // Gradual merge starts from touching contact, no instant snap.
+                                // Keep cells on the surface while transferring mass over time.
                                 const overlapFactor = this.getMergePriorityOverlapFactor(larger, smaller);
-                                const deepOverlap = dist < Math.max(larger.radius, smaller.radius) * overlapFactor;
+                                const mergeContactDistance = touchingSeparation * this.clamp(overlapFactor, 0.65, 1.05);
+                                if (dist <= mergeContactDistance) {
+                                    const overlapDepth = this.clamp(
+                                        (mergeContactDistance - dist) / Math.max(1, touchingSeparation * 0.4),
+                                        0,
+                                        1
+                                    );
+                                    const mergeStrength = isContainment
+                                        ? this.lerp(1.25, 2.1, overlapDepth)
+                                        : this.lerp(0.75, 1.35, overlapDepth);
+                                    this.applyGradualMerge(larger, smaller, dt, mergeStrength);
 
-                                if (deepOverlap) {
-                                    // Gradual merge: transfer mass over multiple frames
-                                    // to avoid instant "snap merge" when cells touch deeply.
-                                    this.applyGradualMerge(larger, smaller, dt);
+                                    const mergeSurfacePush = isContainment ? 1.15 : 0.55;
+                                    this.keepSameOwnerSurfaceDistance(larger, smaller, dist, targetSeparation, mergeSurfacePush);
                                     continue;
                                 }
-                                // If not deep enough overlap, allow them to keep moving closer
-                                // The cohesion force will continue pulling them together
-                                // CRITICAL: Skip the push logic below to allow overlap!
-                                continue;
                             }
                         }
 
                         // Push logic (Push apart if not merging)
                         // 球球大作战风格：小球围绕大球边缘排列，不会藏进大球里面
-                        let dir = blob.position.sub(other.position).normalize();
-                        if (dir.mag() === 0) dir = new Vector(1, 0); // Safety default
-
-                        // 计算需要推开的距离
-                        // 确定哪个球大哪个球小
-                        const smaller = blob.mass < other.mass ? blob : other;
-                        const larger = blob.mass < other.mass ? other : blob;
-
-                        const touchingSeparation = larger.radius + smaller.radius;
-                        const targetSeparation = touchingSeparation * (1 + gameplayTuning.split.touch_epsilon);
-                        const isSplitGrace = blob.splitGraceTimer > 0 || other.splitGraceTimer > 0;
-
                         if (isSplitGrace && dist < touchingSeparation * 0.96) {
                             const minimumSeparation = touchingSeparation * (1 + gameplayTuning.split.touch_epsilon * 0.5);
-                            const antiStickPush = minimumSeparation - dist;
-                            if (antiStickPush > 0) {
-                                const totalM = blob.mass + other.mass;
-                                const blobRatio = other.mass / totalM;
-                                const otherRatio = blob.mass / totalM;
-                                blob.position = blob.position.add(dir.mult(antiStickPush * blobRatio * 0.35));
-                                other.position = other.position.sub(dir.mult(antiStickPush * otherRatio * 0.35));
-                            }
+                            this.keepSameOwnerSurfaceDistance(larger, smaller, dist, minimumSeparation, 0.35);
                         }
 
                         if (dist < targetSeparation) {
-                            // 计算需要推开多少
-                            const pushDist = targetSeparation - dist;
-                            const pushFactor = isSplitGrace
+                            const basePushFactor = isSplitGrace
                                 ? gameplayTuning.split.self_push_factor
                                 : gameplayTuning.merge.overlap_push_factor;
-
-                            // 基于质量分配推力：大球几乎不动，小球移动大部分
-                            const totalM = blob.mass + other.mass;
-                            const blobRatio = other.mass / totalM;  // blob 移动的比例
-                            const otherRatio = blob.mass / totalM;  // other 移动的比例
-
-                            // 应用硬碰撞推力，确保小球不会进入大球内部
-                            // Factor 1.0: 完全推开，不允许重叠
-                            blob.position = blob.position.add(dir.mult(pushDist * blobRatio * pushFactor));
-                            other.position = other.position.sub(dir.mult(pushDist * otherRatio * pushFactor));
+                            const enforcedPush = isContainment ? 0.92 : 0.62;
+                            const pushFactor = Math.max(basePushFactor, enforcedPush);
+                            this.keepSameOwnerSurfaceDistance(larger, smaller, dist, targetSeparation, pushFactor);
                         }
                     }
                     continue;
@@ -715,14 +691,50 @@ export class PhysicsSystem {
         return 0.82;
     }
 
-    private applyGradualMerge(larger: Blob, smaller: Blob, dt: number) {
+    private keepSameOwnerSurfaceDistance(
+        larger: Blob,
+        smaller: Blob,
+        distance: number,
+        targetSeparation: number,
+        pushFactor: number
+    ) {
+        if (!Number.isFinite(distance) || !Number.isFinite(targetSeparation)) {
+            return;
+        }
+
+        if (distance >= targetSeparation) {
+            return;
+        }
+
+        let direction = smaller.position.sub(larger.position);
+        if (direction.mag() <= 0.0001) {
+            const ownerDir = this.getOwnerMoveDirection(larger.owner, [larger, smaller]);
+            direction = ownerDir.mag() > 0.0001 ? ownerDir : new Vector(1, 0);
+        } else {
+            direction = direction.normalize();
+        }
+
+        const correction = (targetSeparation - distance) * this.clamp(pushFactor, 0.05, 1.4);
+        if (correction <= 0 || !Number.isFinite(correction)) {
+            return;
+        }
+
+        const totalMass = Math.max(1, larger.mass + smaller.mass);
+        const largerMoveRatio = this.clamp(smaller.mass / totalMass, 0.05, 0.95);
+        const smallerMoveRatio = this.clamp(larger.mass / totalMass, 0.05, 0.95);
+
+        larger.position = larger.position.sub(direction.mult(correction * largerMoveRatio));
+        smaller.position = smaller.position.add(direction.mult(correction * smallerMoveRatio));
+    }
+
+    private applyGradualMerge(larger: Blob, smaller: Blob, dt: number, strength: number = 1) {
         const safeDt = this.clamp(dt, 1 / 240, 1 / 20);
         if (!Number.isFinite(larger.mass) || !Number.isFinite(smaller.mass) || smaller.mass <= 0) {
             return;
         }
 
-        const mergeRate = this.getGradualMergeRate(larger, smaller);
-        const minTransfer = Math.max(0.25, gameplayTuning.limits.min_cell_mass * 0.02);
+        const mergeRate = this.getGradualMergeRate(larger, smaller) * this.clamp(strength, 0.3, 3);
+        const minTransfer = Math.max(0.25, gameplayTuning.limits.min_cell_mass * 0.02 * this.clamp(strength, 0.5, 2.4));
         const transferMass = this.clamp(
             smaller.mass * mergeRate * safeDt,
             minTransfer,

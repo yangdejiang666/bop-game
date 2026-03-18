@@ -1,5 +1,16 @@
 type OptionalAudioContext = AudioContext | null;
 
+export interface GameAudioDebugState {
+    supported: boolean;
+    contextState: AudioContextState | 'unavailable';
+    unlocked: boolean;
+    wantsMusic: boolean;
+    musicLoopRunning: boolean;
+    splitSfxCount: number;
+    ejectSfxCount: number;
+    spikeSfxCount: number;
+}
+
 export class GameAudioManager {
     private context: OptionalAudioContext = null;
     private masterGain: GainNode | null = null;
@@ -12,6 +23,10 @@ export class GameAudioManager {
     private droneGain: GainNode | null = null;
     private melodyStep = 0;
     private lastEjectAtMs = 0;
+    private unlockPending = false;
+    private splitSfxCount = 0;
+    private ejectSfxCount = 0;
+    private spikeSfxCount = 0;
     private readonly unlockHandler: () => void;
 
     constructor() {
@@ -22,13 +37,16 @@ export class GameAudioManager {
 
     start() {
         window.addEventListener('pointerdown', this.unlockHandler, { once: false, passive: true });
+        window.addEventListener('click', this.unlockHandler, { once: false, passive: true });
         window.addEventListener('keydown', this.unlockHandler);
         window.addEventListener('touchstart', this.unlockHandler, { once: false, passive: true });
         this.ensureContext();
+        this.resumeContextIfNeeded();
     }
 
     destroy() {
         window.removeEventListener('pointerdown', this.unlockHandler);
+        window.removeEventListener('click', this.unlockHandler);
         window.removeEventListener('keydown', this.unlockHandler);
         window.removeEventListener('touchstart', this.unlockHandler);
         this.stopMusic();
@@ -47,6 +65,7 @@ export class GameAudioManager {
 
     requestMusicStart() {
         this.wantsMusic = true;
+        this.resumeContextIfNeeded();
         this.tryStartMusicLoop();
     }
 
@@ -73,6 +92,7 @@ export class GameAudioManager {
     }
 
     playSplit() {
+        this.splitSfxCount += 1;
         this.playSweep(640, 380, 0.14, 0.12, 'triangle');
         this.playSweep(280, 190, 0.16, 0.08, 'sine', 0.01);
     }
@@ -83,23 +103,34 @@ export class GameAudioManager {
             return;
         }
         this.lastEjectAtMs = now;
+        this.ejectSfxCount += 1;
         this.playSweep(430, 270, 0.07, 0.07, 'sawtooth');
     }
 
     playSpikeBurst() {
+        this.spikeSfxCount += 1;
         this.playSweep(180, 70, 0.24, 0.2, 'square');
         this.playSweep(600, 190, 0.22, 0.09, 'triangle', 0.02);
+    }
+
+    getDebugState(): GameAudioDebugState {
+        return {
+            supported: this.context !== null,
+            contextState: this.context?.state ?? 'unavailable',
+            unlocked: this.unlocked,
+            wantsMusic: this.wantsMusic,
+            musicLoopRunning: this.musicLoopTimer !== null,
+            splitSfxCount: this.splitSfxCount,
+            ejectSfxCount: this.ejectSfxCount,
+            spikeSfxCount: this.spikeSfxCount
+        };
     }
 
     private unlockFromGesture() {
         if (!this.ensureContext() || !this.context) {
             return;
         }
-        this.context.resume().catch(() => {
-            // Browsers may still block; we'll retry on next gesture.
-        });
-        this.unlocked = this.context.state === 'running';
-        this.tryStartMusicLoop();
+        this.resumeContextIfNeeded();
     }
 
     private ensureContext(): boolean {
@@ -125,6 +156,32 @@ export class GameAudioManager {
         this.sfxGain.connect(this.masterGain);
 
         return true;
+    }
+
+    private resumeContextIfNeeded() {
+        if (!this.context) {
+            return;
+        }
+
+        if (this.context.state === 'running') {
+            this.unlocked = true;
+            this.tryStartMusicLoop();
+            return;
+        }
+
+        if (this.unlockPending) {
+            return;
+        }
+
+        this.unlockPending = true;
+        this.context.resume().then(() => {
+            this.unlocked = this.context?.state === 'running';
+            this.tryStartMusicLoop();
+        }).catch(() => {
+            // Browsers may still block; we'll retry on next gesture.
+        }).finally(() => {
+            this.unlockPending = false;
+        });
     }
 
     private tryStartMusicLoop() {
@@ -178,7 +235,11 @@ export class GameAudioManager {
         waveType: OscillatorType,
         delay = 0
     ) {
-        if (!this.context || !this.sfxGain || this.context.state !== 'running') {
+        if (!this.context || !this.sfxGain) {
+            return;
+        }
+        if (this.context.state !== 'running') {
+            this.resumeContextIfNeeded();
             return;
         }
 
@@ -207,7 +268,11 @@ export class GameAudioManager {
         waveType: OscillatorType,
         delay = 0
     ) {
-        if (!this.context || !this.musicGain || this.context.state !== 'running') {
+        if (!this.context || !this.musicGain) {
+            return;
+        }
+        if (this.context.state !== 'running') {
+            this.resumeContextIfNeeded();
             return;
         }
 
