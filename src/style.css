@@ -411,6 +411,8 @@ button {
     opacity: 0;
     visibility: hidden;
     transition: opacity 220ms ease, visibility 220ms ease;
+    overflow: auto;
+    overscroll-behavior: contain;
 }
 
 .lobby-overlay.is-visible {
@@ -440,14 +442,15 @@ button {
     grid-template-rows: auto 1fr auto;
     gap: 26px;
     width: min(1380px, calc(100% - 40px));
-    height: calc(100% - 40px);
+    height: min(960px, calc(100dvh - 40px));
+    max-height: calc(100dvh - 40px);
     margin: 20px auto;
     padding: 26px 28px;
     border-radius: 32px;
     background: linear-gradient(180deg, rgba(8, 22, 36, 0.85), rgba(7, 18, 30, 0.74));
     border: 1px solid var(--panel-border);
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28);
-    overflow: visible;
+    overflow: hidden;
 }
 
 .lobby-overlay.is-modal-only .lobby-shell {
@@ -853,11 +856,13 @@ button {
 
 .settings-panel {
     width: min(560px, calc(100% - 28px));
+    max-height: calc(100dvh - 28px);
     padding: 24px;
     border-radius: 28px;
     background: linear-gradient(180deg, rgba(9, 22, 34, 0.98), rgba(7, 18, 30, 0.95));
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+    overflow: auto;
 }
 
 .settings-header {
@@ -1051,7 +1056,8 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
 @media (max-width: 1023px) {
     .lobby-shell {
         width: min(100%, calc(100% - 20px));
-        height: calc(100% - 20px);
+        height: min(960px, calc(100dvh - 20px));
+        max-height: calc(100dvh - 20px);
         margin: 10px auto;
         padding: 20px;
     }
@@ -1094,6 +1100,9 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
         gap: 18px;
         padding: 16px;
         border-radius: 24px;
+        height: calc(100dvh - 12px);
+        max-height: calc(100dvh - 12px);
+        margin: 6px auto;
     }
 
     .lobby-grid {
@@ -1186,5 +1195,84 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
 
     .hud-timer-value {
         font-size: 24px;
+    }
+}
+
+@media (max-height: 860px) {
+    .lobby-shell {
+        width: min(100%, calc(100% - 16px));
+        height: calc(100dvh - 16px);
+        max-height: calc(100dvh - 16px);
+        margin: 8px auto;
+        padding: 14px 16px;
+        border-radius: 22px;
+        gap: 14px;
+    }
+
+    .lobby-topbar {
+        gap: 12px;
+    }
+
+    .lobby-topbar-actions {
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .lobby-brand-mark {
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+        font-size: 18px;
+    }
+
+    .lobby-brand-title {
+        font-size: 24px;
+    }
+
+    .lobby-grid {
+        gap: 12px;
+        overflow: auto;
+    }
+
+    .lobby-hero {
+        gap: 12px;
+    }
+
+    .lobby-hero h1 {
+        font-size: clamp(24px, 4.8vh, 40px);
+        line-height: 1.16;
+    }
+
+    .lobby-hero p {
+        font-size: 15px;
+        line-height: 1.55;
+    }
+
+    .lobby-mode-card,
+    .lobby-side-card,
+    .lobby-highlight-card {
+        padding: 14px;
+        border-radius: 16px;
+    }
+
+    .lobby-footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        padding: 12px 14px;
+        border-radius: 18px;
+        background: rgba(7, 18, 30, 0.94);
+        backdrop-filter: blur(8px);
+    }
+
+    .lobby-footer-copy strong {
+        font-size: 22px;
+    }
+
+    .lobby-start-button {
+        min-width: 148px;
+        padding: 12px 18px;
+        font-size: 16px;
     }
 }

@@ -280,6 +280,10 @@ export class LobbyUI {
     showLobby() {
         this.root.classList.add('is-visible');
         this.root.classList.remove('is-modal-only', 'is-settings-open');
+        const shell = this.root.querySelector<HTMLElement>('.lobby-shell');
+        if (shell) {
+            shell.scrollTop = 0;
+        }
         const grid = this.root.querySelector<HTMLElement>('.lobby-grid');
         if (grid) {
             grid.scrollTop = 0;
