@@ -79,3 +79,9 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Validation: `npm run build` passed after gradual-merge fix.
 - 2026-03-18: Fixed fed-virus split visibility bug: baseline virus target logic in session update no longer instantly removes newly split viruses. `targetVirusCount` now acts as spawn floor only; overflow trimming applies only beyond `MAX_VIRUS_COUNT=64`.
 - 2026-03-18: Validation: `npm run build` passed after virus cap/baseline logic fix.
+- 2026-03-18: Completed lobby UI v2 restructure with six-mode layout (`排位赛/巅峰赛/经典/极速/团队/大逃杀`), keeping only classic playable while the other five modes provide locked placeholder feedback.
+- 2026-03-18: Added persistent profile settings fields `avatarDataUrl` and `equippedSkinId` to `GameSettings` (`src/app/settings.ts`), including merge-time sanitization and backward-compatible loading.
+- 2026-03-18: Rebuilt `LobbyUI` with top profile card (quick rename + avatar upload), left real-time 2D projector preview canvas, mode grid, and bottom feature strip (`商店/魔法屋/好友/排行榜`) with interactive placeholder tips.
+- 2026-03-18: Added avatar upload flow (image validation + local persistence + clear action), synchronized name editing in both topbar and settings modal, and skin preset chips shared between lobby and settings.
+- 2026-03-18: Added lobby v2 style overrides and responsive behavior in `src/style.css` to ensure desktop/tablet/mobile readability and keep core CTA/actions visible without text truncation.
+- 2026-03-18: Validation: `npm run build` passed after lobby v2 + profile/avatar/preview integration.

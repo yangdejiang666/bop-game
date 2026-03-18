@@ -11,11 +11,60 @@ interface LobbyUIOptions {
 interface ModeOption {
     id: string;
     name: string;
-    description: string;
+    subtitle: string;
     status: string;
     footerHint: string;
     playable: boolean;
 }
+
+interface SkinOption {
+    id: string;
+    name: string;
+    colorA: string;
+    colorB: string;
+    glow: string;
+}
+
+const MAX_PLAYER_NAME_LENGTH = 12;
+const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
+
+const SKIN_OPTIONS: SkinOption[] = [
+    {
+        id: 'classic_blue',
+        name: '经典蓝',
+        colorA: '#3ec5ff',
+        colorB: '#1f6dff',
+        glow: 'rgba(46, 174, 255, 0.48)'
+    },
+    {
+        id: 'mint_pop',
+        name: '薄荷泡泡',
+        colorA: '#56ffc0',
+        colorB: '#1ac788',
+        glow: 'rgba(40, 236, 169, 0.45)'
+    },
+    {
+        id: 'sunset_lava',
+        name: '熔岩余晖',
+        colorA: '#ffcf66',
+        colorB: '#ff6b4a',
+        glow: 'rgba(255, 145, 87, 0.48)'
+    },
+    {
+        id: 'neon_violet',
+        name: '霓虹紫电',
+        colorA: '#d18bff',
+        colorB: '#7657ff',
+        glow: 'rgba(154, 120, 255, 0.48)'
+    },
+    {
+        id: 'carbon_shadow',
+        name: '碳素暗影',
+        colorA: '#8aa0bf',
+        colorB: '#3e4f66',
+        glow: 'rgba(132, 163, 204, 0.38)'
+    }
+];
 
 export class LobbyUI {
     private root: HTMLDivElement;
@@ -24,42 +73,63 @@ export class LobbyUI {
     private readonly keydownHandler: (event: KeyboardEvent) => void;
     private readonly modeOptions: Record<string, ModeOption>;
     private selectedModeId: string;
+    private previewCanvas: HTMLCanvasElement | null = null;
+    private previewCtx: CanvasRenderingContext2D | null = null;
+    private previewFrameId: number | null = null;
+    private previewAvatarImage: HTMLImageElement | null = null;
+    private previewAvatarSrc = '';
+    private tipTimer: number | null = null;
 
     constructor(options: LobbyUIOptions) {
         this.options = options;
         this.settings = { ...options.settings };
-
         this.modeOptions = {
+            ranked: {
+                id: 'ranked',
+                name: '排位赛',
+                subtitle: '积分晋级 · 赛季结算',
+                status: '即将开放',
+                footerHint: '排位赛需要联机匹配与赛季数据支持，当前为占位预览。',
+                playable: false
+            },
+            peak: {
+                id: 'peak',
+                name: '巅峰赛',
+                subtitle: '高分对抗 · 顶尖段位',
+                status: '即将开放',
+                footerHint: '巅峰赛会在排位赛稳定后开放，当前为占位预览。',
+                playable: false
+            },
             classic: {
                 id: 'classic',
                 name: '经典模式',
-                description: '自由吞噬 · 最接近球球大作战主玩法',
-                status: '经典模式已接入',
-                footerHint: '昵称会在开始游戏后同步到你的球体名牌',
+                subtitle: '自由吞噬 · 单机可玩',
+                status: '已开放',
+                footerHint: '当前唯一可玩模式：点击开始游戏后进入新一局。',
                 playable: true
             },
             speed: {
                 id: 'speed',
                 name: '极速模式',
-                description: '更高刷新率和更激进的成长节奏',
-                status: '模式开发中',
-                footerHint: '极速模式暂未开放，正在调试节奏和结算逻辑。',
+                subtitle: '高节奏成长 · 快速对抗',
+                status: '即将开放',
+                footerHint: '极速模式正在调试成长曲线与结算节奏。',
                 playable: false
             },
             team: {
                 id: 'team',
-                name: '团战模式',
-                description: '队伍协作与吐球配合入口预留',
-                status: '模式开发中',
-                footerHint: '团战模式暂未开放，后续会接入组队机制。',
+                name: '团队模式',
+                subtitle: '队伍配合 · 吐球协同',
+                status: '即将开放',
+                footerHint: '团队模式暂未接入组队系统，当前为占位预览。',
                 playable: false
             },
-            survival: {
-                id: 'survival',
-                name: '生存模式',
-                description: '缩圈与高压追逐后续接入',
-                status: '模式开发中',
-                footerHint: '生存模式暂未开放，正在设计节奏和圈机制。',
+            battleRoyale: {
+                id: 'battleRoyale',
+                name: '大逃杀',
+                subtitle: '缩圈生存 · 极限翻盘',
+                status: '即将开放',
+                footerHint: '大逃杀模式将与缩圈机制联动，当前为占位预览。',
                 playable: false
             }
         };
@@ -67,163 +137,203 @@ export class LobbyUI {
 
         this.root = document.createElement('div');
         this.root.className = 'lobby-overlay';
-        this.root.innerHTML = `
+        this.root.innerHTML = this.buildTemplate();
+
+        this.previewCanvas = this.root.querySelector<HTMLCanvasElement>('[data-preview-canvas]');
+        this.previewCtx = this.previewCanvas?.getContext('2d') ?? null;
+
+        this.keydownHandler = (event) => {
+            if (event.key === 'Escape' && this.root.classList.contains('is-settings-open')) {
+                this.closeSettings();
+            }
+        };
+
+        this.bindEvents();
+        this.applySettingsToForm();
+        this.applySelectedModeUI();
+        this.startPreviewLoop();
+    }
+
+    mount(parent: HTMLElement) {
+        parent.appendChild(this.root);
+        window.addEventListener('keydown', this.keydownHandler);
+    }
+
+    destroy() {
+        window.removeEventListener('keydown', this.keydownHandler);
+        this.stopPreviewLoop();
+        if (this.tipTimer !== null) {
+            window.clearTimeout(this.tipTimer);
+            this.tipTimer = null;
+        }
+        this.root.remove();
+    }
+
+    showLobby() {
+        this.root.classList.add('is-visible');
+        this.root.classList.remove('is-modal-only', 'is-settings-open');
+        const shell = this.root.querySelector<HTMLElement>('.lobby-shell');
+        if (shell) {
+            shell.scrollTop = 0;
+        }
+        const main = this.root.querySelector<HTMLElement>('.lobby-main--v2');
+        if (main) {
+            main.scrollTop = 0;
+        }
+        const tip = this.root.querySelector<HTMLElement>('[data-inline-tip]');
+        if (tip) {
+            tip.textContent = '选择模式并开始游戏，其他入口当前为占位。';
+        }
+        (document.activeElement as HTMLElement | null)?.blur();
+    }
+
+    hideAll() {
+        this.root.classList.remove('is-visible', 'is-modal-only', 'is-settings-open');
+    }
+
+    openSettings(modalOnly: boolean) {
+        this.root.classList.add('is-visible', 'is-settings-open');
+        this.root.classList.toggle('is-modal-only', modalOnly);
+        this.options.onSettingsOpened();
+        this.root.querySelector<HTMLInputElement>('input[name="playerName"]')?.focus();
+    }
+
+    setSettings(settings: GameSettings) {
+        this.settings = { ...settings };
+        this.applySettingsToForm();
+    }
+
+    private buildTemplate(): string {
+        return `
             <div class="lobby-backdrop">
                 <div class="lobby-orb lobby-orb--one"></div>
                 <div class="lobby-orb lobby-orb--two"></div>
                 <div class="lobby-orb lobby-orb--three"></div>
             </div>
 
-            <div class="lobby-shell">
-                <header class="lobby-topbar">
-                    <div class="lobby-brand">
+            <div class="lobby-shell lobby-shell--v2">
+                <header class="lobby-topbar lobby-topbar--v2">
+                    <div class="lobby-brand lobby-brand--v2">
                         <div class="lobby-brand-mark">BOP</div>
                         <div>
-                            <div class="lobby-brand-title">球球派对大厅</div>
-                            <div class="lobby-brand-subtitle">经典吞噬 · 极速成长 · 轻竞技练习场</div>
+                            <div class="lobby-brand-title">球球竞技大厅</div>
+                            <div class="lobby-brand-subtitle">模式选择 · 个人资料 · 装扮预览</div>
                         </div>
                     </div>
 
-                    <div class="lobby-topbar-actions">
-                        <div class="lobby-player-pill">
-                            <div class="lobby-avatar">球</div>
-                            <div>
-                                <div class="lobby-player-name" data-player-name></div>
-                                <div class="lobby-player-status">本地账号 · 单机演练</div>
-                            </div>
+                    <div class="lobby-profile-card">
+                        <div class="lobby-avatar-stack">
+                            <button type="button" class="lobby-avatar-button" data-avatar-trigger aria-label="上传头像">
+                                <span class="lobby-avatar-slot" data-avatar-slot>
+                                    <img class="lobby-avatar-img" data-avatar-img alt="头像" />
+                                    <span class="lobby-avatar-fallback" data-avatar-fallback>球</span>
+                                </span>
+                                <span class="lobby-avatar-upload-text">上传头像</span>
+                            </button>
                         </div>
-
-                        <div class="lobby-resource-strip">
-                            <div class="lobby-resource-card">
-                                <span>金币</span>
-                                <strong>98,560</strong>
+                        <div class="lobby-profile-meta">
+                            <div class="lobby-profile-name-row">
+                                <strong data-player-name>勇者球球</strong>
+                                <span class="lobby-status-dot">在线</span>
                             </div>
-                            <div class="lobby-resource-card">
-                                <span>星贝</span>
-                                <strong>1,248</strong>
-                            </div>
+                            <label class="lobby-quick-name-wrap">
+                                <span>局内昵称</span>
+                                <input class="lobby-quick-name-input" data-quick-name type="text" maxlength="${MAX_PLAYER_NAME_LENGTH}" />
+                            </label>
                         </div>
-
-                        <button type="button" class="lobby-ghost-button" data-open-settings>设置</button>
+                        <button type="button" class="lobby-ghost-button lobby-ghost-button--compact" data-open-settings>设置</button>
                     </div>
                 </header>
 
-                <main class="lobby-grid">
-                    <section class="lobby-hero">
-                        <div class="lobby-badge">S1 训练赛季</div>
-                        <h1>先吃成巨无霸，再一口吞掉整张地图。</h1>
-                        <p>
-                            先把开局、大厅和设置手感做顺，再继续接玩法和联网。
-                            经典模式已经可玩，其他入口先做真实氛围占位。
-                        </p>
-
-                        <div class="lobby-highlights">
-                            <div class="lobby-highlight-card">
-                                <span>对局规模</span>
-                                <strong>50 球同场</strong>
+                <main class="lobby-main--v2">
+                    <section class="lobby-preview-panel--v2">
+                        <div class="lobby-panel-head">
+                            <div>
+                                <strong>装扮投影预览</strong>
+                                <small>昵称、头像、皮肤实时联动</small>
                             </div>
-                            <div class="lobby-highlight-card">
-                                <span>当前模式</span>
-                                <strong data-current-mode-label>经典自由战</strong>
-                            </div>
-                            <div class="lobby-highlight-card">
-                                <span>操作提示</span>
-                                <strong>空格分裂 / W吐球</strong>
-                            </div>
+                            <span class="lobby-tag" data-current-mode-label>经典模式</span>
+                        </div>
+                        <canvas class="lobby-preview-canvas" width="560" height="360" data-preview-canvas></canvas>
+                        <div class="lobby-skin-strip" role="group" aria-label="皮肤选择">
+                            ${this.buildSkinButtons('main')}
                         </div>
                     </section>
 
-                    <section class="lobby-mode-panel">
-                        <div class="lobby-section-heading">
-                            <span>模式选择</span>
-                            <strong data-mode-status>经典模式已接入</strong>
+                    <section class="lobby-mode-panel--v2">
+                        <div class="lobby-panel-head">
+                            <div>
+                                <strong>模式选择</strong>
+                                <small>六模式入口，当前仅经典开放</small>
+                            </div>
+                            <span class="lobby-tag lobby-tag--muted" data-mode-status>已开放</span>
                         </div>
-
-                        <div class="lobby-mode-card is-active" data-mode-id="classic" tabindex="0" role="button" aria-label="选择经典模式">
-                            <div class="lobby-mode-status">推荐</div>
-                            <div class="lobby-mode-title">经典模式</div>
-                            <div class="lobby-mode-meta">自由吞噬 · 最接近球球大作战主玩法</div>
-                            <ul>
-                                <li>地图资源丰富，适合测试成长节奏</li>
-                                <li>保留分裂、吐球、小地图和排行榜</li>
-                                <li>点击开始游戏后直接进入新一局</li>
-                            </ul>
-                        </div>
-
-                        <div class="lobby-mode-card is-disabled" data-mode-id="speed" tabindex="0" role="button" aria-label="选择极速模式">
-                            <div class="lobby-mode-status">即将开放</div>
-                            <div class="lobby-mode-title">极速模式</div>
-                            <div class="lobby-mode-meta">更高刷新率和更激进的成长节奏</div>
-                        </div>
-
-                        <div class="lobby-mode-card is-disabled" data-mode-id="team" tabindex="0" role="button" aria-label="选择团战模式">
-                            <div class="lobby-mode-status">即将开放</div>
-                            <div class="lobby-mode-title">团战模式</div>
-                            <div class="lobby-mode-meta">队伍协作与吐球配合入口预留</div>
-                        </div>
-
-                        <div class="lobby-mode-card is-disabled" data-mode-id="survival" tabindex="0" role="button" aria-label="选择生存模式">
-                            <div class="lobby-mode-status">即将开放</div>
-                            <div class="lobby-mode-title">生存模式</div>
-                            <div class="lobby-mode-meta">缩圈与高压追逐后续接入</div>
+                        <div class="lobby-mode-grid--v2">
+                            ${this.buildModeCards()}
                         </div>
                     </section>
-
-                    <aside class="lobby-side-panel">
-                        <div class="lobby-side-card">
-                            <div class="lobby-side-card-title">今日任务</div>
-                            <ul>
-                                <li>完成 1 场经典对局</li>
-                                <li>累计吞噬 200 个彩豆</li>
-                                <li>使用 5 次分裂冲刺</li>
-                            </ul>
-                        </div>
-
-                        <div class="lobby-side-card">
-                            <div class="lobby-side-card-title">活动中心</div>
-                            <p>大厅视觉、模式入口、任务模块都已经预留布局，后续可以接活动和赛季。</p>
-                        </div>
-
-                        <div class="lobby-side-card">
-                            <div class="lobby-side-card-title">商城占位</div>
-                            <p>皮肤、尾迹、头像框和贵族入口先做展示卡位，不接接口。</p>
-                        </div>
-
-                        <div class="lobby-side-card">
-                            <div class="lobby-side-card-title">签到位</div>
-                            <p>连续签到第 3 天，奖励预览：金币 x300 / 皮肤碎片 x2</p>
-                        </div>
-                    </aside>
                 </main>
 
-                <footer class="lobby-footer">
-                    <div class="lobby-footer-copy">
-                        <span>已选择</span>
-                        <strong data-selected-mode>经典模式</strong>
-                        <small data-selected-mode-hint>昵称会在开始游戏后同步到你的球体名牌</small>
+                <footer class="lobby-bottom--v2">
+                    <div class="lobby-feature-strip">
+                        <button type="button" class="lobby-feature-button" data-feature="shop">商店</button>
+                        <button type="button" class="lobby-feature-button" data-feature="magic">魔法屋</button>
+                        <button type="button" class="lobby-feature-button" data-feature="friends">好友</button>
+                        <button type="button" class="lobby-feature-button" data-feature="leaderboard">排行榜</button>
                     </div>
 
-                    <div class="lobby-footer-actions">
-                        <button type="button" class="lobby-ghost-button" data-open-settings>设置</button>
-                        <button type="button" class="lobby-start-button" data-start-game>开始游戏</button>
+                    <div class="lobby-footer-actions--v2">
+                        <div class="lobby-selection-copy">
+                            <span>当前选择</span>
+                            <strong data-selected-mode>经典模式</strong>
+                            <small data-selected-mode-hint>当前唯一可玩模式：点击开始游戏后进入新一局。</small>
+                        </div>
+                        <div class="lobby-action-buttons">
+                            <button type="button" class="lobby-ghost-button" data-open-settings>设置</button>
+                            <button type="button" class="lobby-start-button" data-start-game>开始游戏</button>
+                        </div>
+                    </div>
+
+                    <div class="lobby-inline-tip" data-inline-tip aria-live="polite">
+                        选择模式并开始游戏，其他入口当前为占位。
                     </div>
                 </footer>
             </div>
 
+            <input type="file" accept="image/*" data-avatar-input class="lobby-hidden-file-input" />
+
             <div class="settings-overlay">
-                <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+                <div class="settings-panel settings-panel--v2" role="dialog" aria-modal="true" aria-labelledby="settings-title">
                     <div class="settings-header">
                         <div>
                             <div class="settings-kicker">本地设置</div>
-                            <h2 id="settings-title">对局与界面配置</h2>
+                            <h2 id="settings-title">账号与对局配置</h2>
                         </div>
                         <button type="button" class="settings-close" data-close-settings aria-label="关闭设置">×</button>
                     </div>
 
+                    <div class="settings-avatar-row">
+                        <div class="settings-avatar-slot" data-avatar-slot>
+                            <img class="lobby-avatar-img" data-avatar-img alt="头像" />
+                            <span class="lobby-avatar-fallback" data-avatar-fallback>球</span>
+                        </div>
+                        <div class="settings-avatar-actions">
+                            <button type="button" class="lobby-ghost-button lobby-ghost-button--compact" data-avatar-trigger>上传头像</button>
+                            <button type="button" class="lobby-ghost-button lobby-ghost-button--compact" data-avatar-clear>清空头像</button>
+                        </div>
+                    </div>
+
                     <label class="settings-field">
                         <span>玩家昵称</span>
-                        <input type="text" name="playerName" maxlength="12" />
+                        <input type="text" name="playerName" maxlength="${MAX_PLAYER_NAME_LENGTH}" />
                     </label>
+
+                    <div class="settings-skin-area">
+                        <div class="settings-field-title">皮肤预设</div>
+                        <div class="lobby-skin-strip lobby-skin-strip--settings" role="group" aria-label="设置皮肤">
+                            ${this.buildSkinButtons('settings')}
+                        </div>
+                    </div>
 
                     <div class="settings-grid">
                         <label class="settings-toggle">
@@ -249,62 +359,49 @@ export class LobbyUI {
                     </div>
 
                     <div class="settings-footer">
-                        <p>设置保存在本地浏览器，下次打开仍会保留。</p>
+                        <p>设置保存在本地浏览器，刷新后仍会保留。</p>
                         <button type="button" class="lobby-start-button lobby-start-button--small" data-close-settings>完成</button>
                     </div>
                 </div>
             </div>
         `;
-
-        this.keydownHandler = (event) => {
-            if (event.key === 'Escape' && this.root.classList.contains('is-settings-open')) {
-                this.closeSettings();
-            }
-        };
-
-        this.bindEvents();
-        this.applySettingsToForm();
-        this.applySelectedModeUI();
     }
 
-    mount(parent: HTMLElement) {
-        parent.appendChild(this.root);
-        window.addEventListener('keydown', this.keydownHandler);
+    private buildModeCards(): string {
+        return Object.values(this.modeOptions).map((mode) => {
+            const disabledClass = mode.playable ? '' : ' is-disabled';
+            const activeClass = mode.id === this.selectedModeId ? ' is-active' : '';
+            return `
+                <article
+                    class="lobby-mode-card--v2${disabledClass}${activeClass}"
+                    data-mode-id="${mode.id}"
+                    tabindex="0"
+                    role="button"
+                    aria-label="选择${mode.name}"
+                >
+                    <div class="lobby-mode-card-head">
+                        <strong>${mode.name}</strong>
+                        <span>${mode.status}</span>
+                    </div>
+                    <p>${mode.subtitle}</p>
+                </article>
+            `;
+        }).join('');
     }
 
-    destroy() {
-        window.removeEventListener('keydown', this.keydownHandler);
-        this.root.remove();
-    }
-
-    showLobby() {
-        this.root.classList.add('is-visible');
-        this.root.classList.remove('is-modal-only', 'is-settings-open');
-        const shell = this.root.querySelector<HTMLElement>('.lobby-shell');
-        if (shell) {
-            shell.scrollTop = 0;
-        }
-        const grid = this.root.querySelector<HTMLElement>('.lobby-grid');
-        if (grid) {
-            grid.scrollTop = 0;
-        }
-        (document.activeElement as HTMLElement | null)?.blur();
-    }
-
-    hideAll() {
-        this.root.classList.remove('is-visible', 'is-modal-only', 'is-settings-open');
-    }
-
-    openSettings(modalOnly: boolean) {
-        this.root.classList.add('is-visible', 'is-settings-open');
-        this.root.classList.toggle('is-modal-only', modalOnly);
-        this.options.onSettingsOpened();
-        this.root.querySelector<HTMLInputElement>('input[name="playerName"]')?.focus();
-    }
-
-    setSettings(settings: GameSettings) {
-        this.settings = { ...settings };
-        this.applySettingsToForm();
+    private buildSkinButtons(group: 'main' | 'settings'): string {
+        return SKIN_OPTIONS.map((skin) => `
+            <button
+                type="button"
+                class="lobby-skin-chip"
+                data-skin-id="${skin.id}"
+                data-skin-group="${group}"
+                style="--skin-a:${skin.colorA};--skin-b:${skin.colorB};--skin-glow:${skin.glow};"
+            >
+                <span class="lobby-skin-chip-dot"></span>
+                <span>${skin.name}</span>
+            </button>
+        `).join('');
     }
 
     private bindEvents() {
@@ -327,6 +424,7 @@ export class LobbyUI {
             if (!mode.playable) {
                 this.root.classList.add('is-mode-locked');
                 window.setTimeout(() => this.root.classList.remove('is-mode-locked'), 240);
+                this.showFeatureTip(`${mode.name} 暂未开放，先体验经典模式。`);
                 return;
             }
 
@@ -358,10 +456,14 @@ export class LobbyUI {
             this.root.style.setProperty('--parallax-y', '0px');
         });
 
-        const playerNameInput = this.root.querySelector<HTMLInputElement>('input[name="playerName"]');
-        playerNameInput?.addEventListener('input', () => {
-            const playerName = playerNameInput.value.trim().slice(0, 12) || '勇者球球';
-            this.updateSettings({ playerName });
+        const quickNameInput = this.root.querySelector<HTMLInputElement>('[data-quick-name]');
+        quickNameInput?.addEventListener('input', () => {
+            this.updateSettings({ playerName: this.normalizePlayerName(quickNameInput.value) });
+        });
+
+        const settingsNameInput = this.root.querySelector<HTMLInputElement>('input[name="playerName"]');
+        settingsNameInput?.addEventListener('input', () => {
+            this.updateSettings({ playerName: this.normalizePlayerName(settingsNameInput.value) });
         });
 
         const toggles = ['showFps', 'showMinimap', 'showLeaderboard', 'developerMode', 'reducedMotion'] as const;
@@ -369,6 +471,62 @@ export class LobbyUI {
             this.root.querySelector<HTMLInputElement>(`input[name="${toggleName}"]`)?.addEventListener('change', (event) => {
                 const target = event.currentTarget as HTMLInputElement;
                 this.updateSettings({ [toggleName]: target.checked } as Partial<GameSettings>);
+            });
+        });
+
+        const avatarInput = this.root.querySelector<HTMLInputElement>('[data-avatar-input]');
+        this.root.querySelectorAll<HTMLElement>('[data-avatar-trigger]').forEach((button) => {
+            button.addEventListener('click', () => avatarInput?.click());
+        });
+
+        avatarInput?.addEventListener('change', async () => {
+            const file = avatarInput.files?.[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                this.showFeatureTip('请上传图片文件。');
+                avatarInput.value = '';
+                return;
+            }
+
+            if (file.size > MAX_AVATAR_SIZE_BYTES) {
+                this.showFeatureTip('头像文件过大，请选择 2MB 以内图片。');
+                avatarInput.value = '';
+                return;
+            }
+
+            try {
+                const dataUrl = await this.readFileAsDataUrl(file);
+                this.updateSettings({ avatarDataUrl: dataUrl });
+                this.showFeatureTip('头像已更新并保存到本地。');
+            } catch {
+                this.showFeatureTip('头像读取失败，请重试。');
+            }
+            avatarInput.value = '';
+        });
+
+        this.root.querySelector<HTMLElement>('[data-avatar-clear]')?.addEventListener('click', () => {
+            this.updateSettings({ avatarDataUrl: '' });
+            this.showFeatureTip('已清空头像，恢复默认。');
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-skin-id]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const skinId = button.dataset.skinId || SKIN_OPTIONS[0].id;
+                this.updateSettings({ equippedSkinId: skinId });
+            });
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-feature]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const feature = button.dataset.feature || '';
+                const tips: Record<string, string> = {
+                    shop: '商店入口已预留，后续可接皮肤与道具。',
+                    magic: '魔法屋入口已预留，后续可接抽取与升级。',
+                    friends: '好友系统入口已预留，后续接本地/联机关系。',
+                    leaderboard: '排行榜入口已预留，后续可接全服榜单。'
+                };
+                this.showFeatureTip(tips[feature] ?? '该功能入口已预留。');
             });
         });
     }
@@ -391,16 +549,24 @@ export class LobbyUI {
         });
 
         const heading = this.root.querySelector<HTMLElement>('[data-mode-status]');
-        if (heading) heading.textContent = mode.status;
+        if (heading) {
+            heading.textContent = mode.status;
+        }
 
         const currentModeLabel = this.root.querySelector<HTMLElement>('[data-current-mode-label]');
-        if (currentModeLabel) currentModeLabel.textContent = mode.playable ? '经典自由战' : `${mode.name}（预览）`;
+        if (currentModeLabel) {
+            currentModeLabel.textContent = mode.name;
+        }
 
         const footerMode = this.root.querySelector<HTMLElement>('[data-selected-mode]');
-        if (footerMode) footerMode.textContent = mode.name;
+        if (footerMode) {
+            footerMode.textContent = mode.name;
+        }
 
         const footerHint = this.root.querySelector<HTMLElement>('[data-selected-mode-hint]');
-        if (footerHint) footerHint.textContent = mode.footerHint;
+        if (footerHint) {
+            footerHint.textContent = mode.footerHint;
+        }
 
         const startButton = this.root.querySelector<HTMLButtonElement>('[data-start-game]');
         if (startButton) {
@@ -413,11 +579,9 @@ export class LobbyUI {
     private closeSettings() {
         const wasModalOnly = this.root.classList.contains('is-modal-only');
         this.root.classList.remove('is-settings-open', 'is-modal-only');
-
         if (!wasModalOnly) {
             this.root.classList.add('is-visible');
         }
-
         this.options.onSettingsClosed();
     }
 
@@ -426,28 +590,47 @@ export class LobbyUI {
             ...this.settings,
             ...patch
         };
-
         this.options.onSettingsChange(this.settings);
         this.applySettingsToForm();
     }
 
     private applySettingsToForm() {
-        const playerNameEl = this.root.querySelector<HTMLElement>('[data-player-name]');
-        if (playerNameEl) {
-            playerNameEl.textContent = this.settings.playerName;
+        const name = this.normalizePlayerName(this.settings.playerName);
+        if (name !== this.settings.playerName) {
+            this.settings.playerName = name;
         }
 
-        const playerNameInput = this.root.querySelector<HTMLInputElement>('input[name="playerName"]');
-        if (playerNameInput && playerNameInput.value !== this.settings.playerName) {
-            playerNameInput.value = this.settings.playerName;
+        this.root.querySelectorAll<HTMLElement>('[data-player-name]').forEach((el) => {
+            el.textContent = this.settings.playerName;
+        });
+
+        const quickNameInput = this.root.querySelector<HTMLInputElement>('[data-quick-name]');
+        if (quickNameInput && quickNameInput.value !== this.settings.playerName) {
+            quickNameInput.value = this.settings.playerName;
+        }
+
+        const settingsNameInput = this.root.querySelector<HTMLInputElement>('input[name="playerName"]');
+        if (settingsNameInput && settingsNameInput.value !== this.settings.playerName) {
+            settingsNameInput.value = this.settings.playerName;
         }
 
         const checkboxes = ['showFps', 'showMinimap', 'showLeaderboard', 'developerMode', 'reducedMotion'] as const;
-        checkboxes.forEach((name) => {
-            const checkbox = this.root.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+        checkboxes.forEach((nameKey) => {
+            const checkbox = this.root.querySelector<HTMLInputElement>(`input[name="${nameKey}"]`);
             if (checkbox) {
-                checkbox.checked = this.settings[name];
+                checkbox.checked = this.settings[nameKey];
             }
+        });
+
+        const safeSkinId = this.resolveSkinId(this.settings.equippedSkinId);
+        if (safeSkinId !== this.settings.equippedSkinId) {
+            this.settings.equippedSkinId = safeSkinId;
+        }
+
+        this.root.querySelectorAll<HTMLElement>('[data-skin-id]').forEach((button) => {
+            const selected = button.dataset.skinId === safeSkinId;
+            button.classList.toggle('is-active', selected);
+            button.setAttribute('aria-pressed', selected ? 'true' : 'false');
         });
 
         this.root.dataset.reducedMotion = String(this.settings.reducedMotion);
@@ -455,5 +638,249 @@ export class LobbyUI {
             this.root.style.setProperty('--parallax-x', '0px');
             this.root.style.setProperty('--parallax-y', '0px');
         }
+
+        this.syncAvatarSlots();
+        this.syncPreviewAvatarImage();
+        this.startPreviewLoop();
+    }
+
+    private syncAvatarSlots() {
+        const hasAvatar = this.settings.avatarDataUrl.trim().length > 0;
+        const fallbackChar = this.settings.playerName.trim().charAt(0) || '球';
+
+        this.root.querySelectorAll<HTMLElement>('[data-avatar-slot]').forEach((slot) => {
+            const img = slot.querySelector<HTMLImageElement>('[data-avatar-img]');
+            const fallback = slot.querySelector<HTMLElement>('[data-avatar-fallback]');
+            if (!img || !fallback) {
+                return;
+            }
+
+            if (hasAvatar) {
+                img.src = this.settings.avatarDataUrl;
+                img.classList.add('is-visible');
+                fallback.classList.remove('is-visible');
+                slot.classList.add('has-avatar');
+            } else {
+                img.removeAttribute('src');
+                img.classList.remove('is-visible');
+                fallback.textContent = fallbackChar;
+                fallback.classList.add('is-visible');
+                slot.classList.remove('has-avatar');
+            }
+        });
+    }
+
+    private syncPreviewAvatarImage() {
+        const src = this.settings.avatarDataUrl.trim();
+        if (!src) {
+            this.previewAvatarSrc = '';
+            this.previewAvatarImage = null;
+            return;
+        }
+
+        if (this.previewAvatarSrc === src && this.previewAvatarImage) {
+            return;
+        }
+
+        const image = new Image();
+        image.onload = () => {
+            this.previewAvatarImage = image;
+            this.previewAvatarSrc = src;
+        };
+        image.onerror = () => {
+            this.previewAvatarImage = null;
+            this.previewAvatarSrc = '';
+        };
+        image.src = src;
+    }
+
+    private normalizePlayerName(raw: string): string {
+        const next = raw.trim().slice(0, MAX_PLAYER_NAME_LENGTH);
+        return next.length > 0 ? next : '勇者球球';
+    }
+
+    private resolveSkinId(rawSkinId: string): string {
+        return SKIN_OPTIONS.some((skin) => skin.id === rawSkinId)
+            ? rawSkinId
+            : SKIN_OPTIONS[0].id;
+    }
+
+    private showFeatureTip(message: string) {
+        const tipEl = this.root.querySelector<HTMLElement>('[data-inline-tip]');
+        if (tipEl) {
+            tipEl.textContent = message;
+        }
+
+        this.root.classList.add('is-inline-tip-active');
+        if (this.tipTimer !== null) {
+            window.clearTimeout(this.tipTimer);
+        }
+        this.tipTimer = window.setTimeout(() => {
+            this.root.classList.remove('is-inline-tip-active');
+            this.tipTimer = null;
+        }, 2200);
+    }
+
+    private readFileAsDataUrl(file: File): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                if (typeof reader.result === 'string') {
+                    resolve(reader.result);
+                } else {
+                    reject(new Error('Failed to read avatar data URL.'));
+                }
+            };
+            reader.onerror = () => reject(reader.error ?? new Error('Failed to read avatar file.'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    private startPreviewLoop() {
+        if (!this.previewCanvas || !this.previewCtx) {
+            return;
+        }
+
+        this.stopPreviewLoop();
+        if (this.settings.reducedMotion) {
+            this.drawPreview(performance.now());
+            return;
+        }
+
+        const step = (timestamp: number) => {
+            this.drawPreview(timestamp);
+            this.previewFrameId = window.requestAnimationFrame(step);
+        };
+
+        this.previewFrameId = window.requestAnimationFrame(step);
+    }
+
+    private stopPreviewLoop() {
+        if (this.previewFrameId !== null) {
+            window.cancelAnimationFrame(this.previewFrameId);
+            this.previewFrameId = null;
+        }
+    }
+
+    private drawPreview(timestamp: number) {
+        if (!this.previewCanvas || !this.previewCtx) {
+            return;
+        }
+
+        const canvas = this.previewCanvas;
+        const ctx = this.previewCtx;
+        const width = canvas.width;
+        const height = canvas.height;
+        const motionRate = this.settings.reducedMotion ? 0 : 1;
+        const t = timestamp * 0.001;
+
+        const skin = SKIN_OPTIONS.find((item) => item.id === this.settings.equippedSkinId) ?? SKIN_OPTIONS[0];
+
+        ctx.clearRect(0, 0, width, height);
+
+        const bgGradient = ctx.createLinearGradient(0, 0, width, height);
+        bgGradient.addColorStop(0, 'rgba(12, 28, 45, 0.96)');
+        bgGradient.addColorStop(0.6, 'rgba(8, 18, 31, 0.98)');
+        bgGradient.addColorStop(1, 'rgba(6, 12, 24, 1)');
+        ctx.fillStyle = bgGradient;
+        ctx.fillRect(0, 0, width, height);
+
+        const projectorX = width * 0.5;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.11)';
+        ctx.fillRect(projectorX - 18, 12, 36, 12);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
+        ctx.fillRect(projectorX - 6, 24, 12, 48);
+
+        const beamGradient = ctx.createRadialGradient(projectorX, 68, 10, projectorX, 68, 240);
+        beamGradient.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+        beamGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = beamGradient;
+        ctx.beginPath();
+        ctx.moveTo(projectorX - 130, 76);
+        ctx.lineTo(projectorX + 130, 76);
+        ctx.lineTo(projectorX + 240, height - 18);
+        ctx.lineTo(projectorX - 240, height - 18);
+        ctx.closePath();
+        ctx.fill();
+
+        const ballBaseX = width * 0.5;
+        const ballBaseY = height * 0.57;
+        const offsetX = motionRate * Math.sin(t * 1.4) * 8;
+        const offsetY = motionRate * Math.cos(t * 1.1) * 5;
+        const pulse = 1 + motionRate * Math.sin(t * 2.2) * 0.03;
+        const radius = 78 * pulse;
+        const centerX = ballBaseX + offsetX;
+        const centerY = ballBaseY + offsetY;
+
+        const glow = ctx.createRadialGradient(centerX, centerY, 22, centerX, centerY, 180);
+        glow.addColorStop(0, skin.glow);
+        glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 180, 0, Math.PI * 2);
+        ctx.fill();
+
+        const fillGradient = ctx.createLinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
+        fillGradient.addColorStop(0, skin.colorA);
+        fillGradient.addColorStop(1, skin.colorB);
+        ctx.fillStyle = fillGradient;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius - 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+        ctx.beginPath();
+        ctx.arc(centerX - radius * 0.36, centerY - radius * 0.3, radius * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        const badgeRadius = 22;
+        const badgeX = centerX + radius * 0.58;
+        const badgeY = centerY - radius * 0.56;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+        ctx.clip();
+        if (this.previewAvatarImage) {
+            ctx.drawImage(
+                this.previewAvatarImage,
+                badgeX - badgeRadius,
+                badgeY - badgeRadius,
+                badgeRadius * 2,
+                badgeRadius * 2
+            );
+        } else {
+            ctx.fillStyle = 'rgba(12, 29, 46, 0.92)';
+            ctx.fillRect(badgeX - badgeRadius, badgeY - badgeRadius, badgeRadius * 2, badgeRadius * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.86)';
+            ctx.font = 'bold 20px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.settings.playerName.charAt(0) || '球', badgeX, badgeY + 1);
+        }
+        ctx.restore();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, badgeRadius + 1, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.36)';
+        ctx.fillRect(90, height - 64, width - 180, 38);
+        ctx.fillStyle = '#eff8ff';
+        ctx.font = '700 24px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.settings.playerName, width * 0.5, height - 45);
+
+        ctx.fillStyle = 'rgba(201, 227, 255, 0.8)';
+        ctx.font = '600 14px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.fillText(`皮肤：${skin.name}`, width * 0.5, 24);
     }
 }

@@ -2,6 +2,8 @@ export type GamePhase = 'lobby' | 'playing' | 'settings';
 
 export interface GameSettings {
     playerName: string;
+    avatarDataUrl: string;
+    equippedSkinId: string;
     showFps: boolean;
     showMinimap: boolean;
     showLeaderboard: boolean;
@@ -17,6 +19,8 @@ export const SETTINGS_STORAGE_KEY = 'bop:lobby-settings';
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
     playerName: '勇者球球',
+    avatarDataUrl: '',
+    equippedSkinId: 'classic_blue',
     showFps: true,
     showMinimap: true,
     showLeaderboard: true,
@@ -33,9 +37,24 @@ export function mergeGameSettings(settings?: LegacyGameSettingsShape): GameSetti
         normalized.developerMode = normalized.showDebugPanel;
     }
 
+    const safePlayerName = typeof normalized.playerName === 'string' && normalized.playerName.trim().length > 0
+        ? normalized.playerName.trim().slice(0, 12)
+        : DEFAULT_GAME_SETTINGS.playerName;
+
+    const safeAvatarDataUrl = typeof normalized.avatarDataUrl === 'string'
+        ? normalized.avatarDataUrl.slice(0, 2_000_000)
+        : DEFAULT_GAME_SETTINGS.avatarDataUrl;
+
+    const safeSkinId = typeof normalized.equippedSkinId === 'string' && normalized.equippedSkinId.trim().length > 0
+        ? normalized.equippedSkinId.trim().slice(0, 32)
+        : DEFAULT_GAME_SETTINGS.equippedSkinId;
+
     return {
         ...DEFAULT_GAME_SETTINGS,
-        ...normalized
+        ...normalized,
+        playerName: safePlayerName,
+        avatarDataUrl: safeAvatarDataUrl,
+        equippedSkinId: safeSkinId
     };
 }
 
