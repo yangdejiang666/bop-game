@@ -575,7 +575,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             ...bots.flatMap((bot) => bot.cells)
         ];
 
-        physics.update(activeBlobs, foods as Food[], viruses, quadTree, WORLD_SIZE, WORLD_SIZE);
+        physics.update(activeBlobs, foods as Food[], viruses, quadTree, WORLD_SIZE, WORLD_SIZE, dt);
         abilitySystem.tickRuntime(dt);
 
         const foodIndices: number[] = [];

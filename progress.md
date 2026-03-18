@@ -74,3 +74,6 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Enforced developer mode default-off on page load (`developerMode` now resets to `false` when settings are loaded), so toolbox appears only after manual enable in current session.
 - 2026-03-18: Added merge cohesion snapshot fields (`cohesionNearRatio/cohesionFarRatio/cohesionNearGain/cohesionFarGain/cohesionDamping`) for deterministic validation via `render_game_to_text`.
 - 2026-03-18: Validation: `npm run build` passed after cohesion PID and toolbox category changes.
+- 2026-03-18: Fixed same-owner instant merge regression: deep-overlap merge no longer snaps into one cell in a single frame. Merge now transfers mass progressively over time using frame-time aware rate, then removes the smaller cell only near end threshold.
+- 2026-03-18: Physics update now receives `dt` from the session loop (`createGameSession -> physics.update(..., dt)`) so merge progression remains smooth and time-consistent across frame rates.
+- 2026-03-18: Validation: `npm run build` passed after gradual-merge fix.

@@ -21,7 +21,8 @@ export class PhysicsSystem {
         viruses: Virus[],
         quadTree: QuadTree,
         worldWidth: number,
-        worldHeight: number
+        worldHeight: number,
+        dt: number = 1 / 60
     ) {
         // --- 1. Global Safety Cap (Anti-Freeze) ---
         // Force limit total entities to prevent memory crash
@@ -135,25 +136,9 @@ export class PhysicsSystem {
                                 const deepOverlap = dist < Math.max(larger.radius, smaller.radius) * overlapFactor;
 
                                 if (deepOverlap) {
-                                    // INSTANT MERGE: Combine all mass immediately
-                                    // This ensures NO mass loss and clean merging
-                                    const totalMass = smaller.mass + larger.mass;
-
-                                    // Validate total mass
-                                    if (isNaN(totalMass) || totalMass <= 0 || !isFinite(totalMass)) {
-                                        console.error('Invalid total mass in merge:', totalMass, 'from', smaller.mass, larger.mass);
-                                        continue;
-                                    }
-
-                                    // Apply total mass to larger cell
-                                    larger.mass = totalMass;
-                                    larger.updateRadiusFromMass();
-
-                                    // Remove smaller cell immediately
-                                    smaller.owner.removeCell(smaller);
-                                    smaller.mass = 0;
-                                    smaller.radius = 0;
-
+                                    // Gradual merge: transfer mass over multiple frames
+                                    // to avoid instant "snap merge" when cells touch deeply.
+                                    this.applyGradualMerge(larger, smaller, dt);
                                     continue;
                                 }
                                 // If not deep enough overlap, allow them to keep moving closer
@@ -700,6 +685,49 @@ export class PhysicsSystem {
         }
 
         return 0.82;
+    }
+
+    private applyGradualMerge(larger: Blob, smaller: Blob, dt: number) {
+        const safeDt = this.clamp(dt, 1 / 240, 1 / 20);
+        if (!Number.isFinite(larger.mass) || !Number.isFinite(smaller.mass) || smaller.mass <= 0) {
+            return;
+        }
+
+        const mergeRate = this.getGradualMergeRate(larger, smaller);
+        const minTransfer = Math.max(0.25, gameplayTuning.limits.min_cell_mass * 0.02);
+        const transferMass = this.clamp(
+            smaller.mass * mergeRate * safeDt,
+            minTransfer,
+            smaller.mass
+        );
+
+        if (!Number.isFinite(transferMass) || transferMass <= 0) {
+            return;
+        }
+
+        larger.mass += transferMass;
+        smaller.mass -= transferMass;
+        larger.updateRadiusFromMass();
+
+        const mergeRemoveThreshold = Math.max(1, gameplayTuning.limits.min_cell_mass * 0.03);
+        if (smaller.mass <= mergeRemoveThreshold) {
+            if (smaller.owner) {
+                smaller.owner.removeCell(smaller);
+            }
+            smaller.mass = 0;
+            smaller.radius = 0;
+            return;
+        }
+
+        smaller.updateRadiusFromMass();
+    }
+
+    private getGradualMergeRate(larger: Blob, smaller: Blob): number {
+        const safeLargerMass = Math.max(1, larger.mass);
+        const safeSmallerMass = Math.max(0, smaller.mass);
+        const ratio = this.clamp(safeSmallerMass / safeLargerMass, 0, 1);
+        // Larger ratio => slightly faster merge, but always over multiple frames.
+        return this.lerp(1.8, 3.6, ratio);
     }
 
     private clamp(value: number, min: number, max: number): number {
