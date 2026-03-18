@@ -85,3 +85,8 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Added avatar upload flow (image validation + local persistence + clear action), synchronized name editing in both topbar and settings modal, and skin preset chips shared between lobby and settings.
 - 2026-03-18: Added lobby v2 style overrides and responsive behavior in `src/style.css` to ensure desktop/tablet/mobile readability and keep core CTA/actions visible without text truncation.
 - 2026-03-18: Validation: `npm run build` passed after lobby v2 + profile/avatar/preview integration.
+- 2026-03-18: Added decorative mode icons for six lobby modes (ranked trophy, peak leaderboard, etc.) and updated mode card layout to show icon + mode title for clearer visual hierarchy.
+- 2026-03-18: Refined top lobby structure to match request: left-top personal home/avatar module, center branding, and right-top activity/task widgets.
+- 2026-03-18: Fixed name-clearing behavior: player name can now be empty in settings without auto-reverting to the old default; UI/in-game display now uses fallback label `未命名玩家` only for rendering.
+- 2026-03-18: Updated `GameSettings` merge logic to preserve empty playerName values (instead of forcing default), while still sanitizing max length and storage compatibility.
+- 2026-03-18: Validation: `npm run build` passed after icon/topbar/name-empty fixes.

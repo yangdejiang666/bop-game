@@ -1293,14 +1293,51 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
 }
 
 .lobby-topbar--v2 {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) auto minmax(280px, 0.9fr);
     gap: 18px;
-    align-items: center;
+    align-items: stretch;
 }
 
 .lobby-brand--v2 {
     align-items: center;
+    justify-self: center;
+}
+
+.lobby-right-widgets {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+}
+
+.lobby-mini-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.lobby-mini-card-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 18px;
+}
+
+.lobby-mini-card strong {
+    display: block;
+    font-size: 14px;
+}
+
+.lobby-mini-card small {
+    color: var(--text-soft);
+    font-size: 12px;
 }
 
 .lobby-profile-card {
@@ -1313,6 +1350,10 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.12);
     min-width: min(560px, 64vw);
+}
+
+.lobby-profile-card--home {
+    min-width: 0;
 }
 
 .lobby-avatar-button {
@@ -1559,6 +1600,22 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
     align-items: baseline;
 }
 
+.lobby-mode-title-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lobby-mode-icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 16px;
+}
+
 .lobby-mode-card-head strong {
     font-size: 18px;
 }
@@ -1725,12 +1782,20 @@ html[data-reduced-motion='true'] .lobby-feature-button {
     }
 
     .lobby-topbar--v2 {
-        flex-direction: column;
-        align-items: stretch;
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
 
     .lobby-profile-card {
         min-width: 0;
+    }
+
+    .lobby-brand--v2 {
+        justify-self: start;
+    }
+
+    .lobby-right-widgets {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .lobby-main--v2 {
@@ -1775,6 +1840,10 @@ html[data-reduced-motion='true'] .lobby-feature-button {
     .lobby-profile-card {
         grid-template-columns: auto 1fr;
         gap: 10px;
+    }
+
+    .lobby-right-widgets {
+        grid-template-columns: 1fr;
     }
 
     .lobby-profile-card .lobby-ghost-button {

@@ -12,6 +12,7 @@ interface ModeOption {
     id: string;
     name: string;
     subtitle: string;
+    icon: string;
     status: string;
     footerHint: string;
     playable: boolean;
@@ -88,6 +89,7 @@ export class LobbyUI {
                 id: 'ranked',
                 name: '排位赛',
                 subtitle: '积分晋级 · 赛季结算',
+                icon: '🏆',
                 status: '即将开放',
                 footerHint: '排位赛需要联机匹配与赛季数据支持，当前为占位预览。',
                 playable: false
@@ -96,6 +98,7 @@ export class LobbyUI {
                 id: 'peak',
                 name: '巅峰赛',
                 subtitle: '高分对抗 · 顶尖段位',
+                icon: '📈',
                 status: '即将开放',
                 footerHint: '巅峰赛会在排位赛稳定后开放，当前为占位预览。',
                 playable: false
@@ -104,6 +107,7 @@ export class LobbyUI {
                 id: 'classic',
                 name: '经典模式',
                 subtitle: '自由吞噬 · 单机可玩',
+                icon: '⚪',
                 status: '已开放',
                 footerHint: '当前唯一可玩模式：点击开始游戏后进入新一局。',
                 playable: true
@@ -112,6 +116,7 @@ export class LobbyUI {
                 id: 'speed',
                 name: '极速模式',
                 subtitle: '高节奏成长 · 快速对抗',
+                icon: '⚡',
                 status: '即将开放',
                 footerHint: '极速模式正在调试成长曲线与结算节奏。',
                 playable: false
@@ -120,6 +125,7 @@ export class LobbyUI {
                 id: 'team',
                 name: '团队模式',
                 subtitle: '队伍配合 · 吐球协同',
+                icon: '👥',
                 status: '即将开放',
                 footerHint: '团队模式暂未接入组队系统，当前为占位预览。',
                 playable: false
@@ -128,6 +134,7 @@ export class LobbyUI {
                 id: 'battleRoyale',
                 name: '大逃杀',
                 subtitle: '缩圈生存 · 极限翻盘',
+                icon: '🎯',
                 status: '即将开放',
                 footerHint: '大逃杀模式将与缩圈机制联动，当前为占位预览。',
                 playable: false
@@ -213,6 +220,29 @@ export class LobbyUI {
 
             <div class="lobby-shell lobby-shell--v2">
                 <header class="lobby-topbar lobby-topbar--v2">
+                    <div class="lobby-profile-card lobby-profile-card--home">
+                        <div class="lobby-avatar-stack">
+                            <button type="button" class="lobby-avatar-button" data-avatar-trigger aria-label="上传头像">
+                                <span class="lobby-avatar-slot" data-avatar-slot>
+                                    <img class="lobby-avatar-img" data-avatar-img alt="头像" />
+                                    <span class="lobby-avatar-fallback" data-avatar-fallback>球</span>
+                                </span>
+                                <span class="lobby-avatar-upload-text">更换头像</span>
+                            </button>
+                        </div>
+                        <div class="lobby-profile-meta">
+                            <div class="lobby-profile-name-row">
+                                <strong data-player-name>个人主页</strong>
+                                <span class="lobby-status-dot">在线</span>
+                            </div>
+                            <label class="lobby-quick-name-wrap">
+                                <span>局内昵称</span>
+                                <input class="lobby-quick-name-input" data-quick-name type="text" maxlength="${MAX_PLAYER_NAME_LENGTH}" />
+                            </label>
+                        </div>
+                        <button type="button" class="lobby-ghost-button lobby-ghost-button--compact" data-open-settings>个人主页</button>
+                    </div>
+
                     <div class="lobby-brand lobby-brand--v2">
                         <div class="lobby-brand-mark">BOP</div>
                         <div>
@@ -221,27 +251,21 @@ export class LobbyUI {
                         </div>
                     </div>
 
-                    <div class="lobby-profile-card">
-                        <div class="lobby-avatar-stack">
-                            <button type="button" class="lobby-avatar-button" data-avatar-trigger aria-label="上传头像">
-                                <span class="lobby-avatar-slot" data-avatar-slot>
-                                    <img class="lobby-avatar-img" data-avatar-img alt="头像" />
-                                    <span class="lobby-avatar-fallback" data-avatar-fallback>球</span>
-                                </span>
-                                <span class="lobby-avatar-upload-text">上传头像</span>
-                            </button>
-                        </div>
-                        <div class="lobby-profile-meta">
-                            <div class="lobby-profile-name-row">
-                                <strong data-player-name>勇者球球</strong>
-                                <span class="lobby-status-dot">在线</span>
+                    <div class="lobby-right-widgets">
+                        <div class="lobby-mini-card">
+                            <div class="lobby-mini-card-icon">🎉</div>
+                            <div>
+                                <strong>活动中心</strong>
+                                <small>春季冲榜活动进行中</small>
                             </div>
-                            <label class="lobby-quick-name-wrap">
-                                <span>局内昵称</span>
-                                <input class="lobby-quick-name-input" data-quick-name type="text" maxlength="${MAX_PLAYER_NAME_LENGTH}" />
-                            </label>
                         </div>
-                        <button type="button" class="lobby-ghost-button lobby-ghost-button--compact" data-open-settings>设置</button>
+                        <div class="lobby-mini-card">
+                            <div class="lobby-mini-card-icon">🧾</div>
+                            <div>
+                                <strong>今日任务</strong>
+                                <small>3 / 5 已完成</small>
+                            </div>
+                        </div>
                     </div>
                 </header>
 
@@ -380,7 +404,10 @@ export class LobbyUI {
                     aria-label="选择${mode.name}"
                 >
                     <div class="lobby-mode-card-head">
-                        <strong>${mode.name}</strong>
+                        <div class="lobby-mode-title-wrap">
+                            <span class="lobby-mode-icon">${mode.icon}</span>
+                            <strong>${mode.name}</strong>
+                        </div>
                         <span>${mode.status}</span>
                     </div>
                     <p>${mode.subtitle}</p>
@@ -600,8 +627,10 @@ export class LobbyUI {
             this.settings.playerName = name;
         }
 
+        const displayName = this.getDisplayName();
+
         this.root.querySelectorAll<HTMLElement>('[data-player-name]').forEach((el) => {
-            el.textContent = this.settings.playerName;
+            el.textContent = displayName;
         });
 
         const quickNameInput = this.root.querySelector<HTMLInputElement>('[data-quick-name]');
@@ -646,7 +675,7 @@ export class LobbyUI {
 
     private syncAvatarSlots() {
         const hasAvatar = this.settings.avatarDataUrl.trim().length > 0;
-        const fallbackChar = this.settings.playerName.trim().charAt(0) || '球';
+        const fallbackChar = this.getDisplayName().charAt(0) || '球';
 
         this.root.querySelectorAll<HTMLElement>('[data-avatar-slot]').forEach((slot) => {
             const img = slot.querySelector<HTMLImageElement>('[data-avatar-img]');
@@ -695,8 +724,13 @@ export class LobbyUI {
     }
 
     private normalizePlayerName(raw: string): string {
-        const next = raw.trim().slice(0, MAX_PLAYER_NAME_LENGTH);
-        return next.length > 0 ? next : '勇者球球';
+        return raw.trim().slice(0, MAX_PLAYER_NAME_LENGTH);
+    }
+
+    private getDisplayName(): string {
+        return this.settings.playerName.trim().length > 0
+            ? this.settings.playerName
+            : '未命名玩家';
     }
 
     private resolveSkinId(rawSkinId: string): string {
@@ -775,6 +809,7 @@ export class LobbyUI {
         const t = timestamp * 0.001;
 
         const skin = SKIN_OPTIONS.find((item) => item.id === this.settings.equippedSkinId) ?? SKIN_OPTIONS[0];
+        const displayName = this.getDisplayName();
 
         ctx.clearRect(0, 0, width, height);
 
@@ -861,7 +896,7 @@ export class LobbyUI {
             ctx.font = 'bold 20px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(this.settings.playerName.charAt(0) || '球', badgeX, badgeY + 1);
+            ctx.fillText(displayName.charAt(0) || '球', badgeX, badgeY + 1);
         }
         ctx.restore();
 
@@ -877,7 +912,7 @@ export class LobbyUI {
         ctx.font = '700 24px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(this.settings.playerName, width * 0.5, height - 45);
+        ctx.fillText(displayName, width * 0.5, height - 45);
 
         ctx.fillStyle = 'rgba(201, 227, 255, 0.8)';
         ctx.font = '600 14px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';

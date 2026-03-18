@@ -37,7 +37,7 @@ export function mergeGameSettings(settings?: LegacyGameSettingsShape): GameSetti
         normalized.developerMode = normalized.showDebugPanel;
     }
 
-    const safePlayerName = typeof normalized.playerName === 'string' && normalized.playerName.trim().length > 0
+    const safePlayerName = typeof normalized.playerName === 'string'
         ? normalized.playerName.trim().slice(0, 12)
         : DEFAULT_GAME_SETTINGS.playerName;
 

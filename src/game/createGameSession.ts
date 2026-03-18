@@ -158,6 +158,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
     }
 
+    function resolvePlayerDisplayName(rawName: string): string {
+        const trimmed = rawName.trim();
+        return trimmed.length > 0 ? trimmed : '未命名玩家';
+    }
+
     function createHud(): SessionHudRefs {
         const root = document.createElement('div');
         root.className = 'game-hud';
@@ -322,7 +327,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         );
 
         player = new Player(WORLD_SIZE / 2, WORLD_SIZE / 2);
-        player.displayName = settings.playerName;
+        player.displayName = resolvePlayerDisplayName(settings.playerName);
 
         bots = [];
         for (let i = 0; i < BOT_COUNT; i += 1) {
@@ -770,7 +775,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
 
         if (player) {
-            player.displayName = settings.playerName;
+            player.displayName = resolvePlayerDisplayName(settings.playerName);
         }
 
         syncHud();
@@ -803,7 +808,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             tuningVersion: gameplayTuning.presetVersion,
             massFloor: gameplayTuning.limits.min_cell_mass,
             decayRateNow: player ? Number(player.getCurrentDecayRate().toFixed(7)) : 0,
-            playerName: settings.playerName,
+            playerName: resolvePlayerDisplayName(settings.playerName),
             playerMass: totalMass,
             playerCellCount: player?.cells.length ?? 0,
             playerCellMasses,
