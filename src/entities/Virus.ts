@@ -1,27 +1,31 @@
 import { Blob } from './Blob';
 
 export class Virus extends Blob {
-    public feedCount: number = 0; // Track fed ejected mass count
-    public readonly SPLIT_THRESHOLD = 7; // Split after 7 feeds
+    public static readonly BASE_MASS = 480;
+    public static readonly BASE_RADIUS = Math.sqrt(Virus.BASE_MASS) * 3.5;
+    public feedCount: number = 0;
 
-    constructor(x: number, y: number) {
-        // Radius for ~480kg: sqrt(480) * 3.5 = 76.7
-        super(x, y, 76.7, '#33ff33'); // Green, larger size
-        // Manually set mass to match 480kg visual
-        this.mass = 480;
+    constructor(x: number, y: number, initialMass: number = Virus.BASE_MASS) {
+        super(x, y, Virus.BASE_RADIUS, '#33ff33');
+        this.mass = Math.max(1, initialMass);
+        this.updateRadiusFromMass();
         this.feedCount = 0;
     }
 
-    feed() {
+    feed(massGain: number) {
         this.feedCount++;
-
-        // User request: Visual feedback - virus grows when fed
-        // Add mass to make it visibly larger
-        this.mass += 10; // Small increment per feed
+        this.mass = Math.max(1, this.mass + Math.max(0, massGain));
         this.updateRadiusFromMass();
     }
 
-    canSplit(): boolean {
-        return this.feedCount >= this.SPLIT_THRESHOLD;
+    canSplit(feedThreshold: number, splitMassThreshold: number): boolean {
+        return this.feedCount >= Math.max(1, Math.floor(feedThreshold))
+            || this.mass >= Math.max(1, splitMassThreshold);
+    }
+
+    resetAfterSplit(resetMass: number) {
+        this.feedCount = 0;
+        this.mass = Math.max(1, resetMass);
+        this.updateRadiusFromMass();
     }
 }

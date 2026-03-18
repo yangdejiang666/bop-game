@@ -89,7 +89,7 @@ export class AbilitySystem {
         }
     }
 
-    explode(hitCell: Blob, virusPosition: Vector, controller: Controller, _virusRadius = 0) {
+    explode(hitCell: Blob, virusPosition: Vector, controller: Controller, virusRadius = 0) {
         const currentCellCount = controller.cells.length;
         const availableSlots = this.getMaxCells() - currentCellCount + 1;
         if (availableSlots < 2) return;
@@ -100,7 +100,19 @@ export class AbilitySystem {
             return;
         }
 
-        const targetCellCount = Math.max(2, Math.floor(gameplayTuning.spike.target_cell_count));
+        const baseVirusRadius = Math.sqrt(480) * 3.5;
+        const safeVirusRadius = Number.isFinite(virusRadius) && virusRadius > 0
+            ? virusRadius
+            : baseVirusRadius;
+        const virusScale = this.clamp(safeVirusRadius / baseVirusRadius, 0.6, 3.5);
+        const virusScaleBonus = Math.max(0, virusScale - 1);
+        const targetCellCount = Math.max(
+            2,
+            Math.floor(
+                gameplayTuning.spike.target_cell_count
+                + virusScaleBonus * gameplayTuning.spike.virus_size_piece_bonus
+            )
+        );
         const minPieceMass = Math.max(gameplayTuning.spike.min_piece_mass, minMassFloor);
         let targetCount = Math.floor(totalMass / minPieceMass);
         targetCount = Math.max(2, Math.min(availableSlots, targetCellCount, targetCount));
@@ -166,6 +178,10 @@ export class AbilitySystem {
         const angleStep = pieceMasses.length > 0 ? spreadRad / pieceMasses.length : spreadRad;
         const startAngle = baseAngle - spreadRad / 2;
         const impulseJitter = this.clamp(gameplayTuning.spike.burst_impulse_jitter, 0, 0.3);
+        const ringRadiusFactor = gameplayTuning.spike.ring_radius_factor
+            * (1 + virusScaleBonus * gameplayTuning.spike.virus_size_ring_bonus);
+        const burstImpulseBase = gameplayTuning.spike.burst_impulse
+            * (1 + virusScaleBonus * gameplayTuning.spike.virus_size_impulse_bonus);
 
         const dashTime = gameplayTuning.split.dash_time * 0.9;
         const graceTime = gameplayTuning.split.grace_time;
@@ -189,9 +205,9 @@ export class AbilitySystem {
             const dir = new Vector(Math.cos(angle), Math.sin(angle));
             const pieceMass = pieceMasses[i];
             const childRadius = Math.sqrt(pieceMass) * 3.5;
-            const spawnDistance = (hitCell.radius + childRadius) * gameplayTuning.spike.ring_radius_factor;
+            const spawnDistance = (hitCell.radius + childRadius) * ringRadiusFactor;
             const spawnPos = centerPosition.add(dir.mult(spawnDistance));
-            const burstImpulse = gameplayTuning.spike.burst_impulse
+            const burstImpulse = burstImpulseBase
                 * gameplayTuning.spikeImpulseScale
                 * this.randomRange(1 - impulseJitter, 1 + impulseJitter);
             const mergeLock = this.getMergeLockDuration(controllerTotalMass, pieceMass);
@@ -280,7 +296,9 @@ export class AbilitySystem {
             parentCell.dashTimer = Math.max(parentCell.dashTimer, dashTime * 0.35);
 
             const childRadius = Math.sqrt(childMass) * 3.5;
-            const offsetDistance = (parentCell.radius + childRadius) * (1 + gameplayTuning.split.touch_epsilon);
+            const offsetDistance = (parentCell.radius + childRadius)
+                * gameplayTuning.split.spawn_offset
+                * (1 + gameplayTuning.split.touch_epsilon);
             const splitPos = parentCell.position.add(dir.mult(offsetDistance));
             const splitCell = new Blob(splitPos.x, splitPos.y, 0, parentCell.color, childMass);
             splitCell.owner = parentCell.owner;

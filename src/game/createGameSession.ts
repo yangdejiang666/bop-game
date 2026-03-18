@@ -69,6 +69,10 @@ export interface GameSessionSnapshot {
         spikeTargetCells: number;
         spikeMaxPieceRatio: number;
         spikeVirusBonusMass: number;
+        spikeVirusFeedSplitFeeds: number;
+        spikeVirusFeedSplitMass: number;
+        spikeVirusFeedSplitDistance: number;
+        spikeVirusFeedSplitSpeed: number;
     };
     hud: {
         showFps: boolean;
@@ -825,7 +829,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 spikeMainRatio: gameplayTuning.spike.main_cell_ratio,
                 spikeTargetCells: gameplayTuning.spike.target_cell_count,
                 spikeMaxPieceRatio: gameplayTuning.spike.max_piece_ratio,
-                spikeVirusBonusMass: gameplayTuning.spike.virus_bonus_mass
+                spikeVirusBonusMass: gameplayTuning.spike.virus_bonus_mass,
+                spikeVirusFeedSplitFeeds: gameplayTuning.spike.virus_feed_split_feeds,
+                spikeVirusFeedSplitMass: gameplayTuning.spike.virus_feed_split_mass,
+                spikeVirusFeedSplitDistance: gameplayTuning.spike.virus_feed_split_distance,
+                spikeVirusFeedSplitSpeed: gameplayTuning.spike.virus_feed_split_speed
             },
             hud: {
                 showFps: settings.showFps,

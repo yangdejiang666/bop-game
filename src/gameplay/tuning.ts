@@ -47,6 +47,16 @@ export interface GameplayTuning {
         ring_radius_factor: number;
         circle_jitter_angle: number;
         virus_bonus_mass: number;
+        virus_feed_mass_gain: number;
+        virus_feed_split_feeds: number;
+        virus_feed_split_mass: number;
+        virus_feed_push_force: number;
+        virus_feed_split_speed: number;
+        virus_feed_split_distance: number;
+        virus_feed_reset_mass: number;
+        virus_size_piece_bonus: number;
+        virus_size_ring_bonus: number;
+        virus_size_impulse_bonus: number;
     };
     merge: {
         lock_time: number;
@@ -88,32 +98,32 @@ export const DEFAULT_GAMEPLAY_TUNING: GameplayTuning = {
         max_cells: 16
     },
     split: {
-        base_impulse: 26.0,
-        mass_impulse_factor: 0.33,
-        impulse_decay: 7.2,
-        dash_time: 0.42,
+        base_impulse: 60.0,
+        mass_impulse_factor: 0.27,
+        impulse_decay: 4.2,
+        dash_time: 0.25,
         spawn_offset: 1.18,
         spawn_mode: 'touching_then_inertia',
-        touch_epsilon: 0.02,
+        touch_epsilon: 0.004,
         grace_time: 0.18,
         min_result_mass: 35,
         min_trigger_mass: 70,
         direction_random_angle: 1.2,
-        self_push_factor: 0.22
+        self_push_factor: 0.75
     },
     eject: {
-        cost_mass: 16.0,
+        cost_mass: 14.6,
         spawn_mass: 14.5,
         spawn_distance: 20,
         launch_speed: 18.5,
         cooldown: 0.08,
         reabsorb_lock: 0.32,
-        recoil_factor: 0.05
+        recoil_factor: 0
     },
     decay: {
         // Anchors represent "loss ratio in 30s when idle and not eating".
         anchor_masses: [35, 200, 1000, 5000, 12000],
-        anchor_loss_30s: [0.0012, 0.008, 0.02, 0.055, 0.09],
+        anchor_loss_30s: [0.0012, 0.008, 0.02, 0.07, 0.1294],
         extra_cell_factor: 0.02
     },
     spike: {
@@ -127,7 +137,17 @@ export const DEFAULT_GAMEPLAY_TUNING: GameplayTuning = {
         spread_angle: 360,
         ring_radius_factor: 1.08,
         circle_jitter_angle: 0,
-        virus_bonus_mass: 200
+        virus_bonus_mass: 200,
+        virus_feed_mass_gain: 10,
+        virus_feed_split_feeds: 7,
+        virus_feed_split_mass: 550,
+        virus_feed_push_force: 50,
+        virus_feed_split_speed: 600,
+        virus_feed_split_distance: 140,
+        virus_feed_reset_mass: 480,
+        virus_size_piece_bonus: 3,
+        virus_size_ring_bonus: 0.35,
+        virus_size_impulse_bonus: 0.25
     },
     merge: {
         lock_time: 8.0,
@@ -223,6 +243,11 @@ function sanitizeGameplayTuning(raw: GameplayTuningPatch | GameplayTuning | unde
     const minPieceMass = toFiniteNumber(
         spikeSource.min_piece_mass,
         defaults.spike.min_piece_mass,
+        minCellMass
+    );
+    const virusFeedResetMass = toFiniteNumber(
+        spikeSource.virus_feed_reset_mass,
+        defaults.spike.virus_feed_reset_mass,
         minCellMass
     );
 
@@ -324,7 +349,17 @@ function sanitizeGameplayTuning(raw: GameplayTuningPatch | GameplayTuning | unde
             spread_angle: toFiniteNumber(spikeSource.spread_angle, defaults.spike.spread_angle, 30, 360),
             ring_radius_factor: toFiniteNumber(spikeSource.ring_radius_factor, defaults.spike.ring_radius_factor, 0.7, 2.2),
             circle_jitter_angle: toFiniteNumber(spikeSource.circle_jitter_angle, defaults.spike.circle_jitter_angle, 0, 15),
-            virus_bonus_mass: toFiniteNumber(spikeSource.virus_bonus_mass, defaults.spike.virus_bonus_mass, 0, 2000)
+            virus_bonus_mass: toFiniteNumber(spikeSource.virus_bonus_mass, defaults.spike.virus_bonus_mass, 0, 2000),
+            virus_feed_mass_gain: toFiniteNumber(spikeSource.virus_feed_mass_gain, defaults.spike.virus_feed_mass_gain, 0, 200),
+            virus_feed_split_feeds: Math.floor(toFiniteNumber(spikeSource.virus_feed_split_feeds, defaults.spike.virus_feed_split_feeds, 1, 64)),
+            virus_feed_split_mass: toFiniteNumber(spikeSource.virus_feed_split_mass, defaults.spike.virus_feed_split_mass, virusFeedResetMass, 10000),
+            virus_feed_push_force: toFiniteNumber(spikeSource.virus_feed_push_force, defaults.spike.virus_feed_push_force, 0, 500),
+            virus_feed_split_speed: toFiniteNumber(spikeSource.virus_feed_split_speed, defaults.spike.virus_feed_split_speed, 20, 2000),
+            virus_feed_split_distance: toFiniteNumber(spikeSource.virus_feed_split_distance, defaults.spike.virus_feed_split_distance, 0, 800),
+            virus_feed_reset_mass: virusFeedResetMass,
+            virus_size_piece_bonus: toFiniteNumber(spikeSource.virus_size_piece_bonus, defaults.spike.virus_size_piece_bonus, 0, 24),
+            virus_size_ring_bonus: toFiniteNumber(spikeSource.virus_size_ring_bonus, defaults.spike.virus_size_ring_bonus, 0, 2),
+            virus_size_impulse_bonus: toFiniteNumber(spikeSource.virus_size_impulse_bonus, defaults.spike.virus_size_impulse_bonus, 0, 2)
         },
         merge: {
             lock_time: toFiniteNumber(mergeSource.lock_time, defaults.merge.lock_time, 0, 40),
@@ -387,6 +422,16 @@ function assignGameplayTuning(target: GameplayTuning, source: GameplayTuning) {
     target.spike.ring_radius_factor = source.spike.ring_radius_factor;
     target.spike.circle_jitter_angle = source.spike.circle_jitter_angle;
     target.spike.virus_bonus_mass = source.spike.virus_bonus_mass;
+    target.spike.virus_feed_mass_gain = source.spike.virus_feed_mass_gain;
+    target.spike.virus_feed_split_feeds = source.spike.virus_feed_split_feeds;
+    target.spike.virus_feed_split_mass = source.spike.virus_feed_split_mass;
+    target.spike.virus_feed_push_force = source.spike.virus_feed_push_force;
+    target.spike.virus_feed_split_speed = source.spike.virus_feed_split_speed;
+    target.spike.virus_feed_split_distance = source.spike.virus_feed_split_distance;
+    target.spike.virus_feed_reset_mass = source.spike.virus_feed_reset_mass;
+    target.spike.virus_size_piece_bonus = source.spike.virus_size_piece_bonus;
+    target.spike.virus_size_ring_bonus = source.spike.virus_size_ring_bonus;
+    target.spike.virus_size_impulse_bonus = source.spike.virus_size_impulse_bonus;
 
     target.merge.lock_time = source.merge.lock_time;
     target.merge.min_lock_time = source.merge.min_lock_time;

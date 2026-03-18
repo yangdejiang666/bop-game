@@ -43,6 +43,7 @@ const CONTROL_GROUPS: ControlGroup[] = [
             { path: 'split.mass_impulse_factor', label: '质量阻尼系数', min: 0.05, max: 1, step: 0.01 },
             { path: 'split.impulse_decay', label: '冲量衰减速度', min: 0.1, max: 20, step: 0.1 },
             { path: 'split.dash_time', label: '冲刺持续时间', min: 0.05, max: 1.5, step: 0.01, formatter: SECOND_FORMATTER },
+            { path: 'split.spawn_offset', label: '分身出生距离系数', min: 0.8, max: 2.5, step: 0.01 },
             { path: 'split.touch_epsilon', label: '贴边偏移', min: 0, max: 0.08, step: 0.001 },
             { path: 'split.grace_time', label: '分身保护时间', min: 0, max: 0.8, step: 0.01, formatter: SECOND_FORMATTER },
             { path: 'split.self_push_factor', label: '分身软推挤强度', min: 0.05, max: 1, step: 0.01 },
@@ -95,7 +96,17 @@ const CONTROL_GROUPS: ControlGroup[] = [
             { path: 'spike.spread_angle', label: '扎刺圆周角度(°)', min: 30, max: 360, step: 1 },
             { path: 'spike.ring_radius_factor', label: '扎刺圆环半径系数', min: 0.7, max: 2.2, step: 0.01 },
             { path: 'spike.circle_jitter_angle', label: '圆周角度抖动(°)', min: 0, max: 15, step: 0.1 },
-            { path: 'spike.virus_bonus_mass', label: '吃刺增重质量', min: 0, max: 2000, step: 5 }
+            { path: 'spike.virus_bonus_mass', label: '吃刺增重质量', min: 0, max: 2000, step: 5 },
+            { path: 'spike.virus_feed_mass_gain', label: '喂刺每口增重', min: 0, max: 100, step: 0.1 },
+            { path: 'spike.virus_feed_split_feeds', label: '喂刺分裂口数阈值', min: 1, max: 32, step: 1 },
+            { path: 'spike.virus_feed_split_mass', label: '喂刺分裂质量阈值', min: 35, max: 2000, step: 1 },
+            { path: 'spike.virus_feed_push_force', label: '喂刺推动力', min: 0, max: 300, step: 1 },
+            { path: 'spike.virus_feed_split_speed', label: '新刺喷射速度', min: 20, max: 1500, step: 1 },
+            { path: 'spike.virus_feed_split_distance', label: '新刺生成距离', min: 0, max: 400, step: 1 },
+            { path: 'spike.virus_feed_reset_mass', label: '喂刺分裂后基础质量', min: 35, max: 1200, step: 1 },
+            { path: 'spike.virus_size_piece_bonus', label: '大刺额外分球增益', min: 0, max: 16, step: 0.1 },
+            { path: 'spike.virus_size_ring_bonus', label: '大刺圆环半径增益', min: 0, max: 2, step: 0.01 },
+            { path: 'spike.virus_size_impulse_bonus', label: '大刺爆开速度增益', min: 0, max: 2, step: 0.01 }
         ]
     },
     {
@@ -392,6 +403,16 @@ export class TuningToolbox {
         draft.spike.ring_radius_factor = clamp(draft.spike.ring_radius_factor, 0.7, 2.2);
         draft.spike.circle_jitter_angle = clamp(draft.spike.circle_jitter_angle, 0, 15);
         draft.spike.virus_bonus_mass = Math.max(0, draft.spike.virus_bonus_mass);
+        draft.spike.virus_feed_mass_gain = Math.max(0, draft.spike.virus_feed_mass_gain);
+        draft.spike.virus_feed_split_feeds = Math.max(1, Math.floor(draft.spike.virus_feed_split_feeds));
+        draft.spike.virus_feed_push_force = Math.max(0, draft.spike.virus_feed_push_force);
+        draft.spike.virus_feed_split_speed = Math.max(20, draft.spike.virus_feed_split_speed);
+        draft.spike.virus_feed_split_distance = Math.max(0, draft.spike.virus_feed_split_distance);
+        draft.spike.virus_feed_reset_mass = Math.max(draft.limits.min_cell_mass, draft.spike.virus_feed_reset_mass);
+        draft.spike.virus_feed_split_mass = Math.max(draft.spike.virus_feed_reset_mass, draft.spike.virus_feed_split_mass);
+        draft.spike.virus_size_piece_bonus = Math.max(0, draft.spike.virus_size_piece_bonus);
+        draft.spike.virus_size_ring_bonus = Math.max(0, draft.spike.virus_size_ring_bonus);
+        draft.spike.virus_size_impulse_bonus = Math.max(0, draft.spike.virus_size_impulse_bonus);
 
         if (draft.decay.anchor_masses.length > 0) {
             draft.decay.anchor_masses[0] = Math.max(

@@ -317,13 +317,14 @@ export class PhysicsSystem {
             // User request: Check if blob is ejected mass feeding the virus
             if (this.isEjectedMass(blob)) {
                 // Feed the virus
-                (other as Virus).feed();
+                const virus = other as Virus;
+                virus.feed(gameplayTuning.spike.virus_feed_mass_gain);
 
                 // User request: Push virus in direction of ejected mass
                 // Small push force to move virus slightly
                 const pushDirection = blob.velocity.normalize();
-                const pushForce = 50; // Subtle movement
-                (other as Virus).velocity = (other as Virus).velocity.add(pushDirection.mult(pushForce));
+                const pushForce = gameplayTuning.spike.virus_feed_push_force;
+                virus.velocity = virus.velocity.add(pushDirection.mult(pushForce));
 
                 // Remove ejected mass
                 const index = foods.indexOf(blob as any);
@@ -333,8 +334,11 @@ export class PhysicsSystem {
                 blob.mass = 0;
 
                 // Check if virus should split
-                if ((other as Virus).canSplit()) {
-                    this.splitVirus(other as Virus, viruses);
+                if (virus.canSplit(
+                    gameplayTuning.spike.virus_feed_split_feeds,
+                    gameplayTuning.spike.virus_feed_split_mass
+                )) {
+                    this.splitVirus(virus, viruses, worldWidth, worldHeight);
                 }
                 return;
             }
@@ -429,15 +433,10 @@ export class PhysicsSystem {
         }
     }
 
-    private splitVirus(virus: Virus, viruses: Virus[]) {
+    private splitVirus(virus: Virus, viruses: Virus[], worldWidth: number, worldHeight: number) {
         const pos = virus.position;
 
-        // Remove original virus
-        const index = viruses.indexOf(virus);
-        if (index > -1) viruses.splice(index, 1);
-
-        // User request: Split in direction of virus movement (last push direction)
-        // Use virus velocity to determine split direction
+        // Split in direction of virus movement (last feeding push direction).
         let splitDirection = virus.velocity.normalize();
 
         // If virus has no velocity, use random direction
@@ -446,19 +445,20 @@ export class PhysicsSystem {
             splitDirection = new Vector(Math.cos(angle), Math.sin(angle));
         }
 
-        const direction1 = splitDirection;
-        const direction2 = splitDirection.mult(-1); // Opposite direction
+        const childMass = gameplayTuning.spike.virus_feed_reset_mass;
+        const childDistance = gameplayTuning.spike.virus_feed_split_distance;
+        const childSpeed = gameplayTuning.spike.virus_feed_split_speed;
+        const childPosition = pos.add(splitDirection.mult(childDistance));
 
-        // Velocity: ejection speed (increased to ~600 px/s for greater separation)
-        const velocity = 600;
+        const childVirus = new Virus(childPosition.x, childPosition.y, childMass);
+        childVirus.velocity = splitDirection.mult(childSpeed);
 
-        const virus1 = new Virus(pos.x, pos.y);
-        virus1.velocity = direction1.mult(velocity);
+        virus.resetAfterSplit(childMass);
+        virus.velocity = splitDirection.mult(-childSpeed * 0.18);
 
-        const virus2 = new Virus(pos.x, pos.y);
-        virus2.velocity = direction2.mult(velocity);
-
-        viruses.push(virus1, virus2);
+        this.constrainToBounds(virus, worldWidth, worldHeight);
+        this.constrainToBounds(childVirus, worldWidth, worldHeight);
+        viruses.push(childVirus);
     }
 
     private applyCohesion(blobs: Blob[]) {
