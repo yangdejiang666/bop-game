@@ -24,6 +24,7 @@ import { TuningToolbox } from '../ui/TuningToolbox';
 const WORLD_SIZE = 6000;
 const DEFAULT_FOOD_COUNT = 1200;
 const DEFAULT_VIRUS_COUNT = 12;
+const MAX_VIRUS_COUNT = 64;
 const BOT_COUNT = 49;
 const LEADERBOARD_SIZE = 10;
 
@@ -601,10 +602,16 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             }
         }
 
+        // `targetVirusCount` is baseline spawn target.
+        // Feed-split viruses are allowed to exceed baseline so they remain visible.
         if (viruses.length < targetVirusCount && Math.random() < 0.1) {
             viruses.push(new Virus(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE));
-        } else if (viruses.length > targetVirusCount) {
-            viruses.pop();
+        } else if (viruses.length > MAX_VIRUS_COUNT) {
+            // Safety cap only; do not immediately delete feed-split results.
+            const overflow = viruses.length - MAX_VIRUS_COUNT;
+            for (let i = 0; i < overflow; i += 1) {
+                viruses.pop();
+            }
         }
 
         camera.follow(player, dt);

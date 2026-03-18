@@ -77,3 +77,5 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Fixed same-owner instant merge regression: deep-overlap merge no longer snaps into one cell in a single frame. Merge now transfers mass progressively over time using frame-time aware rate, then removes the smaller cell only near end threshold.
 - 2026-03-18: Physics update now receives `dt` from the session loop (`createGameSession -> physics.update(..., dt)`) so merge progression remains smooth and time-consistent across frame rates.
 - 2026-03-18: Validation: `npm run build` passed after gradual-merge fix.
+- 2026-03-18: Fixed fed-virus split visibility bug: baseline virus target logic in session update no longer instantly removes newly split viruses. `targetVirusCount` now acts as spawn floor only; overflow trimming applies only beyond `MAX_VIRUS_COUNT=64`.
+- 2026-03-18: Validation: `npm run build` passed after virus cap/baseline logic fix.
