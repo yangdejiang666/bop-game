@@ -420,11 +420,21 @@ button {
     margin-bottom: 14px;
 }
 
+.hud-debug-title--small {
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.78);
+}
+
 .hud-debug-row {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 8px;
     margin-bottom: 10px;
+}
+
+.hud-debug-row--compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .hud-debug-input {
@@ -448,6 +458,13 @@ button {
     height: 1px;
     margin: 14px 0;
     background: rgba(255, 255, 255, 0.14);
+}
+
+.hud-debug-tip {
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.76);
+    margin-top: -2px;
 }
 
 .hud-toolbox-host {
@@ -612,6 +629,233 @@ button {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
+}
+
+.matchmaking-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 220ms ease, visibility 220ms ease;
+    z-index: 26;
+    overflow: hidden;
+}
+
+.matchmaking-overlay.is-visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.matchmaking-backdrop {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 18% 22%, rgba(255, 193, 86, 0.26), transparent 30%),
+        radial-gradient(circle at 80% 16%, rgba(77, 145, 255, 0.26), transparent 32%),
+        radial-gradient(circle at 50% 78%, rgba(18, 240, 167, 0.2), transparent 34%),
+        linear-gradient(145deg, rgba(5, 14, 24, 0.9), rgba(8, 20, 33, 0.9));
+}
+
+.matchmaking-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(0.6px);
+    opacity: 0.75;
+    animation: matchOrbFloat 9s ease-in-out infinite;
+}
+
+.matchmaking-orb--a {
+    width: 190px;
+    height: 190px;
+    top: 8%;
+    left: 10%;
+    background: radial-gradient(circle, rgba(98, 190, 255, 0.6), rgba(46, 112, 255, 0.12));
+}
+
+.matchmaking-orb--b {
+    width: 150px;
+    height: 150px;
+    top: 66%;
+    left: 16%;
+    background: radial-gradient(circle, rgba(23, 236, 173, 0.64), rgba(10, 138, 112, 0.1));
+    animation-delay: 1.4s;
+}
+
+.matchmaking-orb--c {
+    width: 230px;
+    height: 230px;
+    top: 20%;
+    right: 9%;
+    background: radial-gradient(circle, rgba(255, 194, 98, 0.62), rgba(255, 120, 73, 0.1));
+    animation-delay: 2.1s;
+}
+
+.matchmaking-shell {
+    position: relative;
+    width: min(760px, calc(100% - 26px));
+    padding: 24px 26px 22px;
+    border-radius: 26px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background:
+        radial-gradient(circle at 50% -30%, rgba(83, 166, 255, 0.25), transparent 58%),
+        linear-gradient(180deg, rgba(9, 26, 43, 0.95), rgba(7, 16, 29, 0.96));
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.46);
+    text-align: center;
+}
+
+.matchmaking-cancel {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    color: rgba(241, 248, 255, 0.86);
+    background: rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.matchmaking-kicker {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: rgba(196, 223, 255, 0.86);
+    margin-top: 2px;
+}
+
+.matchmaking-title {
+    margin: 8px 0 6px;
+    font-size: clamp(28px, 5vw, 44px);
+    line-height: 1.12;
+}
+
+.matchmaking-title span {
+    color: #6be5ff;
+}
+
+.matchmaking-stage {
+    color: var(--text-soft);
+    font-size: 15px;
+}
+
+.matchmaking-ring-stage {
+    position: relative;
+    width: min(360px, 76vw);
+    aspect-ratio: 1;
+    margin: 20px auto 12px;
+    display: grid;
+    place-items: center;
+}
+
+.matchmaking-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.14);
+    animation: matchRingRotate 10s linear infinite;
+}
+
+.matchmaking-ring--outer {
+    inset: 0;
+    border-style: dashed;
+    border-color: rgba(88, 174, 255, 0.35);
+}
+
+.matchmaking-ring--mid {
+    inset: 12%;
+    border-color: rgba(25, 236, 173, 0.34);
+    animation-direction: reverse;
+    animation-duration: 8s;
+}
+
+.matchmaking-ring--inner {
+    inset: 24%;
+    border-color: rgba(255, 196, 94, 0.36);
+    animation-duration: 6.8s;
+}
+
+.matchmaking-core {
+    width: 49%;
+    height: 49%;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 2px;
+    background:
+        radial-gradient(circle at 34% 30%, rgba(152, 225, 255, 0.88), rgba(47, 121, 255, 0.88)),
+        linear-gradient(145deg, rgba(29, 81, 161, 0.82), rgba(15, 38, 80, 0.84));
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 40px rgba(84, 173, 255, 0.45);
+    animation: matchCorePulse 1.6s ease-in-out infinite;
+}
+
+.matchmaking-core strong {
+    font-size: clamp(32px, 7vw, 56px);
+    line-height: 1;
+}
+
+.matchmaking-core span {
+    font-size: 11px;
+    color: rgba(241, 248, 255, 0.82);
+}
+
+.matchmaking-count-line {
+    font-size: 15px;
+    color: rgba(232, 243, 255, 0.88);
+    margin-bottom: 10px;
+}
+
+.matchmaking-count-line strong {
+    color: #7ce9ff;
+}
+
+.matchmaking-progress-track {
+    position: relative;
+    width: min(520px, 100%);
+    height: 14px;
+    margin: 0 auto;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.matchmaking-progress-bar {
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background:
+        linear-gradient(90deg, #21e7b0 0%, #67d0ff 48%, #ffc25a 100%);
+    box-shadow: 0 0 18px rgba(104, 209, 255, 0.48);
+    transition: width 200ms ease;
+}
+
+.matchmaking-progress-meta {
+    width: min(520px, 100%);
+    margin: 7px auto 0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: rgba(224, 239, 255, 0.8);
+}
+
+.matchmaking-status {
+    margin-top: 13px;
+    color: rgba(229, 242, 255, 0.8);
+    font-size: 14px;
+}
+
+.matchmaking-overlay.is-confirming .matchmaking-stage {
+    color: #8bffc8;
+}
+
+.matchmaking-overlay.is-confirming .matchmaking-core {
+    animation-duration: 1s;
+    box-shadow: 0 0 54px rgba(126, 241, 172, 0.52);
 }
 
 .lobby-backdrop,
@@ -1235,10 +1479,51 @@ button {
     }
 }
 
+@keyframes matchRingRotate {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes matchCorePulse {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.06);
+    }
+}
+
+@keyframes matchOrbFloat {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0);
+    }
+
+    50% {
+        transform: translate3d(0, -22px, 0);
+    }
+}
+
 [data-reduced-motion='true'] .lobby-orb,
 html[data-reduced-motion='true'] .lobby-orb {
     animation: none;
     transform: translate3d(0, 0, 0);
+}
+
+[data-reduced-motion='true'] .matchmaking-orb,
+html[data-reduced-motion='true'] .matchmaking-orb,
+[data-reduced-motion='true'] .matchmaking-ring,
+html[data-reduced-motion='true'] .matchmaking-ring,
+[data-reduced-motion='true'] .matchmaking-core,
+html[data-reduced-motion='true'] .matchmaking-core {
+    animation: none;
 }
 
 [data-reduced-motion='true'] .lobby-start-button::after,
@@ -1253,6 +1538,16 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
         max-height: calc(100dvh - 20px);
         margin: 10px auto;
         padding: 20px;
+    }
+
+    .matchmaking-shell {
+        width: min(100%, calc(100% - 20px));
+        border-radius: 22px;
+        padding: 20px 16px 18px;
+    }
+
+    .matchmaking-ring-stage {
+        width: min(300px, 80vw);
     }
 
     .lobby-grid {
@@ -2093,6 +2388,40 @@ html[data-reduced-motion='true'] .match-record-banner {
     .lobby-start-button,
     .lobby-ghost-button {
         width: 100%;
+    }
+
+    .matchmaking-shell {
+        width: calc(100% - 12px);
+        border-radius: 18px;
+        padding: 18px 12px 16px;
+    }
+
+    .matchmaking-cancel {
+        right: 10px;
+        top: 10px;
+        padding: 7px 10px;
+        font-size: 12px;
+    }
+
+    .matchmaking-title {
+        margin-top: 10px;
+        font-size: clamp(24px, 8vw, 32px);
+    }
+
+    .matchmaking-stage {
+        font-size: 13px;
+    }
+
+    .matchmaking-ring-stage {
+        width: min(250px, 76vw);
+        margin-top: 16px;
+        margin-bottom: 8px;
+    }
+
+    .matchmaking-count-line,
+    .matchmaking-progress-meta,
+    .matchmaking-status {
+        font-size: 12px;
     }
 
     .settings-avatar-row {

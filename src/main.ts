@@ -14,6 +14,7 @@ import {
     type GameplayTuningPatch
 } from './gameplay/tuning';
 import { LobbyUI, type LobbyModeId } from './ui/LobbyUI';
+import { MatchmakingUI } from './ui/MatchmakingUI';
 
 declare global {
     interface Window {
@@ -22,6 +23,8 @@ declare global {
         export_gameplay_tuning: () => string;
         apply_gameplay_tuning: (patch: GameplayTuningPatch | string) => string;
         reset_gameplay_tuning: () => string;
+        debug_finish_match: (mode?: 'auto' | 'win' | 'lose' | 'record') => string;
+        debug_set_best_record: (value: number) => string;
     }
 }
 
@@ -40,6 +43,7 @@ document.body.appendChild(appRoot);
 let phase: GamePhase = 'lobby';
 let settings: GameSettings = loadGameSettings();
 let currentSession: GameSession | null = null;
+let pendingModeForMatch: LobbyModeId | null = null;
 
 function applyReducedMotionState() {
     document.documentElement.dataset.reducedMotion = String(settings.reducedMotion);
@@ -51,6 +55,7 @@ function syncSettings(nextSettings: GameSettings) {
     saveGameSettings(settings);
     applyReducedMotionState();
     lobbyUI.setSettings(settings);
+    matchmakingUI.setSettings(settings);
     currentSession?.applySettings(settings);
 }
 
@@ -61,6 +66,8 @@ function destroyCurrentSession() {
 
 function showLobby() {
     destroyCurrentSession();
+    pendingModeForMatch = null;
+    matchmakingUI.hide(true);
     phase = 'lobby';
     lobbyUI.showLobby();
     applyReducedMotionState();
@@ -73,17 +80,23 @@ function openSettings(modalOnly: boolean) {
 }
 
 function closeSettings() {
-    phase = currentSession ? 'playing' : 'lobby';
     if (currentSession) {
+        phase = 'playing';
+        lobbyUI.hideAll();
+    } else if (matchmakingUI.isActive()) {
+        phase = 'matching';
         lobbyUI.hideAll();
     } else {
+        phase = 'lobby';
         lobbyUI.showLobby();
     }
     applyReducedMotionState();
 }
 
-function startNewGame(modeId: LobbyModeId = 'classic') {
+function launchGame(modeId: LobbyModeId = 'classic') {
     destroyCurrentSession();
+    pendingModeForMatch = null;
+    matchmakingUI.hide(true);
 
     currentSession = createGameSession({
         settings,
@@ -100,9 +113,28 @@ function startNewGame(modeId: LobbyModeId = 'classic') {
     applyReducedMotionState();
 }
 
+function startMatchmaking(modeId: LobbyModeId = 'classic') {
+    destroyCurrentSession();
+    pendingModeForMatch = modeId;
+    phase = 'matching';
+    lobbyUI.hideAll();
+    matchmakingUI.start(modeId);
+    applyReducedMotionState();
+}
+
+const matchmakingUI = new MatchmakingUI({
+    settings,
+    onMatchReady: (modeId) => {
+        launchGame(modeId);
+    },
+    onCancelled: () => {
+        showLobby();
+    }
+});
+
 const lobbyUI = new LobbyUI({
     settings,
-    onStartGame: startNewGame,
+    onStartGame: startMatchmaking,
     onSettingsChange: syncSettings,
     onSettingsOpened: () => {
         phase = 'settings';
@@ -111,6 +143,7 @@ const lobbyUI = new LobbyUI({
     onSettingsClosed: closeSettings
 });
 
+matchmakingUI.mount(overlayMount);
 lobbyUI.mount(overlayMount);
 lobbyUI.showLobby();
 applyReducedMotionState();
@@ -127,6 +160,8 @@ window.render_game_to_text = () => {
             developerMode: settings.developerMode,
             reducedMotion: settings.reducedMotion
         },
+        matching: matchmakingUI.getSnapshot(),
+        pendingModeForMatch,
         session: currentSession?.getSnapshot() ?? null
     };
 
@@ -160,4 +195,34 @@ window.apply_gameplay_tuning = (patch: GameplayTuningPatch | string) => {
 window.reset_gameplay_tuning = () => {
     resetGameplayTuningToDefaults();
     return window.export_gameplay_tuning();
+};
+
+window.debug_finish_match = (mode = 'auto') => {
+    if (!currentSession) {
+        return window.render_game_to_text();
+    }
+
+    if (mode === 'win') {
+        currentSession.debugFinishMatch({ winner: 'player', subtitle: 'Console 调试：强制我方胜利。' });
+    } else if (mode === 'lose') {
+        currentSession.debugFinishMatch({ winner: 'bot', subtitle: 'Console 调试：强制我方失败。' });
+    } else if (mode === 'record') {
+        const snapshot = currentSession.getSnapshot();
+        const previewMass = Math.max(snapshot.playerMass, snapshot.match.bestMassRecord + 500);
+        currentSession.debugFinishMatch({
+            winner: 'player',
+            playerMass: previewMass,
+            forceNewRecord: true,
+            subtitle: 'Console 调试：新纪录庆祝预览。'
+        });
+    } else {
+        currentSession.debugFinishMatch();
+    }
+
+    return window.render_game_to_text();
+};
+
+window.debug_set_best_record = (value: number) => {
+    currentSession?.debugSetBestMassRecord(value);
+    return window.render_game_to_text();
 };

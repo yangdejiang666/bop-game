@@ -155,6 +155,15 @@ export interface GameSessionSnapshot {
     };
 }
 
+export type DebugMatchWinner = 'auto' | 'player' | 'bot' | 'teamA' | 'teamB';
+
+export interface DebugMatchFinishOptions {
+    winner?: DebugMatchWinner;
+    playerMass?: number;
+    forceNewRecord?: boolean;
+    subtitle?: string;
+}
+
 export interface GameSession {
     mount(root: HTMLElement): void;
     startNewGame(): void;
@@ -163,6 +172,8 @@ export interface GameSession {
     applySettings(settings: GameSettings): void;
     getSnapshot(): GameSessionSnapshot;
     advanceTime(ms: number): void;
+    debugFinishMatch(options?: DebugMatchFinishOptions): void;
+    debugSetBestMassRecord(value: number): void;
 }
 
 interface CreateGameSessionOptions {
@@ -256,6 +267,14 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         } catch (error) {
             console.error('Failed to persist best mass record:', error);
         }
+    }
+
+    function debugSetBestMassRecord(value: number) {
+        if (!Number.isFinite(value)) {
+            return;
+        }
+        bestMassRecord = Math.max(0, Math.floor(value));
+        saveBestMassRecord(bestMassRecord);
     }
 
     function getElapsedSeconds(now = performance.now()): number {
@@ -374,17 +393,42 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 <button class="hud-debug-button" data-action="virus">Set Virus</button>
             </div>
             <div class="hud-debug-divider"></div>
+            <div class="hud-debug-title hud-debug-title--small">结算调试接口</div>
+            <div class="hud-debug-row hud-debug-row--compact">
+                <button class="hud-debug-button" data-action="finish-auto">结束当前局</button>
+                <button class="hud-debug-button" data-action="finish-win">我方胜利</button>
+            </div>
+            <div class="hud-debug-row hud-debug-row--compact">
+                <button class="hud-debug-button" data-action="finish-lose">我方失败</button>
+                <button class="hud-debug-button" data-action="finish-record">新纪录庆祝</button>
+            </div>
+            <div class="hud-debug-row">
+                <input class="hud-debug-input" data-field="record" type="number" value="${bestMassRecord}" />
+                <button class="hud-debug-button" data-action="record-set">设纪录</button>
+            </div>
+            <div class="hud-debug-row hud-debug-row--compact">
+                <button class="hud-debug-button" data-action="record-reset">清空纪录</button>
+                <button class="hud-debug-button" data-action="copy-apis">复制接口</button>
+            </div>
+            <div class="hud-debug-tip" data-debug-tip>开发模式接口：结束当前局、强制胜负、新纪录预览、历史纪录读写。</div>
+            <div class="hud-debug-divider"></div>
             <div class="hud-toolbox-host"></div>
         `;
 
         const massInput = debugContainer.querySelector<HTMLInputElement>('[data-field="mass"]');
         const foodInput = debugContainer.querySelector<HTMLInputElement>('[data-field="food"]');
         const virusInput = debugContainer.querySelector<HTMLInputElement>('[data-field="virus"]');
+        const recordInput = debugContainer.querySelector<HTMLInputElement>('[data-field="record"]');
         const toolboxHost = debugContainer.querySelector<HTMLDivElement>('.hud-toolbox-host');
+        const debugTip = debugContainer.querySelector<HTMLDivElement>('[data-debug-tip]');
 
-        if (!massInput || !foodInput || !virusInput || !toolboxHost) {
+        if (!massInput || !foodInput || !virusInput || !recordInput || !toolboxHost || !debugTip) {
             throw new Error('Failed to initialize debug inputs.');
         }
+
+        const setDebugTip = (text: string) => {
+            debugTip.textContent = text;
+        };
 
         debugContainer.querySelector<HTMLButtonElement>('[data-action="mass"]')?.addEventListener('click', (event) => {
             (event.currentTarget as HTMLButtonElement | null)?.blur();
@@ -395,6 +439,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
             player.cells[0].mass = Math.max(gameplayTuning.limits.min_cell_mass, val);
             player.cells[0].updateRadiusFromMass();
+            setDebugTip(`已设置主球质量：${Math.floor(player.cells[0].mass)} kg`);
         });
 
         debugContainer.querySelector<HTMLButtonElement>('[data-action="food"]')?.addEventListener('click', (event) => {
@@ -402,6 +447,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             const val = Number.parseInt(foodInput.value, 10);
             if (!Number.isNaN(val) && val >= 0) {
                 targetFoodCount = val;
+                setDebugTip(`食物目标数量已更新：${targetFoodCount}`);
             }
         });
 
@@ -410,6 +456,79 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             const val = Number.parseInt(virusInput.value, 10);
             if (!Number.isNaN(val) && val >= 0) {
                 targetVirusCount = val;
+                setDebugTip(`刺球目标数量已更新：${targetVirusCount}`);
+            }
+        });
+
+        debugContainer.querySelector<HTMLButtonElement>('[data-action="finish-auto"]')?.addEventListener('click', (event) => {
+            (event.currentTarget as HTMLButtonElement | null)?.blur();
+            debugFinishMatch();
+            setDebugTip('已触发结算：按当前排名统计。');
+        });
+
+        debugContainer.querySelector<HTMLButtonElement>('[data-action="finish-win"]')?.addEventListener('click', (event) => {
+            (event.currentTarget as HTMLButtonElement | null)?.blur();
+            debugFinishMatch({
+                winner: modeConfig.teamMode ? 'teamA' : 'player',
+                subtitle: '开发者强制结算：我方胜利。'
+            });
+            setDebugTip('已触发结算：我方胜利。');
+        });
+
+        debugContainer.querySelector<HTMLButtonElement>('[data-action="finish-lose"]')?.addEventListener('click', (event) => {
+            (event.currentTarget as HTMLButtonElement | null)?.blur();
+            debugFinishMatch({
+                winner: modeConfig.teamMode ? 'teamB' : 'bot',
+                subtitle: '开发者强制结算：我方失败。'
+            });
+            setDebugTip('已触发结算：我方失败。');
+        });
+
+        debugContainer.querySelector<HTMLButtonElement>('[data-action="finish-record"]')?.addEventListener('click', (event) => {
+            (event.currentTarget as HTMLButtonElement | null)?.blur();
+            const baseMass = player ? getControllerMass(player) : gameplayTuning.limits.min_cell_mass;
+            const previewMass = Math.max(baseMass, bestMassRecord + 500);
+            debugFinishMatch({
+                winner: modeConfig.teamMode ? 'teamA' : 'player',
+                playerMass: previewMass,
+                forceNewRecord: true,
+                subtitle: '开发者强制结算：新纪录庆祝预览。'
+            });
+            setDebugTip(`已触发新纪录结算预览：${Math.floor(previewMass)} kg`);
+        });
+
+        debugContainer.querySelector<HTMLButtonElement>('[data-action="record-set"]')?.addEventListener('click', (event) => {
+            (event.currentTarget as HTMLButtonElement | null)?.blur();
+            const val = Number.parseInt(recordInput.value, 10);
+            if (Number.isNaN(val) || val < 0) {
+                return;
+            }
+            debugSetBestMassRecord(val);
+            recordInput.value = String(bestMassRecord);
+            setDebugTip(`历史纪录已设置为：${bestMassRecord} kg`);
+        });
+
+        debugContainer.querySelector<HTMLButtonElement>('[data-action="record-reset"]')?.addEventListener('click', (event) => {
+            (event.currentTarget as HTMLButtonElement | null)?.blur();
+            debugSetBestMassRecord(0);
+            recordInput.value = '0';
+            setDebugTip('历史纪录已清空。');
+        });
+
+        debugContainer.querySelector<HTMLButtonElement>('[data-action="copy-apis"]')?.addEventListener('click', async (event) => {
+            (event.currentTarget as HTMLButtonElement | null)?.blur();
+            const apiText = [
+                'window.debug_finish_match(mode?)',
+                '  mode: auto | win | lose | record',
+                'window.debug_set_best_record(value)',
+                'window.render_game_to_text()',
+                'window.advanceTime(ms)'
+            ].join('\n');
+            try {
+                await navigator.clipboard.writeText(apiText);
+                setDebugTip('调试接口已复制到剪贴板。');
+            } catch {
+                setDebugTip('复制失败，请手动查看控制台接口：window.debug_finish_match / window.debug_set_best_record');
             }
         });
 
@@ -559,14 +678,22 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultOverlay.classList.remove('is-visible', 'is-record', 'is-win');
     }
 
-    function finalizeTimedMatch(now = performance.now()) {
+    function finalizeTimedMatch(now = performance.now(), debugOptions: DebugMatchFinishOptions = {}) {
         if (matchFinished || !player || !hudRefs) {
             return;
         }
 
         const allControllers = [player, ...bots];
-        const playerMass = getControllerMass(player);
-        let resultSubtitle = `${modeConfig.durationSeconds / 60} 分钟结束，按体重排名结算。`;
+        const forcedWinner = debugOptions.winner ?? 'auto';
+        const overridePlayerMass = typeof debugOptions.playerMass === 'number' && Number.isFinite(debugOptions.playerMass)
+            ? Math.max(gameplayTuning.limits.min_cell_mass, Math.floor(debugOptions.playerMass))
+            : null;
+        const rawPlayerMass = getControllerMass(player);
+        const playerMass = overridePlayerMass ?? rawPlayerMass;
+        const playerMassDelta = playerMass - rawPlayerMass;
+        let resultSubtitle = modeConfig.timed
+            ? `${modeConfig.durationSeconds / 60} 分钟结束，按体重排名结算。`
+            : '开发者手动结束当前对局，按当前排名结算。';
 
         if (modeConfig.teamMode) {
             let teamATotal = 0;
@@ -582,21 +709,36 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 }
             });
 
-            const winnerIsTeamA = teamATotal >= teamBTotal;
+            const teamATotalForResult = teamATotal + playerMassDelta;
+            const teamBTotalForResult = teamBTotal;
+            const forcedTeam = forcedWinner === 'teamA' || forcedWinner === 'player'
+                ? 'teamA'
+                : (forcedWinner === 'teamB' || forcedWinner === 'bot' ? 'teamB' : null);
+            const winnerIsTeamA = forcedTeam
+                ? forcedTeam === 'teamA'
+                : teamATotalForResult >= teamBTotalForResult;
             const winnerTeamName = winnerIsTeamA ? '红队' : '蓝队';
-            const winnerTeamMass = winnerIsTeamA ? teamATotal : teamBTotal;
+            const winnerTeamMass = winnerIsTeamA ? teamATotalForResult : teamBTotalForResult;
             winnerLabel = `${winnerTeamName} ${winnerTeamMass}kg`;
             playerWon = winnerIsTeamA;
-            resultSubtitle = `${modeConfig.durationSeconds / 60} 分钟结束，按队伍总质量结算。`;
+            resultSubtitle = modeConfig.timed
+                ? `${modeConfig.durationSeconds / 60} 分钟结束，按队伍总质量结算。`
+                : '开发者手动结束当前对局，按队伍总质量结算。';
         } else {
             const ranked = allControllers
                 .map((controller) => ({
                     controller,
-                    mass: getControllerMass(controller)
+                    mass: controller === player ? playerMass : getControllerMass(controller)
                 }))
                 .sort((a, b) => b.mass - a.mass);
 
-            const winner = ranked[0];
+            let winner = ranked[0];
+            if (forcedWinner === 'player') {
+                winner = ranked.find((entry) => entry.controller === player) ?? winner;
+            } else if (forcedWinner === 'bot') {
+                winner = ranked.find((entry) => entry.controller !== player) ?? winner;
+            }
+
             if (winner) {
                 const winnerName = winner.controller === player
                     ? resolvePlayerDisplayName(settings.playerName)
@@ -609,10 +751,17 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             }
         }
 
+        if (debugOptions.subtitle?.trim()) {
+            resultSubtitle = debugOptions.subtitle.trim();
+        }
+
         const previousBest = bestMassRecord;
-        const isNewRecord = playerMass > previousBest;
+        const naturallyNewRecord = playerMass > previousBest;
+        const isNewRecord = naturallyNewRecord || Boolean(debugOptions.forceNewRecord);
         if (isNewRecord) {
-            bestMassRecord = playerMass;
+            bestMassRecord = naturallyNewRecord
+                ? playerMass
+                : Math.max(playerMass, previousBest + 1);
             saveBestMassRecord(bestMassRecord);
         }
 
@@ -635,7 +784,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         stop();
 
         // Keep snapshot clock stable at match end.
-        gameStartTime = now - modeConfig.durationSeconds * 1000;
+        const frozenElapsedSeconds = modeConfig.timed ? modeConfig.durationSeconds : getElapsedSeconds(now);
+        gameStartTime = now - frozenElapsedSeconds * 1000;
+    }
+
+    function debugFinishMatch(options: DebugMatchFinishOptions = {}) {
+        finalizeTimedMatch(performance.now(), options);
     }
 
     function syncHud() {
@@ -1185,6 +1339,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         destroy,
         applySettings,
         getSnapshot,
-        advanceTime
+        advanceTime,
+        debugFinishMatch,
+        debugSetBestMassRecord
     };
 }

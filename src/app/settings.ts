@@ -1,4 +1,4 @@
-export type GamePhase = 'lobby' | 'playing' | 'settings';
+export type GamePhase = 'lobby' | 'matching' | 'playing' | 'settings';
 
 export interface GameSettings {
     playerName: string;

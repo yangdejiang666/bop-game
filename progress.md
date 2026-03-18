@@ -97,3 +97,15 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Extended `GameSessionSnapshot.match` with mode/timer/result fields (`modeId/modeName/timed/durationSeconds/remainingSeconds/isFinished/winnerLabel/playerWon/bestMassRecord`) for deterministic testing via `render_game_to_text`.
 - 2026-03-18: Updated lobby mode availability so `排位赛` and `团队模式` are playable entries (with timed-settlement intent), while remaining unopened modes stay locked.
 - 2026-03-18: Validation: `npm run build` passed after timed-match + settlement UI integration.
+- 2026-03-18: Added developer settlement controls in in-game debug panel (`结束当前局 / 我方胜利 / 我方失败 / 新纪录庆祝 / 历史纪录设定与清空 / 接口复制`) so settlement pages can be previewed on demand.
+- 2026-03-18: Refactored settlement entry to support debug overrides (`winner/playerMass/forceNewRecord/subtitle`) via new session API `debugFinishMatch(options)`.
+- 2026-03-18: Added session API `debugSetBestMassRecord(value)` and wired it to debug UI record input for quick record/celebration verification.
+- 2026-03-18: Exposed console helpers in `main.ts`: `window.debug_finish_match(mode)` and `window.debug_set_best_record(value)` for scripted QA loops.
+- 2026-03-18: Validation: `npm run build` passed; Playwright manual flow verified developer mode toggle -> in-game debug panel -> forced settlement and replay; screenshot captured with record celebration overlay and no new runtime errors in automated web-game client run.
+- 2026-03-18: Added a new global phase `matching` and a standalone `MatchmakingUI` overlay (`src/ui/MatchmakingUI.ts`) so all playable modes now enter a dedicated matchmaking stage before a session is created.
+- 2026-03-18: Matchmaking flow now simulates large-lobby behavior: dynamic player-count growth to target, staged status text, ETA/progress bar, animated ring/orb visuals, and auto-transition to gameplay when matching completes.
+- 2026-03-18: Added cancel-match support that cleanly returns to lobby; `render_game_to_text()` now includes `matching` snapshot data and `pendingModeForMatch` for deterministic debugging.
+- 2026-03-18: Updated lobby copy/CTA wording from “开始游戏” to “开始匹配” for playable modes and refreshed mode hints to match the new pre-match flow.
+- 2026-03-18: Validation: `npm run build` passed; Playwright verified lobby -> matching overlay appears with live人数变化 -> auto-enter gameplay; fast cancel path returns to lobby with `phase=lobby` and no active session.
+- 2026-03-18: Updated all six modes to support entering matchmaking (with `测试中` labels for peak/speed/battleRoyale) so “任意模式先匹配再开局” now holds consistently.
+- 2026-03-18: Validation: Playwright recheck confirmed selecting `巅峰赛` enters the same matching flow and displays mode-specific matching title (`正在匹配 巅峰赛`).

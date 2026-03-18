@@ -93,7 +93,7 @@ export class LobbyUI {
                 subtitle: '积分晋级 · 赛季结算',
                 icon: '🏆',
                 status: '已开放',
-                footerHint: '排位赛为 6 分钟限时，结束后按体重排名结算。',
+                footerHint: '排位赛为 6 分钟限时，点击开始会先进入匹配阶段。',
                 playable: true
             },
             peak: {
@@ -101,9 +101,9 @@ export class LobbyUI {
                 name: '巅峰赛',
                 subtitle: '高分对抗 · 顶尖段位',
                 icon: '📈',
-                status: '即将开放',
-                footerHint: '巅峰赛会在排位赛稳定后开放，当前为占位预览。',
-                playable: false
+                status: '测试中',
+                footerHint: '巅峰赛当前为测试匹配池，点击开始会先进入匹配阶段。',
+                playable: true
             },
             classic: {
                 id: 'classic',
@@ -111,7 +111,7 @@ export class LobbyUI {
                 subtitle: '自由吞噬 · 单机可玩',
                 icon: '⚪',
                 status: '已开放',
-                footerHint: '当前唯一可玩模式：点击开始游戏后进入新一局。',
+                footerHint: '经典模式点击开始会先进入匹配阶段，再进入对局。',
                 playable: true
             },
             speed: {
@@ -119,9 +119,9 @@ export class LobbyUI {
                 name: '极速模式',
                 subtitle: '高节奏成长 · 快速对抗',
                 icon: '⚡',
-                status: '即将开放',
-                footerHint: '极速模式正在调试成长曲线与结算节奏。',
-                playable: false
+                status: '测试中',
+                footerHint: '极速模式正在调试节奏，点击开始会先进入匹配阶段。',
+                playable: true
             },
             team: {
                 id: 'team',
@@ -129,7 +129,7 @@ export class LobbyUI {
                 subtitle: '队伍配合 · 吐球协同',
                 icon: '👥',
                 status: '已开放',
-                footerHint: '团队模式为 6 分钟限时，结束后按队伍总质量结算。',
+                footerHint: '团队模式为 6 分钟限时，点击开始会先进行队伍匹配。',
                 playable: true
             },
             battleRoyale: {
@@ -137,9 +137,9 @@ export class LobbyUI {
                 name: '大逃杀',
                 subtitle: '缩圈生存 · 极限翻盘',
                 icon: '🎯',
-                status: '即将开放',
-                footerHint: '大逃杀模式将与缩圈机制联动，当前为占位预览。',
-                playable: false
+                status: '测试中',
+                footerHint: '大逃杀当前为测试模式，点击开始会先进入匹配阶段。',
+                playable: true
             }
         };
         this.selectedModeId = 'classic';
@@ -191,7 +191,7 @@ export class LobbyUI {
         }
         const tip = this.root.querySelector<HTMLElement>('[data-inline-tip]');
         if (tip) {
-            tip.textContent = '选择模式并开始游戏，其他入口当前为占位。';
+            tip.textContent = '选择模式后将先进入匹配阶段，其他入口当前为占位。';
         }
         (document.activeElement as HTMLElement | null)?.blur();
     }
@@ -290,7 +290,7 @@ export class LobbyUI {
                         <div class="lobby-panel-head">
                             <div>
                                 <strong>模式选择</strong>
-                                <small>六模式入口，当前仅经典开放</small>
+                                <small>六模式入口，全部支持匹配，可按模式测试手感</small>
                             </div>
                             <span class="lobby-tag lobby-tag--muted" data-mode-status>已开放</span>
                         </div>
@@ -312,16 +312,16 @@ export class LobbyUI {
                         <div class="lobby-selection-copy">
                             <span>当前选择</span>
                             <strong data-selected-mode>经典模式</strong>
-                            <small data-selected-mode-hint>当前唯一可玩模式：点击开始游戏后进入新一局。</small>
+                            <small data-selected-mode-hint>经典模式点击开始会先进入匹配阶段，再进入对局。</small>
                         </div>
                         <div class="lobby-action-buttons">
                             <button type="button" class="lobby-ghost-button" data-open-settings>设置</button>
-                            <button type="button" class="lobby-start-button" data-start-game>开始游戏</button>
+                            <button type="button" class="lobby-start-button" data-start-game>开始匹配</button>
                         </div>
                     </div>
 
                     <div class="lobby-inline-tip" data-inline-tip aria-live="polite">
-                        选择模式并开始游戏，其他入口当前为占位。
+                        选择模式后将先进入匹配阶段，其他入口当前为占位。
                     </div>
                 </footer>
             </div>
@@ -453,7 +453,7 @@ export class LobbyUI {
             if (!mode.playable) {
                 this.root.classList.add('is-mode-locked');
                 window.setTimeout(() => this.root.classList.remove('is-mode-locked'), 240);
-                this.showFeatureTip(`${mode.name} 暂未开放，先体验经典模式。`);
+                this.showFeatureTip(`${mode.name} 当前不可用，请稍后重试。`);
                 return;
             }
 
@@ -600,7 +600,7 @@ export class LobbyUI {
         const startButton = this.root.querySelector<HTMLButtonElement>('[data-start-game]');
         if (startButton) {
             startButton.disabled = !mode.playable;
-            startButton.textContent = mode.playable ? '开始游戏' : '敬请期待';
+            startButton.textContent = mode.playable ? '开始匹配' : '敬请期待';
             startButton.classList.toggle('is-disabled', !mode.playable);
         }
     }
