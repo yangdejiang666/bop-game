@@ -149,3 +149,5 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-20: Extended debug surface: added `window.debug_reset_progression()` and `window.debug_set_progression(json)` in `main.ts`, included progression payload in `render_game_to_text()`, and updated in-game API copy helper.
 - 2026-03-20: Lobby profile card now reflects progression in real time (Level chip, coins, XP bar, wins/matches) and refreshes from storage when returning to lobby.
 - 2026-03-20: Validation: `npm run build` passed after settlement/progression/lobby integration.
+- 2026-03-20: Fixed settlement-page viewport adaptation for short/small browsers: result overlay now supports vertical scrolling, result panel has dynamic max-height, and added low-height breakpoints (`<=860`, `<=700`) to compress/stack content and keep all controls visible instead of clipping out of bounds.
+- 2026-03-20: Validation: `npm run build` passed after settlement responsive-fit update.

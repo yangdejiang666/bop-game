@@ -190,6 +190,9 @@ button {
         radial-gradient(circle at 50% 32%, rgba(65, 185, 255, 0.26), rgba(3, 12, 24, 0.88)),
         rgba(2, 8, 14, 0.74);
     pointer-events: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .match-result-overlay.is-visible {
@@ -199,6 +202,8 @@ button {
 .match-result-panel {
     position: relative;
     width: min(900px, calc(100% - 24px));
+    max-height: min(calc(100dvh - 36px), 980px);
+    margin: auto;
     padding: 20px 24px 22px;
     border-radius: 28px;
     background:
@@ -210,7 +215,24 @@ button {
         0 42px 90px rgba(0, 0, 0, 0.54),
         inset 0 1px 0 rgba(255, 255, 255, 0.09);
     text-align: center;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(132, 190, 245, 0.45) rgba(255, 255, 255, 0.08);
+}
+
+.match-result-panel::-webkit-scrollbar {
+    width: 8px;
+}
+
+.match-result-panel::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+}
+
+.match-result-panel::-webkit-scrollbar-thumb {
+    background: rgba(132, 190, 245, 0.45);
+    border-radius: 999px;
 }
 
 .match-result-kicker {
@@ -2710,8 +2732,18 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
     }
 
     .match-result-panel {
+        width: min(100%, calc(100% - 10px));
+        max-height: calc(100dvh - 12px);
         padding: 18px 14px 16px;
         border-radius: 18px;
+    }
+
+    .match-result-title {
+        font-size: clamp(28px, 9vw, 44px);
+    }
+
+    .match-result-rank-main-headline {
+        font-size: clamp(30px, 10vw, 50px);
     }
 
     .match-result-rank-head {
@@ -2735,6 +2767,10 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
 
     .match-result-rewards {
         grid-template-columns: 1fr;
+    }
+
+    .match-result-ball-stage {
+        min-height: 176px;
     }
 
     .match-result-growth-head {
@@ -2864,6 +2900,73 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
         min-width: 148px;
         padding: 12px 18px;
         font-size: 16px;
+    }
+
+    .match-result-overlay {
+        padding: 10px;
+    }
+
+    .match-result-panel {
+        max-height: calc(100dvh - 14px);
+        padding: 14px 14px 16px;
+        border-radius: 18px;
+    }
+
+    .match-result-title {
+        font-size: clamp(26px, 5vh, 46px);
+    }
+
+    .match-result-rank-main-headline {
+        font-size: clamp(30px, 6.2vh, 54px);
+    }
+
+    .match-result-ball-stage {
+        min-height: 160px;
+    }
+
+    .match-record-badge {
+        right: 6%;
+        top: 14%;
+    }
+
+    .match-result-reward-card strong {
+        font-size: 18px;
+    }
+}
+
+@media (max-height: 700px) {
+    .match-result-overlay {
+        align-items: flex-start;
+        padding: 6px;
+    }
+
+    .match-result-panel {
+        width: min(100%, calc(100% - 4px));
+        max-height: calc(100dvh - 8px);
+        padding: 12px 12px 14px;
+    }
+
+    .match-result-rank-stage {
+        margin-bottom: 8px;
+        padding: 10px 10px 8px;
+    }
+
+    .match-result-ball-stage {
+        min-height: 134px;
+        margin-bottom: 6px;
+    }
+
+    .match-result-energy-lines,
+    .match-result-phoenix-wings {
+        display: none;
+    }
+
+    .match-result-actions {
+        margin-top: 10px;
+        position: sticky;
+        bottom: -1px;
+        padding-top: 8px;
+        background: linear-gradient(180deg, rgba(6, 16, 28, 0), rgba(6, 16, 28, 0.96) 40%);
     }
 }
 
