@@ -94,6 +94,11 @@ export class MatchmakingUI {
     private frameId: number | null = null;
     private readyTimerId: number | null = null;
     private visible = false;
+    private successCuePlayed = false;
+    private audioContext: AudioContext | null = null;
+    private audioMasterGain: GainNode | null = null;
+    private audioUnlockPending = false;
+    private readonly audioUnlockHandler: () => void;
 
     constructor(options: MatchmakingUIOptions) {
         this.options = options;
@@ -107,6 +112,12 @@ export class MatchmakingUI {
                 <div class="matchmaking-orb matchmaking-orb--c"></div>
             </div>
             <section class="matchmaking-shell" aria-label="匹配阶段">
+                <div class="matchmaking-flow-field" aria-hidden="true">
+                    <span class="matchmaking-flow-line matchmaking-flow-line--1"></span>
+                    <span class="matchmaking-flow-line matchmaking-flow-line--2"></span>
+                    <span class="matchmaking-flow-line matchmaking-flow-line--3"></span>
+                    <span class="matchmaking-flow-line matchmaking-flow-line--4"></span>
+                </div>
                 <button type="button" class="matchmaking-cancel" data-match-cancel>取消匹配</button>
                 <div class="matchmaking-kicker">战前匹配</div>
                 <h2 class="matchmaking-title">正在匹配 <span data-match-mode>经典模式</span></h2>
@@ -116,6 +127,8 @@ export class MatchmakingUI {
                     <div class="matchmaking-ring matchmaking-ring--outer"></div>
                     <div class="matchmaking-ring matchmaking-ring--mid"></div>
                     <div class="matchmaking-ring matchmaking-ring--inner"></div>
+                    <div class="matchmaking-success-ripple"></div>
+                    <div class="matchmaking-success-label">匹配成功</div>
                     <div class="matchmaking-core">
                         <strong data-match-current>0</strong>
                         <span>已加入玩家</span>
@@ -173,10 +186,17 @@ export class MatchmakingUI {
         this.targetPlayersEl = targetPlayersEl;
         this.progressBarEl = progressBarEl;
         this.progressLabelEl = progressLabelEl;
+        this.audioUnlockHandler = () => {
+            this.resumeAudioContextIfNeeded();
+        };
 
         cancelButton.addEventListener('click', () => {
             this.cancel();
         });
+        window.addEventListener('pointerdown', this.audioUnlockHandler, { passive: true });
+        window.addEventListener('click', this.audioUnlockHandler, { passive: true });
+        window.addEventListener('keydown', this.audioUnlockHandler);
+        window.addEventListener('touchstart', this.audioUnlockHandler, { passive: true });
 
         this.setSettings(this.settings);
         this.syncUI();
@@ -188,6 +208,18 @@ export class MatchmakingUI {
 
     destroy() {
         this.hide(true);
+        window.removeEventListener('pointerdown', this.audioUnlockHandler);
+        window.removeEventListener('click', this.audioUnlockHandler);
+        window.removeEventListener('keydown', this.audioUnlockHandler);
+        window.removeEventListener('touchstart', this.audioUnlockHandler);
+        this.audioMasterGain?.disconnect();
+        this.audioMasterGain = null;
+        if (this.audioContext) {
+            this.audioContext.close().catch(() => {
+                // no-op
+            });
+            this.audioContext = null;
+        }
         this.root.remove();
     }
 
@@ -219,6 +251,7 @@ export class MatchmakingUI {
         this.confirmingUntilMs = 0;
         this.etaSeconds = Math.max(1, Math.ceil(this.expectedDurationMs / 1000));
         this.visible = true;
+        this.successCuePlayed = false;
 
         this.root.classList.add('is-visible');
         this.root.classList.remove('is-confirming');
@@ -311,8 +344,9 @@ export class MatchmakingUI {
             this.stage = 'confirming';
             this.progress = 1;
             this.etaSeconds = 0;
-            this.confirmingUntilMs = now + (this.settings.reducedMotion ? 260 : 1150);
+            this.confirmingUntilMs = now + (this.settings.reducedMotion ? 260 : 1280);
             this.root.classList.add('is-confirming');
+            this.playSuccessCue();
         }
     }
 
@@ -345,8 +379,8 @@ export class MatchmakingUI {
         }
 
         if (this.stage === 'confirming') {
-            this.stageTextEl.textContent = '匹配成功';
-            this.statusTextEl.textContent = '正在同步战场数据，请准备出发。';
+            this.stageTextEl.textContent = '匹配成功，准备跃迁';
+            this.statusTextEl.textContent = '战术通道已打开，正在同步战场数据。';
             this.etaTextEl.textContent = '即将开始';
             return;
         }
@@ -379,5 +413,93 @@ export class MatchmakingUI {
             window.clearTimeout(this.readyTimerId);
             this.readyTimerId = null;
         }
+    }
+
+    private ensureAudioContext(): boolean {
+        if (this.audioContext) {
+            return true;
+        }
+
+        if (typeof window.AudioContext === 'undefined') {
+            return false;
+        }
+
+        this.audioContext = new window.AudioContext();
+        this.audioMasterGain = this.audioContext.createGain();
+        this.audioMasterGain.gain.value = 0.42;
+        this.audioMasterGain.connect(this.audioContext.destination);
+        return true;
+    }
+
+    private resumeAudioContextIfNeeded() {
+        if (!this.ensureAudioContext() || !this.audioContext) {
+            return;
+        }
+
+        if (this.audioContext.state === 'running') {
+            return;
+        }
+
+        if (this.audioUnlockPending) {
+            return;
+        }
+
+        this.audioUnlockPending = true;
+        this.audioContext.resume().catch(() => {
+            // no-op
+        }).finally(() => {
+            this.audioUnlockPending = false;
+        });
+    }
+
+    private playSuccessCue() {
+        if (this.successCuePlayed) {
+            return;
+        }
+        this.successCuePlayed = true;
+
+        if (!this.ensureAudioContext() || !this.audioContext || !this.audioMasterGain) {
+            return;
+        }
+
+        this.resumeAudioContextIfNeeded();
+        if (this.audioContext.state !== 'running') {
+            return;
+        }
+
+        const now = this.audioContext.currentTime + 0.01;
+        this.playSweep(220, 620, now, 0.32, 0.18, 'triangle');
+        this.playSweep(420, 860, now + 0.09, 0.34, 0.14, 'sine');
+        this.playSweep(180, 140, now + 0.22, 0.26, 0.19, 'sawtooth');
+    }
+
+    private playSweep(
+        fromHz: number,
+        toHz: number,
+        startTime: number,
+        duration: number,
+        volume: number,
+        wave: OscillatorType
+    ) {
+        if (!this.audioContext || !this.audioMasterGain) {
+            return;
+        }
+
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+        const endTime = startTime + duration;
+
+        osc.type = wave;
+        osc.frequency.setValueAtTime(Math.max(50, fromHz), startTime);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(60, toHz), endTime);
+
+        gain.gain.setValueAtTime(0.0001, startTime);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.001, volume), startTime + duration * 0.28);
+        gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+        osc.connect(gain);
+        gain.connect(this.audioMasterGain);
+        osc.start(startTime);
+        osc.stop(endTime + 0.03);
     }
 }
