@@ -350,19 +350,24 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
 
         const panel = hudRefs.resultPanelEl;
+        const overlay = hudRefs.resultOverlay;
         panel.style.setProperty('--result-fit-scale', '1');
         panel.classList.remove('is-fit-scaled');
 
-        const viewportPadding = 10;
-        const availableWidth = Math.max(220, window.innerWidth - viewportPadding * 2);
-        const availableHeight = Math.max(220, window.innerHeight - viewportPadding * 2);
-        const panelRect = panel.getBoundingClientRect();
-        if (panelRect.width <= 0 || panelRect.height <= 0) {
+        // Let layout settle before measuring natural content size.
+        const naturalWidth = Math.max(panel.scrollWidth, panel.clientWidth);
+        const naturalHeight = Math.max(panel.scrollHeight, panel.clientHeight);
+        if (naturalWidth <= 0 || naturalHeight <= 0) {
             return;
         }
 
-        const widthScale = availableWidth / panelRect.width;
-        const heightScale = availableHeight / panelRect.height;
+        const overlayRect = overlay.getBoundingClientRect();
+        const viewportPadding = 8;
+        const availableWidth = Math.max(220, overlayRect.width - viewportPadding * 2);
+        const availableHeight = Math.max(220, overlayRect.height - viewportPadding * 2);
+
+        const widthScale = availableWidth / naturalWidth;
+        const heightScale = availableHeight / naturalHeight;
         const targetScale = Math.min(1, widthScale, heightScale);
         const safeScale = Math.max(0.4, targetScale);
 
@@ -575,6 +580,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         if (stage === 'intro' || stage === 'rank' || stage === 'hero') {
             applySettlementRewardProgress(0);
+            fitSettlementPanelToViewport();
             return;
         }
 
@@ -582,10 +588,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             const rewardSpan = Math.max(1, settlementTiming.rewardsEnd - settlementTiming.heroEnd);
             const rewardProgress = (settlementElapsedMs - settlementTiming.heroEnd) / rewardSpan;
             applySettlementRewardProgress(rewardProgress);
+            fitSettlementPanelToViewport();
             return;
         }
 
         applySettlementRewardProgress(1);
+        fitSettlementPanelToViewport();
     }
 
     function advanceSettlementTimeline(ms: number) {
