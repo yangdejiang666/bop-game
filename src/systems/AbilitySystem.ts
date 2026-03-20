@@ -114,7 +114,13 @@ export class AbilitySystem {
                 + virusScaleBonus * gameplayTuning.spike.virus_size_piece_bonus
             )
         );
-        const minPieceMass = Math.max(gameplayTuning.spike.min_piece_mass, minMassFloor);
+        // User request: virus-split child cells should never exceed 100kg.
+        // This is an upper cap, not a forced target.
+        const spikeSplitPieceMassCap = 100;
+        const minPieceMass = Math.min(
+            spikeSplitPieceMassCap,
+            Math.max(gameplayTuning.spike.min_piece_mass, minMassFloor)
+        );
         let targetCount = Math.floor(totalMass / minPieceMass);
         targetCount = Math.max(2, Math.min(availableSlots, targetCellCount, targetCount));
         let mainMass = 0;
@@ -138,7 +144,10 @@ export class AbilitySystem {
             const restMass = totalMass - candidateMainMass;
             const childMaxMass = Math.max(
                 minPieceMass,
-                candidateMainMass * gameplayTuning.spike.max_piece_ratio
+                Math.min(
+                    spikeSplitPieceMassCap,
+                    candidateMainMass * gameplayTuning.spike.max_piece_ratio
+                )
             );
 
             if (restMass > childMaxMass * piecesToCreate + 0.0001) {
