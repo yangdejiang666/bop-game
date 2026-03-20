@@ -156,3 +156,5 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-20: Validation: `npm run build` passed after no-scroll full-fit settlement update.
 - 2026-03-20: Fixed missing bottom settlement actions (`再来一局/返回大厅`) under some viewport sizes by switching fit measurement to natural content size (`scrollWidth/scrollHeight`) against overlay bounds and re-running fit at every settlement stage transition (`intro/rank/hero/rewards/actions`).
 - 2026-03-20: Validation: `npm run build` passed after stage-aware settlement re-fit fix.
+- 2026-03-20: Tightened settlement fit again for cases where bottom actions still clipped: fit logic now measures the real bottom edge of the action/reward/growth sections and schedules the fit on the next animation frame after stage updates, so late-arriving stage content is included in the viewport scale calculation.
+- 2026-03-20: Validation: `npm run build` passed after bottom-action-aware settlement fit update.

@@ -354,9 +354,18 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         panel.style.setProperty('--result-fit-scale', '1');
         panel.classList.remove('is-fit-scaled');
 
-        // Let layout settle before measuring natural content size.
+        const panelRect = panel.getBoundingClientRect();
+        const actionsWrap = hudRefs.resultActions.lobby.parentElement as HTMLElement | null;
+        const rewardsWrap = hudRefs.resultRewardXpEl.closest('.match-result-rewards') as HTMLElement | null;
+        const growthWrap = hudRefs.resultGrowthFillEl.closest('.match-result-growth') as HTMLElement | null;
+        const stageBottom = Math.max(
+            panel.clientHeight,
+            actionsWrap ? actionsWrap.getBoundingClientRect().bottom - panelRect.top : 0,
+            growthWrap ? growthWrap.getBoundingClientRect().bottom - panelRect.top : 0,
+            rewardsWrap ? rewardsWrap.getBoundingClientRect().bottom - panelRect.top : 0
+        );
         const naturalWidth = Math.max(panel.scrollWidth, panel.clientWidth);
-        const naturalHeight = Math.max(panel.scrollHeight, panel.clientHeight);
+        const naturalHeight = Math.max(panel.scrollHeight, stageBottom);
         if (naturalWidth <= 0 || naturalHeight <= 0) {
             return;
         }
@@ -580,7 +589,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         if (stage === 'intro' || stage === 'rank' || stage === 'hero') {
             applySettlementRewardProgress(0);
-            fitSettlementPanelToViewport();
+            window.requestAnimationFrame(() => fitSettlementPanelToViewport());
             return;
         }
 
@@ -588,12 +597,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             const rewardSpan = Math.max(1, settlementTiming.rewardsEnd - settlementTiming.heroEnd);
             const rewardProgress = (settlementElapsedMs - settlementTiming.heroEnd) / rewardSpan;
             applySettlementRewardProgress(rewardProgress);
-            fitSettlementPanelToViewport();
+            window.requestAnimationFrame(() => fitSettlementPanelToViewport());
             return;
         }
 
         applySettlementRewardProgress(1);
-        fitSettlementPanelToViewport();
+        window.requestAnimationFrame(() => fitSettlementPanelToViewport());
     }
 
     function advanceSettlementTimeline(ms: number) {
