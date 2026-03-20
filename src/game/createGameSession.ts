@@ -18,6 +18,15 @@ import { Virus } from '../entities/Virus';
 import { Blob } from '../entities/Blob';
 import { EjectedMass } from '../entities/EjectedMass';
 import type { GameSettings } from '../app/settings';
+import {
+    applyMatchRewardsToProgression,
+    computeMatchRewards,
+    getRequiredXpForLevel,
+    loadPlayerProgression,
+    savePlayerProgression,
+    type MatchRewardBreakdown,
+    type PlayerProgression
+} from '../app/progression';
 import { gameplayTuning } from '../gameplay/tuning';
 import { TuningToolbox } from '../ui/TuningToolbox';
 import type { LobbyModeId } from '../ui/LobbyUI';
@@ -34,6 +43,7 @@ const MATCH_DURATION_SECONDS = 6 * 60;
 const BEST_MASS_RECORD_KEY = 'bop:best-mass-record';
 
 type MatchRankTheme = 'gold' | 'silver' | 'bronze' | 'normal';
+export type SettlementStage = 'hidden' | 'intro' | 'rank' | 'hero' | 'rewards' | 'actions';
 
 interface MatchTop3Entry {
     rank: 1 | 2 | 3;
@@ -100,6 +110,30 @@ const MATCH_MODE_CONFIG: Record<LobbyModeId, MatchModeConfig> = {
         durationSeconds: 0,
         teamMode: false
     }
+};
+
+interface SettlementTiming {
+    introEnd: number;
+    rankEnd: number;
+    heroEnd: number;
+    rewardsEnd: number;
+    total: number;
+}
+
+const FULL_SETTLEMENT_TIMING: SettlementTiming = {
+    introEnd: 260,
+    rankEnd: 860,
+    heroEnd: 2100,
+    rewardsEnd: 3200,
+    total: 3200
+};
+
+const REDUCED_SETTLEMENT_TIMING: SettlementTiming = {
+    introEnd: 120,
+    rankEnd: 240,
+    heroEnd: 500,
+    rewardsEnd: 800,
+    total: 800
 };
 
 export interface GameSessionSnapshot {
@@ -175,6 +209,11 @@ export interface GameSessionSnapshot {
         playerRank: number;
         playerRankTheme: MatchRankTheme;
         top3: MatchTop3Entry[];
+        settlementStage: SettlementStage;
+        rewardBreakdown: MatchRewardBreakdown | null;
+        progressionBefore: PlayerProgression | null;
+        progressionAfter: PlayerProgression | null;
+        leveledUp: boolean;
     };
 }
 
@@ -228,6 +267,7 @@ interface SessionHudRefs {
     resultSubEl: HTMLDivElement;
     resultRankMainEl: HTMLElement;
     resultPlayerRankCardEl: HTMLDivElement;
+    resultPlayerRankHeadEl: HTMLElement;
     resultPlayerRankEl: HTMLElement;
     resultPlayerRankMassEl: HTMLElement;
     resultPodiumItems: Array<{
@@ -239,8 +279,18 @@ interface SessionHudRefs {
     resultWinnerEl: HTMLDivElement;
     resultMassEl: HTMLDivElement;
     resultBestEl: HTMLDivElement;
+    resultRewardXpEl: HTMLDivElement;
+    resultRewardCoinsEl: HTMLDivElement;
+    resultRewardRecordEl: HTMLDivElement;
+    resultGrowthLevelEl: HTMLDivElement;
+    resultGrowthMetaEl: HTMLDivElement;
+    resultGrowthFillEl: HTMLDivElement;
     resultRecordBannerEl: HTMLDivElement;
     resultBallEl: HTMLDivElement;
+    resultActions: {
+        lobby: HTMLButtonElement;
+        replay: HTMLButtonElement;
+    };
 }
 
 export function createGameSession(options: CreateGameSessionOptions): GameSession {
@@ -282,6 +332,15 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let top3Result: MatchTop3Entry[] = [];
     let bestMassRecord = loadBestMassRecord();
     let lastPlayerSpikeEventId = 0;
+    let settlementStage: SettlementStage = 'hidden';
+    let settlementElapsedMs = 0;
+    let settlementAnimationFrameId: number | null = null;
+    let settlementLastFrameTime = 0;
+    let settlementTiming: SettlementTiming = FULL_SETTLEMENT_TIMING;
+    let settlementRewardBreakdown: MatchRewardBreakdown | null = null;
+    let settlementProgressionBefore: PlayerProgression | null = null;
+    let settlementProgressionAfter: PlayerProgression | null = null;
+    let settlementLeveledUp = false;
 
     function ensureMounted() {
         if (!sessionRoot || !worldRoot || !hudRefs) {
@@ -293,7 +352,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         try {
             const raw = window.localStorage.getItem(BEST_MASS_RECORD_KEY);
             const parsed = raw ? Number.parseInt(raw, 10) : 0;
-            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+            const progressionBest = loadPlayerProgression().bestMass;
+            const localBest = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+            return Math.max(localBest, progressionBest);
         } catch {
             return 0;
         }
@@ -301,7 +362,13 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
     function saveBestMassRecord(value: number) {
         try {
-            window.localStorage.setItem(BEST_MASS_RECORD_KEY, String(Math.max(0, Math.floor(value))));
+            const safeValue = Math.max(0, Math.floor(value));
+            window.localStorage.setItem(BEST_MASS_RECORD_KEY, String(safeValue));
+            const progression = loadPlayerProgression();
+            if (safeValue > progression.bestMass) {
+                progression.bestMass = safeValue;
+                savePlayerProgression(progression);
+            }
         } catch (error) {
             console.error('Failed to persist best mass record:', error);
         }
@@ -313,6 +380,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
         bestMassRecord = Math.max(0, Math.floor(value));
         saveBestMassRecord(bestMassRecord);
+        const progression = loadPlayerProgression();
+        progression.bestMass = Math.max(progression.bestMass, bestMassRecord);
+        savePlayerProgression(progression);
     }
 
     function getElapsedSeconds(now = performance.now()): number {
@@ -371,6 +441,157 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 };
             })
             .sort((a, b) => b.mass - a.mass);
+    }
+
+    function getActiveSettlementTiming(): SettlementTiming {
+        return settings.reducedMotion ? REDUCED_SETTLEMENT_TIMING : FULL_SETTLEMENT_TIMING;
+    }
+
+    function resolveSettlementStage(elapsedMs: number, timing: SettlementTiming): SettlementStage {
+        if (elapsedMs <= timing.introEnd) {
+            return 'intro';
+        }
+        if (elapsedMs <= timing.rankEnd) {
+            return 'rank';
+        }
+        if (elapsedMs <= timing.heroEnd) {
+            return 'hero';
+        }
+        if (elapsedMs <= timing.rewardsEnd) {
+            return 'rewards';
+        }
+        return 'actions';
+    }
+
+    function setSettlementActionsEnabled(enabled: boolean) {
+        if (!hudRefs) {
+            return;
+        }
+        hudRefs.resultActions.lobby.disabled = !enabled;
+        hudRefs.resultActions.replay.disabled = !enabled;
+        hudRefs.resultOverlay.classList.toggle('is-actions-ready', enabled);
+    }
+
+    function stopSettlementAnimation() {
+        if (settlementAnimationFrameId !== null) {
+            window.cancelAnimationFrame(settlementAnimationFrameId);
+            settlementAnimationFrameId = null;
+        }
+        settlementLastFrameTime = 0;
+    }
+
+    function setSettlementStage(nextStage: SettlementStage) {
+        if (!hudRefs || settlementStage === nextStage) {
+            return;
+        }
+        settlementStage = nextStage;
+        hudRefs.resultOverlay.dataset.settlementStage = nextStage;
+        setSettlementActionsEnabled(nextStage === 'actions');
+    }
+
+    function applySettlementRewardProgress(progress: number) {
+        if (!hudRefs || !settlementRewardBreakdown) {
+            return;
+        }
+
+        const clampedProgress = Math.max(0, Math.min(1, progress));
+        const burstProgress = 1 - Math.pow(1 - clampedProgress, 2.35);
+        const smoothProgress = 1 - Math.pow(1 - clampedProgress, 1.6);
+        const reward = settlementRewardBreakdown;
+        const xpValue = Math.round(reward.totalXp * burstProgress);
+        const coinValue = Math.round(reward.totalCoins * burstProgress);
+        const massValue = Math.round(reward.playerMass * smoothProgress);
+        const bestValue = Math.round(bestMassRecord * smoothProgress);
+
+        hudRefs.resultRewardXpEl.textContent = `+${xpValue}`;
+        hudRefs.resultRewardCoinsEl.textContent = `+${coinValue}`;
+        hudRefs.resultMassEl.textContent = `${massValue} kg`;
+        hudRefs.resultBestEl.textContent = `${bestValue} kg`;
+
+        const recordXp = Math.round(reward.recordBonusXp * burstProgress);
+        const recordCoins = Math.round(reward.recordBonusCoins * burstProgress);
+        if (recordXp > 0 || recordCoins > 0) {
+            hudRefs.resultRewardRecordEl.textContent = `+${recordXp} XP / +${recordCoins} 金币`;
+        } else {
+            hudRefs.resultRewardRecordEl.textContent = '未触发';
+        }
+
+        const progressionAfter = settlementProgressionAfter;
+        if (progressionAfter) {
+            const requiredXp = getRequiredXpForLevel(progressionAfter.level);
+            const xpPreview = Math.round(progressionAfter.currentXp * smoothProgress);
+            const fillRatio = requiredXp <= 0 ? 0 : Math.max(0, Math.min(1, xpPreview / requiredXp));
+            hudRefs.resultGrowthLevelEl.textContent = `Lv.${progressionAfter.level}`;
+            hudRefs.resultGrowthMetaEl.textContent = `${xpPreview} / ${requiredXp} XP · ${progressionAfter.totalWins} 胜 / ${progressionAfter.totalMatches} 局`;
+            hudRefs.resultGrowthFillEl.style.width = `${(fillRatio * 100).toFixed(2)}%`;
+        }
+    }
+
+    function refreshSettlementTimelineVisuals() {
+        if (!hudRefs) {
+            return;
+        }
+
+        const stage = resolveSettlementStage(settlementElapsedMs, settlementTiming);
+        setSettlementStage(stage);
+
+        if (stage === 'intro' || stage === 'rank' || stage === 'hero') {
+            applySettlementRewardProgress(0);
+            return;
+        }
+
+        if (stage === 'rewards') {
+            const rewardSpan = Math.max(1, settlementTiming.rewardsEnd - settlementTiming.heroEnd);
+            const rewardProgress = (settlementElapsedMs - settlementTiming.heroEnd) / rewardSpan;
+            applySettlementRewardProgress(rewardProgress);
+            return;
+        }
+
+        applySettlementRewardProgress(1);
+    }
+
+    function advanceSettlementTimeline(ms: number) {
+        if (!matchFinished || settlementStage === 'hidden') {
+            return;
+        }
+        settlementElapsedMs = Math.min(settlementTiming.total, settlementElapsedMs + Math.max(0, ms));
+        refreshSettlementTimelineVisuals();
+        if (settlementElapsedMs >= settlementTiming.total) {
+            setSettlementStage('actions');
+            stopSettlementAnimation();
+        }
+    }
+
+    function tickSettlementAnimation(now: number) {
+        if (settlementLastFrameTime === 0) {
+            settlementLastFrameTime = now;
+        }
+
+        const dt = now - settlementLastFrameTime;
+        settlementLastFrameTime = now;
+        advanceSettlementTimeline(dt);
+
+        if (settlementStage !== 'actions') {
+            settlementAnimationFrameId = window.requestAnimationFrame(tickSettlementAnimation);
+            return;
+        }
+
+        settlementAnimationFrameId = null;
+    }
+
+    function startSettlementTimeline() {
+        if (!hudRefs) {
+            return;
+        }
+
+        stopSettlementAnimation();
+        settlementTiming = getActiveSettlementTiming();
+        settlementElapsedMs = 0;
+        settlementStage = 'hidden';
+        hudRefs.resultOverlay.dataset.settlementStage = 'intro';
+        setSettlementStage('intro');
+        applySettlementRewardProgress(0);
+        settlementAnimationFrameId = window.requestAnimationFrame(tickSettlementAnimation);
     }
 
     function createHud(): SessionHudRefs {
@@ -487,7 +708,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 <button class="hud-debug-button" data-action="record-reset">清空纪录</button>
                 <button class="hud-debug-button" data-action="copy-apis">复制接口</button>
             </div>
-            <div class="hud-debug-tip" data-debug-tip>开发模式接口：结束当前局、强制胜负、新纪录预览、历史纪录读写。</div>
+            <div class="hud-debug-tip" data-debug-tip>开发模式接口：结束当前局、强制胜负、新纪录预览、历史纪录与成长读写。</div>
             <div class="hud-debug-divider"></div>
             <div class="hud-toolbox-host"></div>
         `;
@@ -598,6 +819,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 'window.debug_finish_match(mode?)',
                 '  mode: auto | win | lose | record',
                 'window.debug_set_best_record(value)',
+                'window.debug_reset_progression()',
+                'window.debug_set_progression(json)',
                 'window.render_game_to_text()',
                 'window.advanceTime(ms)'
             ].join('\n');
@@ -605,7 +828,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 await navigator.clipboard.writeText(apiText);
                 setDebugTip('调试接口已复制到剪贴板。');
             } catch {
-                setDebugTip('复制失败，请手动查看控制台接口：window.debug_finish_match / window.debug_set_best_record');
+                setDebugTip('复制失败，请手动查看控制台接口：window.debug_finish_match / window.debug_set_best_record / window.debug_set_progression');
             }
         });
 
@@ -613,13 +836,20 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         resultOverlay.className = 'match-result-overlay';
         resultOverlay.innerHTML = `
             <div class="match-result-panel">
-                <div class="match-result-kicker">对局结算</div>
-                <h2 class="match-result-title" data-result-title>比赛结束</h2>
+                <div class="match-result-cinematic-bg" aria-hidden="true">
+                    <span class="match-result-bg-particle"></span>
+                    <span class="match-result-bg-particle"></span>
+                    <span class="match-result-bg-particle"></span>
+                    <span class="match-result-bg-particle"></span>
+                </div>
+                <div class="match-result-kicker" data-result-kicker>对局结算</div>
+                <h2 class="match-result-title" data-result-title>Victory</h2>
+                <div class="match-result-rank-main-headline" data-result-rank-main>第 1 名</div>
                 <div class="match-result-subtitle" data-result-subtitle>正在统计结果...</div>
                 <div class="match-result-rank-stage">
                     <div class="match-result-rank-head">
-                        <span>名次结算</span>
-                        <strong data-result-rank-main>第 1 名</strong>
+                        <span>${renderLobbyIcon('crown', 'match-result-rank-head-icon')} 名次结算</span>
+                        <strong data-result-player-rank>第 1 名</strong>
                     </div>
                     <div class="match-result-podium">
                         <article class="match-result-podium-item is-silver" data-result-podium-item data-rank="2">
@@ -656,29 +886,72 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                     </div>
                     <div class="match-result-player-rank-card" data-result-player-rank-card>
                         <span>我的名次</span>
-                        <strong data-result-player-rank>第 1 名</strong>
+                        <strong data-result-player-rank-echo>第 1 名</strong>
                         <em data-result-player-rank-mass>0 kg</em>
                     </div>
                 </div>
                 <div class="match-result-ball-stage">
                     <div class="match-result-burst"></div>
+                    <div class="match-result-energy-lines"></div>
                     <div class="match-result-ball" data-result-ball></div>
+                    <div class="match-record-badge" data-result-record-banner>
+                        ${renderLobbyIcon('record', 'match-result-record-icon')}
+                        <span>新纪录</span>
+                    </div>
                 </div>
-                <div class="match-result-stats">
-                    <div class="match-result-stat">
-                        <span>本局体重</span>
+                <div class="match-result-rewards">
+                    <div class="match-result-reward-card">
+                        <span class="match-result-reward-label">
+                            ${renderLobbyIcon('xp', 'match-result-reward-icon')}
+                            经验奖励
+                        </span>
+                        <strong data-result-reward-xp>+0</strong>
+                    </div>
+                    <div class="match-result-reward-card">
+                        <span class="match-result-reward-label">
+                            ${renderLobbyIcon('coin', 'match-result-reward-icon')}
+                            金币奖励
+                        </span>
+                        <strong data-result-reward-coins>+0</strong>
+                    </div>
+                    <div class="match-result-reward-card">
+                        <span class="match-result-reward-label">
+                            ${renderLobbyIcon('mode_classic', 'match-result-reward-icon')}
+                            本局体重
+                        </span>
                         <strong data-result-mass>0 kg</strong>
                     </div>
-                    <div class="match-result-stat">
-                        <span>历史纪录</span>
+                    <div class="match-result-reward-card">
+                        <span class="match-result-reward-label">
+                            ${renderLobbyIcon('record', 'match-result-reward-icon')}
+                            历史纪录
+                        </span>
                         <strong data-result-best>0 kg</strong>
                     </div>
-                    <div class="match-result-stat">
-                        <span>胜出方</span>
+                    <div class="match-result-reward-card">
+                        <span class="match-result-reward-label">
+                            ${renderLobbyIcon('victory', 'match-result-reward-icon')}
+                            胜出方
+                        </span>
                         <strong data-result-winner>--</strong>
                     </div>
+                    <div class="match-result-reward-card">
+                        <span class="match-result-reward-label">
+                            ${renderLobbyIcon('record', 'match-result-reward-icon')}
+                            纪录加成
+                        </span>
+                        <strong data-result-reward-record>未触发</strong>
+                    </div>
                 </div>
-                <div class="match-record-banner" data-result-record-banner>新纪录达成！</div>
+                <div class="match-result-growth">
+                    <div class="match-result-growth-head">
+                        <div class="match-result-growth-level" data-result-growth-level>Lv.1</div>
+                        <div class="match-result-growth-meta" data-result-growth-meta>0 / 208 XP</div>
+                    </div>
+                    <div class="match-result-growth-track">
+                        <div class="match-result-growth-fill" data-result-growth-fill></div>
+                    </div>
+                </div>
                 <div class="match-result-actions">
                     <button type="button" class="hud-action-button hud-action-button--secondary" data-result-lobby>返回大厅</button>
                     <button type="button" class="hud-action-button match-result-replay" data-result-replay>再来一局</button>
@@ -691,13 +964,22 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         const resultSubEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-subtitle]');
         const resultRankMainEl = resultOverlay.querySelector<HTMLElement>('[data-result-rank-main]');
         const resultPlayerRankCardEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-player-rank-card]');
-        const resultPlayerRankEl = resultOverlay.querySelector<HTMLElement>('[data-result-player-rank]');
+        const resultPlayerRankEl = resultOverlay.querySelector<HTMLElement>('[data-result-player-rank-echo]');
+        const resultPlayerRankHeadEl = resultOverlay.querySelector<HTMLElement>('[data-result-player-rank]');
         const resultPlayerRankMassEl = resultOverlay.querySelector<HTMLElement>('[data-result-player-rank-mass]');
         const resultWinnerEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-winner]');
         const resultMassEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-mass]');
         const resultBestEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-best]');
+        const resultRewardXpEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-reward-xp]');
+        const resultRewardCoinsEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-reward-coins]');
+        const resultRewardRecordEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-reward-record]');
+        const resultGrowthLevelEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-growth-level]');
+        const resultGrowthMetaEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-growth-meta]');
+        const resultGrowthFillEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-growth-fill]');
         const resultRecordBannerEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-record-banner]');
         const resultBallEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-ball]');
+        const resultLobbyButton = resultOverlay.querySelector<HTMLButtonElement>('[data-result-lobby]');
+        const resultReplayButton = resultOverlay.querySelector<HTMLButtonElement>('[data-result-replay]');
         const resultPodiumItems = Array.from(resultOverlay.querySelectorAll<HTMLElement>('[data-result-podium-item]'))
             .map((item) => {
                 const rankValue = Number.parseInt(item.dataset.rank ?? '', 10);
@@ -726,24 +1008,33 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             || !resultRankMainEl
             || !resultPlayerRankCardEl
             || !resultPlayerRankEl
+            || !resultPlayerRankHeadEl
             || !resultPlayerRankMassEl
             || !resultWinnerEl
             || !resultMassEl
             || !resultBestEl
+            || !resultRewardXpEl
+            || !resultRewardCoinsEl
+            || !resultRewardRecordEl
+            || !resultGrowthLevelEl
+            || !resultGrowthMetaEl
+            || !resultGrowthFillEl
             || !resultRecordBannerEl
             || !resultBallEl
+            || !resultLobbyButton
+            || !resultReplayButton
             || resultPodiumItems.length !== 3
         ) {
             throw new Error('Failed to initialize match result overlay.');
         }
 
-        resultOverlay.querySelector<HTMLButtonElement>('[data-result-lobby]')?.addEventListener('click', () => {
+        resultLobbyButton.addEventListener('click', () => {
             hideMatchResultOverlay();
             stop();
             options.onReturnToLobby();
         });
 
-        resultOverlay.querySelector<HTMLButtonElement>('[data-result-replay]')?.addEventListener('click', () => {
+        resultReplayButton.addEventListener('click', () => {
             hideMatchResultOverlay();
             startNewGame();
         });
@@ -777,14 +1068,25 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             resultSubEl,
             resultRankMainEl,
             resultPlayerRankCardEl,
+            resultPlayerRankHeadEl,
             resultPlayerRankEl,
             resultPlayerRankMassEl,
             resultPodiumItems,
             resultWinnerEl,
             resultMassEl,
             resultBestEl,
+            resultRewardXpEl,
+            resultRewardCoinsEl,
+            resultRewardRecordEl,
+            resultGrowthLevelEl,
+            resultGrowthMetaEl,
+            resultGrowthFillEl,
             resultRecordBannerEl,
-            resultBallEl
+            resultBallEl,
+            resultActions: {
+                lobby: resultLobbyButton,
+                replay: resultReplayButton
+            }
         };
     }
 
@@ -823,6 +1125,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         playerRankTheme = 'normal';
         top3Result = [];
         lastPlayerSpikeEventId = 0;
+        settlementRewardBreakdown = null;
+        settlementProgressionBefore = null;
+        settlementProgressionAfter = null;
+        settlementLeveledUp = false;
+        settlementStage = 'hidden';
+        settlementElapsedMs = 0;
 
         input?.setMouseScreenPosition(window.innerWidth / 2, window.innerHeight / 2);
 
@@ -843,16 +1151,22 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         if (!hudRefs) {
             return;
         }
+        stopSettlementAnimation();
+        settlementStage = 'hidden';
+        settlementElapsedMs = 0;
         hudRefs.resultOverlay.classList.remove(
             'is-visible',
             'is-record',
             'is-win',
             'is-team-mode',
+            'is-level-up',
             'rank-theme-gold',
             'rank-theme-silver',
             'rank-theme-bronze',
             'rank-theme-normal'
         );
+        hudRefs.resultOverlay.dataset.settlementStage = 'hidden';
+        setSettlementActionsEnabled(false);
     }
 
     function finalizeTimedMatch(now = performance.now(), debugOptions: DebugMatchFinishOptions = {}) {
@@ -945,22 +1259,45 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         const previousBest = bestMassRecord;
         const naturallyNewRecord = playerMass > previousBest;
         const isNewRecord = naturallyNewRecord || Boolean(debugOptions.forceNewRecord);
-        if (isNewRecord) {
-            bestMassRecord = naturallyNewRecord
-                ? playerMass
-                : Math.max(playerMass, previousBest + 1);
-            saveBestMassRecord(bestMassRecord);
-        }
+        const computedBestMass = isNewRecord
+            ? (naturallyNewRecord ? playerMass : Math.max(playerMass, previousBest + 1))
+            : previousBest;
 
-        hudRefs.resultTitleEl.textContent = playerWon ? '胜利！' : '比赛结束';
+        settlementRewardBreakdown = computeMatchRewards(playerRank, playerMass, playerWon, isNewRecord);
+        const progressionBaseline = loadPlayerProgression();
+        const progressionApplied = applyMatchRewardsToProgression({
+            ...progressionBaseline,
+            bestMass: Math.max(progressionBaseline.bestMass, computedBestMass)
+        }, settlementRewardBreakdown);
+        settlementProgressionBefore = progressionApplied.before;
+        settlementProgressionAfter = progressionApplied.after;
+        settlementLeveledUp = progressionApplied.leveledUp;
+        savePlayerProgression(progressionApplied.after);
+
+        bestMassRecord = Math.max(computedBestMass, progressionApplied.after.bestMass);
+        saveBestMassRecord(bestMassRecord);
+
+        hudRefs.resultTitleEl.textContent = playerWon ? 'Victory!' : 'Battle Over';
         hudRefs.resultSubEl.textContent = resultSubtitle;
         hudRefs.resultRankMainEl.textContent = `第 ${playerRank} 名`;
+        hudRefs.resultPlayerRankHeadEl.textContent = `第 ${playerRank} 名`;
         hudRefs.resultPlayerRankEl.textContent = `第 ${playerRank} 名`;
         hudRefs.resultPlayerRankMassEl.textContent = `${playerMass} kg`;
         hudRefs.resultWinnerEl.textContent = winnerLabel;
-        hudRefs.resultMassEl.textContent = `${playerMass} kg`;
-        hudRefs.resultBestEl.textContent = `${bestMassRecord} kg`;
-        hudRefs.resultRecordBannerEl.style.display = isNewRecord ? 'block' : 'none';
+        hudRefs.resultRewardXpEl.textContent = '+0';
+        hudRefs.resultRewardCoinsEl.textContent = '+0';
+        hudRefs.resultMassEl.textContent = '0 kg';
+        hudRefs.resultBestEl.textContent = '0 kg';
+        hudRefs.resultRewardRecordEl.textContent = isNewRecord ? '+0 XP / +0 金币' : '未触发';
+        hudRefs.resultGrowthLevelEl.textContent = settlementProgressionAfter
+            ? `Lv.${settlementProgressionAfter.level}`
+            : 'Lv.1';
+        hudRefs.resultGrowthMetaEl.textContent = settlementProgressionAfter
+            ? `0 / ${getRequiredXpForLevel(settlementProgressionAfter.level)} XP · ${settlementProgressionAfter.totalWins} 胜 / ${settlementProgressionAfter.totalMatches} 局`
+            : '0 / 208 XP';
+        hudRefs.resultGrowthFillEl.style.width = '0%';
+        hudRefs.resultRecordBannerEl.style.display = isNewRecord ? 'inline-flex' : 'none';
+        hudRefs.resultRecordBannerEl.classList.toggle('is-level-up', settlementLeveledUp);
 
         hudRefs.resultPlayerRankCardEl.classList.remove('is-gold', 'is-silver', 'is-bronze', 'is-normal');
         hudRefs.resultPlayerRankCardEl.classList.add(`is-${playerRankTheme}`);
@@ -979,6 +1316,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         const ballSize = 108 + ballScale * 180;
         hudRefs.resultBallEl.style.setProperty('--result-ball-size', `${ballSize.toFixed(0)}px`);
         hudRefs.resultBallEl.style.setProperty('--result-ball-glow', `${(0.42 + ballScale * 0.33).toFixed(2)}`);
+        hudRefs.resultBallEl.style.setProperty('--result-ball-energy', `${(0.54 + ballScale * 0.32).toFixed(2)}`);
 
         hudRefs.resultOverlay.classList.add('is-visible');
         hudRefs.resultOverlay.classList.toggle('is-record', isNewRecord);
@@ -986,12 +1324,15 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultOverlay.classList.toggle('is-team-mode', modeConfig.teamMode);
         hudRefs.resultOverlay.classList.remove('rank-theme-gold', 'rank-theme-silver', 'rank-theme-bronze', 'rank-theme-normal');
         hudRefs.resultOverlay.classList.add(`rank-theme-${playerRankTheme}`);
+        hudRefs.resultOverlay.classList.toggle('is-level-up', settlementLeveledUp);
         matchFinished = true;
         stop();
 
         // Keep snapshot clock stable at match end.
         const frozenElapsedSeconds = modeConfig.timed ? modeConfig.durationSeconds : getElapsedSeconds(now);
         gameStartTime = now - frozenElapsedSeconds * 1000;
+
+        startSettlementTimeline();
     }
 
     function debugFinishMatch(options: DebugMatchFinishOptions = {}) {
@@ -1418,6 +1759,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
     function destroy() {
         stop();
+        stopSettlementAnimation();
         input?.destroy();
         camera?.destroy();
         renderer?.destroy();
@@ -1564,12 +1906,21 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 bestMassRecord,
                 playerRank,
                 playerRankTheme,
-                top3: top3Result.map((entry) => ({ ...entry }))
+                top3: top3Result.map((entry) => ({ ...entry })),
+                settlementStage,
+                rewardBreakdown: settlementRewardBreakdown ? { ...settlementRewardBreakdown } : null,
+                progressionBefore: settlementProgressionBefore ? { ...settlementProgressionBefore } : null,
+                progressionAfter: settlementProgressionAfter ? { ...settlementProgressionAfter } : null,
+                leveledUp: settlementLeveledUp
             }
         };
     }
 
     function advanceTime(ms: number) {
+        if (matchFinished && settlementStage !== 'hidden') {
+            advanceSettlementTimeline(ms);
+            return;
+        }
         gameLoop?.advanceTime(ms);
     }
 

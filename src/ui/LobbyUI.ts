@@ -1,5 +1,10 @@
 import type { GameSettings } from '../app/settings';
 import { type LobbyIconId, renderLobbyIcon } from './icons';
+import {
+    type PlayerProgression,
+    getRequiredXpForLevel,
+    loadPlayerProgression
+} from '../app/progression';
 
 export type LobbyModeId = 'ranked' | 'peak' | 'classic' | 'speed' | 'team' | 'battleRoyale';
 
@@ -76,6 +81,7 @@ const SKIN_OPTIONS: SkinOption[] = [
 export class LobbyUI {
     private root: HTMLDivElement;
     private settings: GameSettings;
+    private progression: PlayerProgression;
     private readonly options: LobbyUIOptions;
     private readonly keydownHandler: (event: KeyboardEvent) => void;
     private readonly modeOptions: Record<LobbyModeId, ModeOption>;
@@ -91,6 +97,7 @@ export class LobbyUI {
     constructor(options: LobbyUIOptions) {
         this.options = options;
         this.settings = { ...options.settings };
+        this.progression = loadPlayerProgression();
         this.modeOptions = {
             ranked: {
                 id: 'ranked',
@@ -191,6 +198,7 @@ export class LobbyUI {
     }
 
     showLobby() {
+        this.refreshProgression();
         this.root.classList.add('is-visible');
         this.root.classList.remove('is-modal-only', 'is-settings-open');
         const shell = this.root.querySelector<HTMLElement>('.lobby-shell');
@@ -224,6 +232,11 @@ export class LobbyUI {
         this.applySettingsToForm();
     }
 
+    refreshProgression() {
+        this.progression = loadPlayerProgression();
+        this.applyProgressionToView();
+    }
+
     private buildTemplate(): string {
         return `
             <div class="lobby-backdrop">
@@ -248,15 +261,26 @@ export class LobbyUI {
                             <div class="lobby-profile-name-row">
                                 <strong data-player-name>个人主页</strong>
                                 <span class="lobby-rank-chip">
-                                    ${renderLobbyIcon('mode_ranked', 'lobby-rank-chip-icon')}
-                                    青铜段位
+                                    ${renderLobbyIcon('crown', 'lobby-rank-chip-icon')}
+                                    <span data-progression-level>Lv.1</span>
                                 </span>
                                 <span class="lobby-status-dot">在线</span>
+                            </div>
+                            <div class="lobby-profile-growth-row">
+                                <span class="lobby-coin-chip">
+                                    ${renderLobbyIcon('coin', 'lobby-coin-chip-icon')}
+                                    <strong data-progression-coins>0</strong>
+                                </span>
+                                <span class="lobby-growth-meta" data-progression-growth-meta>0 胜 / 0 局</span>
                             </div>
                             <label class="lobby-quick-name-wrap">
                                 <span>局内昵称</span>
                                 <input class="lobby-quick-name-input" data-quick-name type="text" maxlength="${MAX_PLAYER_NAME_LENGTH}" />
                             </label>
+                            <div class="lobby-xp-track" aria-label="经验进度">
+                                <div class="lobby-xp-fill" data-progression-xp-fill></div>
+                            </div>
+                            <div class="lobby-xp-text" data-progression-xp-text>0 / 208 XP</div>
                         </div>
                         <button type="button" class="lobby-ghost-button lobby-ghost-button--compact" data-open-settings>个人主页</button>
                     </div>
@@ -734,7 +758,35 @@ export class LobbyUI {
 
         this.syncAvatarSlots();
         this.syncPreviewAvatarImage();
+        this.applyProgressionToView();
         this.startPreviewLoop();
+    }
+
+    private applyProgressionToView() {
+        const level = Math.max(1, this.progression.level);
+        const currentXp = Math.max(0, this.progression.currentXp);
+        const requiredXp = getRequiredXpForLevel(level);
+        const safeRatio = requiredXp <= 0 ? 0 : Math.max(0, Math.min(1, currentXp / requiredXp));
+
+        this.root.querySelectorAll<HTMLElement>('[data-progression-level]').forEach((el) => {
+            el.textContent = `Lv.${level}`;
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-progression-coins]').forEach((el) => {
+            el.textContent = `${this.progression.coins}`;
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-progression-growth-meta]').forEach((el) => {
+            el.textContent = `${this.progression.totalWins} 胜 / ${this.progression.totalMatches} 局`;
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-progression-xp-fill]').forEach((el) => {
+            el.style.width = `${(safeRatio * 100).toFixed(2)}%`;
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-progression-xp-text]').forEach((el) => {
+            el.textContent = `${currentXp} / ${requiredXp} XP`;
+        });
     }
 
     private syncAvatarSlots() {

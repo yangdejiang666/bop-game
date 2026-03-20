@@ -13,6 +13,12 @@ import {
     saveGameplayTuningToStorage,
     type GameplayTuningPatch
 } from './gameplay/tuning';
+import {
+    loadPlayerProgression,
+    resetPlayerProgression,
+    setPlayerProgression,
+    type PlayerProgression
+} from './app/progression';
 import { LobbyUI, type LobbyModeId } from './ui/LobbyUI';
 import { MatchmakingUI } from './ui/MatchmakingUI';
 
@@ -25,6 +31,8 @@ declare global {
         reset_gameplay_tuning: () => string;
         debug_finish_match: (mode?: 'auto' | 'win' | 'lose' | 'record') => string;
         debug_set_best_record: (value: number) => string;
+        debug_reset_progression: () => string;
+        debug_set_progression: (payload: Partial<PlayerProgression> | string) => string;
     }
 }
 
@@ -69,6 +77,7 @@ function showLobby() {
     pendingModeForMatch = null;
     matchmakingUI.hide(true);
     phase = 'lobby';
+    lobbyUI.refreshProgression();
     lobbyUI.showLobby();
     applyReducedMotionState();
 }
@@ -153,6 +162,7 @@ window.render_game_to_text = () => {
         phase,
         isPlaying: currentSession !== null,
         playerName: settings.playerName,
+        progression: loadPlayerProgression(),
         settings: {
             showFps: settings.showFps,
             showMinimap: settings.showMinimap,
@@ -223,6 +233,29 @@ window.debug_finish_match = (mode = 'auto') => {
 };
 
 window.debug_set_best_record = (value: number) => {
-    currentSession?.debugSetBestMassRecord(value);
+    if (currentSession) {
+        currentSession.debugSetBestMassRecord(value);
+    } else if (Number.isFinite(value)) {
+        setPlayerProgression({ bestMass: Math.max(0, Math.floor(value)) });
+    }
+    lobbyUI.refreshProgression();
+    return window.render_game_to_text();
+};
+
+window.debug_reset_progression = () => {
+    resetPlayerProgression();
+    lobbyUI.refreshProgression();
+    return window.render_game_to_text();
+};
+
+window.debug_set_progression = (payload: Partial<PlayerProgression> | string) => {
+    let patch: Partial<PlayerProgression>;
+    if (typeof payload === 'string') {
+        patch = JSON.parse(payload) as Partial<PlayerProgression>;
+    } else {
+        patch = payload;
+    }
+    setPlayerProgression(patch);
+    lobbyUI.refreshProgression();
     return window.render_game_to_text();
 };
