@@ -39,6 +39,7 @@ export interface GameplayTuning {
         target_cell_count: number;
         main_cell_ratio: number;
         max_piece_ratio: number;
+        piece_mass_cap: number;
         piece_random_factor: number;
         burst_impulse: number;
         burst_impulse_jitter: number;
@@ -139,6 +140,7 @@ export const DEFAULT_GAMEPLAY_TUNING: GameplayTuning = {
         target_cell_count: 9,
         main_cell_ratio: 0.4,
         max_piece_ratio: 0.52,
+        piece_mass_cap: 100,
         piece_random_factor: 0.02,
         burst_impulse: 16.5,
         burst_impulse_jitter: 0,
@@ -263,6 +265,12 @@ function sanitizeGameplayTuning(raw: GameplayTuningPatch | GameplayTuning | unde
         defaults.spike.min_piece_mass,
         minCellMass
     );
+    const pieceMassCap = toFiniteNumber(
+        spikeSource.piece_mass_cap,
+        defaults.spike.piece_mass_cap,
+        minPieceMass,
+        5000
+    );
     const virusFeedResetMass = toFiniteNumber(
         spikeSource.virus_feed_reset_mass,
         defaults.spike.virus_feed_reset_mass,
@@ -384,6 +392,7 @@ function sanitizeGameplayTuning(raw: GameplayTuningPatch | GameplayTuning | unde
             target_cell_count: Math.floor(toFiniteNumber(spikeSource.target_cell_count, defaults.spike.target_cell_count, 2, 32)),
             main_cell_ratio: toFiniteNumber(spikeSource.main_cell_ratio, defaults.spike.main_cell_ratio, 0.1, 0.8),
             max_piece_ratio: toFiniteNumber(spikeSource.max_piece_ratio, defaults.spike.max_piece_ratio, 0.2, 0.75),
+            piece_mass_cap: pieceMassCap,
             piece_random_factor: toFiniteNumber(spikeSource.piece_random_factor, defaults.spike.piece_random_factor, 0, 0.5),
             burst_impulse: toFiniteNumber(spikeSource.burst_impulse, defaults.spike.burst_impulse, 0.1, 120),
             burst_impulse_jitter: toFiniteNumber(spikeSource.burst_impulse_jitter, defaults.spike.burst_impulse_jitter, 0, 0.3),
@@ -465,6 +474,7 @@ function assignGameplayTuning(target: GameplayTuning, source: GameplayTuning) {
     target.spike.target_cell_count = source.spike.target_cell_count;
     target.spike.main_cell_ratio = source.spike.main_cell_ratio;
     target.spike.max_piece_ratio = source.spike.max_piece_ratio;
+    target.spike.piece_mass_cap = source.spike.piece_mass_cap;
     target.spike.piece_random_factor = source.spike.piece_random_factor;
     target.spike.burst_impulse = source.spike.burst_impulse;
     target.spike.burst_impulse_jitter = source.spike.burst_impulse_jitter;

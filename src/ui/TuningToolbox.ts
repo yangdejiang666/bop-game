@@ -109,6 +109,7 @@ const CONTROL_GROUPS: ControlGroup[] = [
             { path: 'spike.target_cell_count', label: '扎刺目标分身数', min: 2, max: 16, step: 1 },
             { path: 'spike.main_cell_ratio', label: '扎刺主球占比', min: 0.15, max: 0.6, step: 0.01, formatter: PERCENT_FORMATTER },
             { path: 'spike.max_piece_ratio', label: '小球/主球最大比', min: 0.2, max: 0.75, step: 0.01, formatter: PERCENT_FORMATTER },
+            { path: 'spike.piece_mass_cap', label: '扎刺子球质量上限', min: 35, max: 400, step: 1 },
             { path: 'spike.min_piece_mass', label: '扎刺最小子球质量', min: 1, max: 120, step: 0.5 },
             { path: 'spike.piece_random_factor', label: '扎刺子球随机系数', min: 0, max: 0.3, step: 0.01, formatter: PERCENT_FORMATTER },
             { path: 'spike.burst_impulse', label: '扎刺爆开冲量', min: 1, max: 60, step: 0.1 },
@@ -415,6 +416,10 @@ export class TuningToolbox {
             draft.limits.min_cell_mass,
             draft.spike.min_piece_mass
         );
+        draft.spike.piece_mass_cap = Math.max(
+            draft.spike.min_piece_mass,
+            draft.spike.piece_mass_cap
+        );
         draft.spike.target_cell_count = Math.max(2, Math.floor(draft.spike.target_cell_count));
         draft.spike.max_piece_ratio = clamp(draft.spike.max_piece_ratio, 0.2, 0.75);
         draft.spike.main_cell_ratio = clamp(draft.spike.main_cell_ratio, 0.1, 0.75);
@@ -499,7 +504,7 @@ export class TuningToolbox {
         }
 
         this.versionInput.value = gameplayTuning.presetVersion;
-        this.derivedEl.textContent = `分身门槛 ${gameplayTuning.split.min_trigger_mass.toFixed(1)} / 子球下限 ${gameplayTuning.split.min_result_mass.toFixed(1)} / 回拢近远阈值 ${gameplayTuning.merge.cohesion_near_ratio.toFixed(2)}→${gameplayTuning.merge.cohesion_far_ratio.toFixed(2)}`;
+        this.derivedEl.textContent = `分身门槛 ${gameplayTuning.split.min_trigger_mass.toFixed(1)} / 分身下限 ${gameplayTuning.split.min_result_mass.toFixed(1)} / 扎刺子球上限 ${gameplayTuning.spike.piece_mass_cap.toFixed(1)} / 回拢近远阈值 ${gameplayTuning.merge.cohesion_near_ratio.toFixed(2)}→${gameplayTuning.merge.cohesion_far_ratio.toFixed(2)}`;
         this.previewEl.value = JSON.stringify(cloneGameplayTuning(), null, 2);
     }
 

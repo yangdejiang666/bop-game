@@ -148,6 +148,7 @@ export interface GameSessionSnapshot {
         spikeMainRatio: number;
         spikeTargetCells: number;
         spikeMaxPieceRatio: number;
+        spikePieceMassCap: number;
         spikeVirusBonusMass: number;
         spikeVirusFeedSplitFeeds: number;
         spikeVirusFeedSplitMass: number;
@@ -1537,6 +1538,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 spikeMainRatio: gameplayTuning.spike.main_cell_ratio,
                 spikeTargetCells: gameplayTuning.spike.target_cell_count,
                 spikeMaxPieceRatio: gameplayTuning.spike.max_piece_ratio,
+                spikePieceMassCap: gameplayTuning.spike.piece_mass_cap,
                 spikeVirusBonusMass: gameplayTuning.spike.virus_bonus_mass,
                 spikeVirusFeedSplitFeeds: gameplayTuning.spike.virus_feed_split_feeds,
                 spikeVirusFeedSplitMass: gameplayTuning.spike.virus_feed_split_mass,

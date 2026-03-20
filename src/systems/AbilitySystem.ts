@@ -114,9 +114,12 @@ export class AbilitySystem {
                 + virusScaleBonus * gameplayTuning.spike.virus_size_piece_bonus
             )
         );
-        // User request: virus-split child cells should never exceed 100kg.
-        // This is an upper cap, not a forced target.
-        const spikeSplitPieceMassCap = 100;
+        // User request: virus-split child cells should have an upper mass cap.
+        // This cap limits child size, but does not force them to this value.
+        const spikeSplitPieceMassCap = Math.max(
+            minMassFloor,
+            gameplayTuning.spike.piece_mass_cap
+        );
         const minPieceMass = Math.min(
             spikeSplitPieceMassCap,
             Math.max(gameplayTuning.spike.min_piece_mass, minMassFloor)
