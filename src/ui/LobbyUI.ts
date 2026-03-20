@@ -1,4 +1,5 @@
 import type { GameSettings } from '../app/settings';
+import { type LobbyIconId, renderLobbyIcon } from './icons';
 
 export type LobbyModeId = 'ranked' | 'peak' | 'classic' | 'speed' | 'team' | 'battleRoyale';
 
@@ -14,11 +15,14 @@ interface ModeOption {
     id: LobbyModeId;
     name: string;
     subtitle: string;
-    icon: string;
+    iconId: LobbyIconId;
+    theme: 'gold' | 'violet' | 'cyan' | 'amber' | 'purple' | 'red';
     status: string;
     footerHint: string;
     playable: boolean;
 }
+
+type LobbyFeatureId = 'shop' | 'magic' | 'friends' | 'leaderboard';
 
 interface SkinOption {
     id: string;
@@ -82,6 +86,7 @@ export class LobbyUI {
     private previewAvatarImage: HTMLImageElement | null = null;
     private previewAvatarSrc = '';
     private tipTimer: number | null = null;
+    private selectedFeatureId: LobbyFeatureId | null = 'shop';
 
     constructor(options: LobbyUIOptions) {
         this.options = options;
@@ -91,7 +96,8 @@ export class LobbyUI {
                 id: 'ranked',
                 name: '排位赛',
                 subtitle: '积分晋级 · 赛季结算',
-                icon: '🏆',
+                iconId: 'mode_ranked',
+                theme: 'gold',
                 status: '已开放',
                 footerHint: '排位赛为 6 分钟限时，点击开始会先进入匹配阶段。',
                 playable: true
@@ -100,7 +106,8 @@ export class LobbyUI {
                 id: 'peak',
                 name: '巅峰赛',
                 subtitle: '高分对抗 · 顶尖段位',
-                icon: '📈',
+                iconId: 'mode_peak',
+                theme: 'violet',
                 status: '测试中',
                 footerHint: '巅峰赛当前为测试匹配池，点击开始会先进入匹配阶段。',
                 playable: true
@@ -109,7 +116,8 @@ export class LobbyUI {
                 id: 'classic',
                 name: '经典模式',
                 subtitle: '自由吞噬 · 单机可玩',
-                icon: '⚪',
+                iconId: 'mode_classic',
+                theme: 'cyan',
                 status: '已开放',
                 footerHint: '经典模式点击开始会先进入匹配阶段，再进入对局。',
                 playable: true
@@ -118,7 +126,8 @@ export class LobbyUI {
                 id: 'speed',
                 name: '极速模式',
                 subtitle: '高节奏成长 · 快速对抗',
-                icon: '⚡',
+                iconId: 'mode_speed',
+                theme: 'amber',
                 status: '测试中',
                 footerHint: '极速模式正在调试节奏，点击开始会先进入匹配阶段。',
                 playable: true
@@ -127,7 +136,8 @@ export class LobbyUI {
                 id: 'team',
                 name: '团队模式',
                 subtitle: '队伍配合 · 吐球协同',
-                icon: '👥',
+                iconId: 'mode_team',
+                theme: 'purple',
                 status: '已开放',
                 footerHint: '团队模式为 6 分钟限时，点击开始会先进行队伍匹配。',
                 playable: true
@@ -136,7 +146,8 @@ export class LobbyUI {
                 id: 'battleRoyale',
                 name: '大逃杀',
                 subtitle: '缩圈生存 · 极限翻盘',
-                icon: '🎯',
+                iconId: 'mode_battleRoyale',
+                theme: 'red',
                 status: '测试中',
                 footerHint: '大逃杀当前为测试模式，点击开始会先进入匹配阶段。',
                 playable: true
@@ -160,6 +171,7 @@ export class LobbyUI {
         this.bindEvents();
         this.applySettingsToForm();
         this.applySelectedModeUI();
+        this.applyFeatureSelection();
         this.startPreviewLoop();
     }
 
@@ -235,6 +247,10 @@ export class LobbyUI {
                         <div class="lobby-profile-meta">
                             <div class="lobby-profile-name-row">
                                 <strong data-player-name>个人主页</strong>
+                                <span class="lobby-rank-chip">
+                                    ${renderLobbyIcon('mode_ranked', 'lobby-rank-chip-icon')}
+                                    青铜段位
+                                </span>
                                 <span class="lobby-status-dot">在线</span>
                             </div>
                             <label class="lobby-quick-name-wrap">
@@ -255,14 +271,14 @@ export class LobbyUI {
 
                     <div class="lobby-right-widgets">
                         <div class="lobby-mini-card">
-                            <div class="lobby-mini-card-icon">🎉</div>
+                            <div class="lobby-mini-card-icon">${renderLobbyIcon('activity', 'lobby-mini-card-icon-svg')}</div>
                             <div>
                                 <strong>活动中心</strong>
                                 <small>春季冲榜活动进行中</small>
                             </div>
                         </div>
                         <div class="lobby-mini-card">
-                            <div class="lobby-mini-card-icon">🧾</div>
+                            <div class="lobby-mini-card-icon">${renderLobbyIcon('tasks', 'lobby-mini-card-icon-svg')}</div>
                             <div>
                                 <strong>今日任务</strong>
                                 <small>3 / 5 已完成</small>
@@ -278,7 +294,10 @@ export class LobbyUI {
                                 <strong>装扮投影预览</strong>
                                 <small>昵称、头像、皮肤实时联动</small>
                             </div>
-                            <span class="lobby-tag" data-current-mode-label>经典模式</span>
+                            <span class="lobby-tag" data-current-mode-tag>
+                                <span class="lobby-tag-icon" data-current-mode-icon>${renderLobbyIcon('mode_classic', 'lobby-tag-icon-svg')}</span>
+                                <span data-current-mode-label>经典模式</span>
+                            </span>
                         </div>
                         <canvas class="lobby-preview-canvas" width="560" height="360" data-preview-canvas></canvas>
                         <div class="lobby-skin-strip" role="group" aria-label="皮肤选择">
@@ -302,10 +321,22 @@ export class LobbyUI {
 
                 <footer class="lobby-bottom--v2">
                     <div class="lobby-feature-strip">
-                        <button type="button" class="lobby-feature-button" data-feature="shop">商店</button>
-                        <button type="button" class="lobby-feature-button" data-feature="magic">魔法屋</button>
-                        <button type="button" class="lobby-feature-button" data-feature="friends">好友</button>
-                        <button type="button" class="lobby-feature-button" data-feature="leaderboard">排行榜</button>
+                        <button type="button" class="lobby-feature-button" data-feature="shop">
+                            ${renderLobbyIcon('shop', 'lobby-feature-icon')}
+                            <span>商店</span>
+                        </button>
+                        <button type="button" class="lobby-feature-button" data-feature="magic">
+                            ${renderLobbyIcon('magic', 'lobby-feature-icon')}
+                            <span>魔法屋</span>
+                        </button>
+                        <button type="button" class="lobby-feature-button" data-feature="friends">
+                            ${renderLobbyIcon('friends', 'lobby-feature-icon')}
+                            <span>好友</span>
+                        </button>
+                        <button type="button" class="lobby-feature-button" data-feature="leaderboard">
+                            ${renderLobbyIcon('leaderboard', 'lobby-feature-icon')}
+                            <span>排行榜</span>
+                        </button>
                     </div>
 
                     <div class="lobby-footer-actions--v2">
@@ -397,9 +428,15 @@ export class LobbyUI {
         return Object.values(this.modeOptions).map((mode) => {
             const disabledClass = mode.playable ? '' : ' is-disabled';
             const activeClass = mode.id === this.selectedModeId ? ' is-active' : '';
+            const themeClass = ` is-theme-${mode.theme}`;
+            const statusClass = mode.status === '已开放'
+                ? ' is-open'
+                : mode.status === '测试中'
+                    ? ' is-testing'
+                    : ' is-locked';
             return `
                 <article
-                    class="lobby-mode-card--v2${disabledClass}${activeClass}"
+                    class="lobby-mode-card--v2${disabledClass}${activeClass}${themeClass}"
                     data-mode-id="${mode.id}"
                     tabindex="0"
                     role="button"
@@ -407,10 +444,12 @@ export class LobbyUI {
                 >
                     <div class="lobby-mode-card-head">
                         <div class="lobby-mode-title-wrap">
-                            <span class="lobby-mode-icon">${mode.icon}</span>
+                            <span class="lobby-mode-icon">
+                                ${renderLobbyIcon(mode.iconId, 'lobby-mode-icon-svg')}
+                            </span>
                             <strong>${mode.name}</strong>
                         </div>
-                        <span>${mode.status}</span>
+                        <span class="lobby-mode-status-badge${statusClass}">${mode.status}</span>
                     </div>
                     <p>${mode.subtitle}</p>
                 </article>
@@ -549,6 +588,15 @@ export class LobbyUI {
         this.root.querySelectorAll<HTMLElement>('[data-feature]').forEach((button) => {
             button.addEventListener('click', () => {
                 const feature = button.dataset.feature || '';
+                if (
+                    feature === 'shop'
+                    || feature === 'magic'
+                    || feature === 'friends'
+                    || feature === 'leaderboard'
+                ) {
+                    this.selectedFeatureId = feature;
+                    this.applyFeatureSelection();
+                }
                 const tips: Record<string, string> = {
                     shop: '商店入口已预留，后续可接皮肤与道具。',
                     magic: '魔法屋入口已预留，后续可接抽取与升级。',
@@ -580,11 +628,23 @@ export class LobbyUI {
         const heading = this.root.querySelector<HTMLElement>('[data-mode-status]');
         if (heading) {
             heading.textContent = mode.status;
+            heading.classList.remove('is-open', 'is-testing', 'is-locked');
+            heading.classList.add(
+                mode.status === '已开放'
+                    ? 'is-open'
+                    : mode.status === '测试中'
+                        ? 'is-testing'
+                        : 'is-locked'
+            );
         }
 
         const currentModeLabel = this.root.querySelector<HTMLElement>('[data-current-mode-label]');
         if (currentModeLabel) {
             currentModeLabel.textContent = mode.name;
+        }
+        const currentModeIcon = this.root.querySelector<HTMLElement>('[data-current-mode-icon]');
+        if (currentModeIcon) {
+            currentModeIcon.innerHTML = renderLobbyIcon(mode.iconId, 'lobby-tag-icon-svg');
         }
 
         const footerMode = this.root.querySelector<HTMLElement>('[data-selected-mode]');
@@ -603,6 +663,8 @@ export class LobbyUI {
             startButton.textContent = mode.playable ? '开始匹配' : '敬请期待';
             startButton.classList.toggle('is-disabled', !mode.playable);
         }
+
+        this.root.dataset.modeTheme = mode.theme;
     }
 
     private closeSettings() {
@@ -759,6 +821,14 @@ export class LobbyUI {
             this.root.classList.remove('is-inline-tip-active');
             this.tipTimer = null;
         }, 2200);
+    }
+
+    private applyFeatureSelection() {
+        this.root.querySelectorAll<HTMLElement>('[data-feature]').forEach((button) => {
+            const featureId = button.dataset.feature ?? '';
+            button.classList.toggle('is-active', featureId === this.selectedFeatureId);
+            button.setAttribute('aria-pressed', featureId === this.selectedFeatureId ? 'true' : 'false');
+        });
     }
 
     private readFileAsDataUrl(file: File): Promise<string> {

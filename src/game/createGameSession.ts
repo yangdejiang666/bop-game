@@ -21,6 +21,7 @@ import type { GameSettings } from '../app/settings';
 import { gameplayTuning } from '../gameplay/tuning';
 import { TuningToolbox } from '../ui/TuningToolbox';
 import type { LobbyModeId } from '../ui/LobbyUI';
+import { renderLobbyIcon } from '../ui/icons';
 import { GameAudioManager, type GameAudioDebugState } from '../audio/GameAudioManager';
 
 const WORLD_SIZE = 6000;
@@ -31,6 +32,22 @@ const BOT_COUNT = 49;
 const LEADERBOARD_SIZE = 10;
 const MATCH_DURATION_SECONDS = 6 * 60;
 const BEST_MASS_RECORD_KEY = 'bop:best-mass-record';
+
+type MatchRankTheme = 'gold' | 'silver' | 'bronze' | 'normal';
+
+interface MatchTop3Entry {
+    rank: 1 | 2 | 3;
+    name: string;
+    mass: number;
+    isPlayer: boolean;
+}
+
+interface RankedControllerEntry {
+    controller: Player | Bot;
+    mass: number;
+    isPlayer: boolean;
+    name: string;
+}
 
 interface MatchModeConfig {
     id: LobbyModeId;
@@ -154,6 +171,9 @@ export interface GameSessionSnapshot {
         winnerLabel: string;
         playerWon: boolean;
         bestMassRecord: number;
+        playerRank: number;
+        playerRankTheme: MatchRankTheme;
+        top3: MatchTop3Entry[];
     };
 }
 
@@ -205,6 +225,16 @@ interface SessionHudRefs {
     resultOverlay: HTMLDivElement;
     resultTitleEl: HTMLHeadingElement;
     resultSubEl: HTMLDivElement;
+    resultRankMainEl: HTMLElement;
+    resultPlayerRankCardEl: HTMLDivElement;
+    resultPlayerRankEl: HTMLElement;
+    resultPlayerRankMassEl: HTMLElement;
+    resultPodiumItems: Array<{
+        rank: 1 | 2 | 3;
+        root: HTMLElement;
+        nameEl: HTMLElement;
+        massEl: HTMLElement;
+    }>;
     resultWinnerEl: HTMLDivElement;
     resultMassEl: HTMLDivElement;
     resultBestEl: HTMLDivElement;
@@ -246,6 +276,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let matchFinished = false;
     let winnerLabel = '';
     let playerWon = false;
+    let playerRank = 0;
+    let playerRankTheme: MatchRankTheme = 'normal';
+    let top3Result: MatchTop3Entry[] = [];
     let bestMassRecord = loadBestMassRecord();
     let lastPlayerSpikeEventId = 0;
 
@@ -298,6 +331,45 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     function resolvePlayerDisplayName(rawName: string): string {
         const trimmed = rawName.trim();
         return trimmed.length > 0 ? trimmed : '未命名玩家';
+    }
+
+    function getControllerDisplayName(controller: Player | Bot): string {
+        return controller === player
+            ? resolvePlayerDisplayName(settings.playerName)
+            : (controller as Bot).name;
+    }
+
+    function getRankTheme(rank: number): MatchRankTheme {
+        if (rank === 1) {
+            return 'gold';
+        }
+        if (rank === 2) {
+            return 'silver';
+        }
+        if (rank === 3) {
+            return 'bronze';
+        }
+        return 'normal';
+    }
+
+    function buildRankedEntries(playerMassOverride: number | null = null): RankedControllerEntry[] {
+        if (!player) {
+            return [];
+        }
+
+        return [player, ...bots]
+            .map((controller) => {
+                const isPlayerController = controller === player;
+                return {
+                    controller,
+                    mass: isPlayerController && playerMassOverride !== null
+                        ? playerMassOverride
+                        : getControllerMass(controller),
+                    isPlayer: isPlayerController,
+                    name: getControllerDisplayName(controller)
+                };
+            })
+            .sort((a, b) => b.mass - a.mass);
     }
 
     function createHud(): SessionHudRefs {
@@ -543,6 +615,50 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 <div class="match-result-kicker">对局结算</div>
                 <h2 class="match-result-title" data-result-title>比赛结束</h2>
                 <div class="match-result-subtitle" data-result-subtitle>正在统计结果...</div>
+                <div class="match-result-rank-stage">
+                    <div class="match-result-rank-head">
+                        <span>名次结算</span>
+                        <strong data-result-rank-main>第 1 名</strong>
+                    </div>
+                    <div class="match-result-podium">
+                        <article class="match-result-podium-item is-silver" data-result-podium-item data-rank="2">
+                            <div class="match-result-podium-badge">
+                                ${renderLobbyIcon('rank_silver', 'match-result-podium-icon')}
+                            </div>
+                            <div class="match-result-podium-meta">
+                                <strong data-result-podium-name>--</strong>
+                                <span data-result-podium-mass>0 kg</span>
+                            </div>
+                        </article>
+                        <article class="match-result-podium-item is-gold" data-result-podium-item data-rank="1">
+                            <div class="match-result-podium-badge">
+                                ${renderLobbyIcon('rank_gold', 'match-result-podium-icon')}
+                            </div>
+                            <div class="match-result-phoenix-wings" aria-hidden="true">
+                                <span></span>
+                                <span></span>
+                            </div>
+                            <div class="match-result-podium-meta">
+                                <strong data-result-podium-name>--</strong>
+                                <span data-result-podium-mass>0 kg</span>
+                            </div>
+                        </article>
+                        <article class="match-result-podium-item is-bronze" data-result-podium-item data-rank="3">
+                            <div class="match-result-podium-badge">
+                                ${renderLobbyIcon('rank_bronze', 'match-result-podium-icon')}
+                            </div>
+                            <div class="match-result-podium-meta">
+                                <strong data-result-podium-name>--</strong>
+                                <span data-result-podium-mass>0 kg</span>
+                            </div>
+                        </article>
+                    </div>
+                    <div class="match-result-player-rank-card" data-result-player-rank-card>
+                        <span>我的名次</span>
+                        <strong data-result-player-rank>第 1 名</strong>
+                        <em data-result-player-rank-mass>0 kg</em>
+                    </div>
+                </div>
                 <div class="match-result-ball-stage">
                     <div class="match-result-burst"></div>
                     <div class="match-result-ball" data-result-ball></div>
@@ -572,13 +688,51 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const resultTitleEl = resultOverlay.querySelector<HTMLHeadingElement>('[data-result-title]');
         const resultSubEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-subtitle]');
+        const resultRankMainEl = resultOverlay.querySelector<HTMLElement>('[data-result-rank-main]');
+        const resultPlayerRankCardEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-player-rank-card]');
+        const resultPlayerRankEl = resultOverlay.querySelector<HTMLElement>('[data-result-player-rank]');
+        const resultPlayerRankMassEl = resultOverlay.querySelector<HTMLElement>('[data-result-player-rank-mass]');
         const resultWinnerEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-winner]');
         const resultMassEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-mass]');
         const resultBestEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-best]');
         const resultRecordBannerEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-record-banner]');
         const resultBallEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-ball]');
+        const resultPodiumItems = Array.from(resultOverlay.querySelectorAll<HTMLElement>('[data-result-podium-item]'))
+            .map((item) => {
+                const rankValue = Number.parseInt(item.dataset.rank ?? '', 10);
+                const nameEl = item.querySelector<HTMLElement>('[data-result-podium-name]');
+                const massEl = item.querySelector<HTMLElement>('[data-result-podium-mass]');
+                if (!nameEl || !massEl || !Number.isFinite(rankValue) || rankValue < 1 || rankValue > 3) {
+                    return null;
+                }
+                return {
+                    rank: rankValue as 1 | 2 | 3,
+                    root: item,
+                    nameEl,
+                    massEl
+                };
+            })
+            .filter((item): item is {
+                rank: 1 | 2 | 3;
+                root: HTMLElement;
+                nameEl: HTMLElement;
+                massEl: HTMLElement;
+            } => item !== null);
 
-        if (!resultTitleEl || !resultSubEl || !resultWinnerEl || !resultMassEl || !resultBestEl || !resultRecordBannerEl || !resultBallEl) {
+        if (
+            !resultTitleEl
+            || !resultSubEl
+            || !resultRankMainEl
+            || !resultPlayerRankCardEl
+            || !resultPlayerRankEl
+            || !resultPlayerRankMassEl
+            || !resultWinnerEl
+            || !resultMassEl
+            || !resultBestEl
+            || !resultRecordBannerEl
+            || !resultBallEl
+            || resultPodiumItems.length !== 3
+        ) {
             throw new Error('Failed to initialize match result overlay.');
         }
 
@@ -620,6 +774,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             resultOverlay,
             resultTitleEl,
             resultSubEl,
+            resultRankMainEl,
+            resultPlayerRankCardEl,
+            resultPlayerRankEl,
+            resultPlayerRankMassEl,
+            resultPodiumItems,
             resultWinnerEl,
             resultMassEl,
             resultBestEl,
@@ -659,6 +818,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         matchFinished = false;
         winnerLabel = '';
         playerWon = false;
+        playerRank = 0;
+        playerRankTheme = 'normal';
+        top3Result = [];
         lastPlayerSpikeEventId = 0;
 
         input?.setMouseScreenPosition(window.innerWidth / 2, window.innerHeight / 2);
@@ -680,7 +842,16 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         if (!hudRefs) {
             return;
         }
-        hudRefs.resultOverlay.classList.remove('is-visible', 'is-record', 'is-win');
+        hudRefs.resultOverlay.classList.remove(
+            'is-visible',
+            'is-record',
+            'is-win',
+            'is-team-mode',
+            'rank-theme-gold',
+            'rank-theme-silver',
+            'rank-theme-bronze',
+            'rank-theme-normal'
+        );
     }
 
     function finalizeTimedMatch(now = performance.now(), debugOptions: DebugMatchFinishOptions = {}) {
@@ -688,14 +859,34 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             return;
         }
 
-        const allControllers = [player, ...bots];
         const forcedWinner = debugOptions.winner ?? 'auto';
         const overridePlayerMass = typeof debugOptions.playerMass === 'number' && Number.isFinite(debugOptions.playerMass)
             ? Math.max(gameplayTuning.limits.min_cell_mass, Math.floor(debugOptions.playerMass))
             : null;
         const rawPlayerMass = getControllerMass(player);
         const playerMass = overridePlayerMass ?? rawPlayerMass;
-        const playerMassDelta = playerMass - rawPlayerMass;
+        const rankedPersonal = buildRankedEntries(playerMass);
+        const playerRankIndex = rankedPersonal.findIndex((entry) => entry.isPlayer);
+        playerRank = playerRankIndex >= 0 ? playerRankIndex + 1 : rankedPersonal.length + 1;
+        playerRankTheme = getRankTheme(playerRank);
+        top3Result = [1, 2, 3].map((rankNumber) => {
+            const entry = rankedPersonal[rankNumber - 1];
+            if (!entry) {
+                return {
+                    rank: rankNumber as 1 | 2 | 3,
+                    name: '虚位以待',
+                    mass: 0,
+                    isPlayer: false
+                };
+            }
+            return {
+                rank: rankNumber as 1 | 2 | 3,
+                name: entry.name,
+                mass: entry.mass,
+                isPlayer: entry.isPlayer
+            };
+        });
+
         let resultSubtitle = modeConfig.timed
             ? `${modeConfig.durationSeconds / 60} 分钟结束，按体重排名结算。`
             : '开发者手动结束当前对局，按当前排名结算。';
@@ -704,8 +895,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             let teamATotal = 0;
             let teamBTotal = 0;
 
-            allControllers.forEach((controller, index) => {
-                const mass = getControllerMass(controller);
+            [player, ...bots].forEach((controller, index) => {
+                const mass = controller === player ? playerMass : getControllerMass(controller);
                 const isTeamA = index === 0 || index % 2 === 0;
                 if (isTeamA) {
                     teamATotal += mass;
@@ -714,7 +905,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 }
             });
 
-            const teamATotalForResult = teamATotal + playerMassDelta;
+            const teamATotalForResult = teamATotal;
             const teamBTotalForResult = teamBTotal;
             const forcedTeam = forcedWinner === 'teamA' || forcedWinner === 'player'
                 ? 'teamA'
@@ -730,26 +921,16 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 ? `${modeConfig.durationSeconds / 60} 分钟结束，按队伍总质量结算。`
                 : '开发者手动结束当前对局，按队伍总质量结算。';
         } else {
-            const ranked = allControllers
-                .map((controller) => ({
-                    controller,
-                    mass: controller === player ? playerMass : getControllerMass(controller)
-                }))
-                .sort((a, b) => b.mass - a.mass);
-
-            let winner = ranked[0];
+            let winner = rankedPersonal[0];
             if (forcedWinner === 'player') {
-                winner = ranked.find((entry) => entry.controller === player) ?? winner;
+                winner = rankedPersonal.find((entry) => entry.isPlayer) ?? winner;
             } else if (forcedWinner === 'bot') {
-                winner = ranked.find((entry) => entry.controller !== player) ?? winner;
+                winner = rankedPersonal.find((entry) => !entry.isPlayer) ?? winner;
             }
 
             if (winner) {
-                const winnerName = winner.controller === player
-                    ? resolvePlayerDisplayName(settings.playerName)
-                    : (winner.controller as Bot).name;
-                winnerLabel = `${winnerName} ${winner.mass}kg`;
-                playerWon = winner.controller === player;
+                winnerLabel = `${winner.name} ${winner.mass}kg`;
+                playerWon = winner.isPlayer;
             } else {
                 winnerLabel = '未产生胜者';
                 playerWon = false;
@@ -772,10 +953,26 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         hudRefs.resultTitleEl.textContent = playerWon ? '胜利！' : '比赛结束';
         hudRefs.resultSubEl.textContent = resultSubtitle;
+        hudRefs.resultRankMainEl.textContent = `第 ${playerRank} 名`;
+        hudRefs.resultPlayerRankEl.textContent = `第 ${playerRank} 名`;
+        hudRefs.resultPlayerRankMassEl.textContent = `${playerMass} kg`;
         hudRefs.resultWinnerEl.textContent = winnerLabel;
         hudRefs.resultMassEl.textContent = `${playerMass} kg`;
         hudRefs.resultBestEl.textContent = `${bestMassRecord} kg`;
         hudRefs.resultRecordBannerEl.style.display = isNewRecord ? 'block' : 'none';
+
+        hudRefs.resultPlayerRankCardEl.classList.remove('is-gold', 'is-silver', 'is-bronze', 'is-normal');
+        hudRefs.resultPlayerRankCardEl.classList.add(`is-${playerRankTheme}`);
+        hudRefs.resultPodiumItems.forEach((item) => {
+            const podiumData = top3Result.find((entry) => entry.rank === item.rank) ?? null;
+            const isEmpty = !podiumData || podiumData.mass <= 0;
+            item.root.classList.toggle('is-empty', isEmpty);
+            item.root.classList.toggle('is-player', Boolean(podiumData?.isPlayer));
+            item.nameEl.textContent = podiumData ? podiumData.name : '虚位以待';
+            item.massEl.textContent = podiumData && podiumData.mass > 0
+                ? `${podiumData.mass} kg`
+                : '--';
+        });
 
         const ballScale = Math.max(0, Math.min(1, Math.log(playerMass + 1) / Math.log(16000)));
         const ballSize = 108 + ballScale * 180;
@@ -785,6 +982,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultOverlay.classList.add('is-visible');
         hudRefs.resultOverlay.classList.toggle('is-record', isNewRecord);
         hudRefs.resultOverlay.classList.toggle('is-win', playerWon);
+        hudRefs.resultOverlay.classList.toggle('is-team-mode', modeConfig.teamMode);
+        hudRefs.resultOverlay.classList.remove('rank-theme-gold', 'rank-theme-silver', 'rank-theme-bronze', 'rank-theme-normal');
+        hudRefs.resultOverlay.classList.add(`rank-theme-${playerRankTheme}`);
         matchFinished = true;
         stop();
 
@@ -1359,7 +1559,10 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 isFinished: matchFinished,
                 winnerLabel,
                 playerWon,
-                bestMassRecord
+                bestMassRecord,
+                playerRank,
+                playerRankTheme,
+                top3: top3Result.map((entry) => ({ ...entry }))
             }
         };
     }

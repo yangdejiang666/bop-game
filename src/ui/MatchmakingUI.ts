@@ -1,10 +1,13 @@
 import type { GameSettings } from '../app/settings';
 import type { LobbyModeId } from './LobbyUI';
+import { type LobbyIconId, renderLobbyIcon } from './icons';
 
 type MatchmakingStage = 'idle' | 'searching' | 'confirming';
 
 interface MatchModeMeta {
     name: string;
+    iconId: LobbyIconId;
+    theme: 'gold' | 'violet' | 'cyan' | 'amber' | 'purple' | 'red';
     targetPlayers: number;
     minStartPlayers: number;
     expectedSeconds: number;
@@ -13,36 +16,48 @@ interface MatchModeMeta {
 const MODE_META: Record<LobbyModeId, MatchModeMeta> = {
     ranked: {
         name: '排位赛',
+        iconId: 'mode_ranked',
+        theme: 'gold',
         targetPlayers: 50,
         minStartPlayers: 16,
         expectedSeconds: 7.2
     },
     peak: {
         name: '巅峰赛',
+        iconId: 'mode_peak',
+        theme: 'violet',
         targetPlayers: 50,
         minStartPlayers: 18,
         expectedSeconds: 7.8
     },
     classic: {
         name: '经典模式',
+        iconId: 'mode_classic',
+        theme: 'cyan',
         targetPlayers: 50,
         minStartPlayers: 14,
         expectedSeconds: 6.6
     },
     speed: {
         name: '极速模式',
+        iconId: 'mode_speed',
+        theme: 'amber',
         targetPlayers: 40,
         minStartPlayers: 12,
         expectedSeconds: 5.4
     },
     team: {
         name: '团队模式',
+        iconId: 'mode_team',
+        theme: 'purple',
         targetPlayers: 40,
         minStartPlayers: 12,
         expectedSeconds: 6
     },
     battleRoyale: {
         name: '大逃杀',
+        iconId: 'mode_battleRoyale',
+        theme: 'red',
         targetPlayers: 60,
         minStartPlayers: 20,
         expectedSeconds: 8.4
@@ -72,6 +87,7 @@ export class MatchmakingUI {
     private readonly options: MatchmakingUIOptions;
 
     private readonly modeNameEl: HTMLSpanElement;
+    private readonly modeIconEl: HTMLSpanElement;
     private readonly stageTextEl: HTMLDivElement;
     private readonly statusTextEl: HTMLDivElement;
     private readonly etaTextEl: HTMLSpanElement;
@@ -95,10 +111,8 @@ export class MatchmakingUI {
     private readyTimerId: number | null = null;
     private visible = false;
     private successCuePlayed = false;
-    private audioContext: AudioContext | null = null;
-    private audioMasterGain: GainNode | null = null;
-    private audioUnlockPending = false;
-    private readonly audioUnlockHandler: () => void;
+    private successVoiceFallbackUsed = false;
+    private successVoiceAudio: HTMLAudioElement | null = null;
 
     constructor(options: MatchmakingUIOptions) {
         this.options = options;
@@ -117,18 +131,34 @@ export class MatchmakingUI {
                     <span class="matchmaking-flow-line matchmaking-flow-line--2"></span>
                     <span class="matchmaking-flow-line matchmaking-flow-line--3"></span>
                     <span class="matchmaking-flow-line matchmaking-flow-line--4"></span>
+                    <span class="matchmaking-flow-arc matchmaking-flow-arc--a"></span>
+                    <span class="matchmaking-flow-arc matchmaking-flow-arc--b"></span>
+                    <span class="matchmaking-flow-spark matchmaking-flow-spark--1"></span>
+                    <span class="matchmaking-flow-spark matchmaking-flow-spark--2"></span>
+                    <span class="matchmaking-flow-spark matchmaking-flow-spark--3"></span>
                 </div>
                 <button type="button" class="matchmaking-cancel" data-match-cancel>取消匹配</button>
                 <div class="matchmaking-kicker">战前匹配</div>
-                <h2 class="matchmaking-title">正在匹配 <span data-match-mode>经典模式</span></h2>
+                <h2 class="matchmaking-title">
+                    <span class="matchmaking-title-prefix">正在匹配</span>
+                    <span class="matchmaking-title-mode">
+                        <span class="matchmaking-mode-icon-shell" data-match-mode-icon>${renderLobbyIcon('mode_classic', 'matchmaking-mode-icon')}</span>
+                        <span data-match-mode>经典模式</span>
+                    </span>
+                </h2>
                 <div class="matchmaking-stage" data-match-stage>搜寻玩家中...</div>
+                <div class="matchmaking-success-stage" aria-hidden="true">
+                    <span class="matchmaking-success-beam matchmaking-success-beam--left"></span>
+                    <span class="matchmaking-success-beam matchmaking-success-beam--right"></span>
+                    <div class="matchmaking-success-label">匹配成功</div>
+                    <div class="matchmaking-success-label-echo">匹配成功</div>
+                </div>
 
                 <div class="matchmaking-ring-stage">
                     <div class="matchmaking-ring matchmaking-ring--outer"></div>
                     <div class="matchmaking-ring matchmaking-ring--mid"></div>
                     <div class="matchmaking-ring matchmaking-ring--inner"></div>
                     <div class="matchmaking-success-ripple"></div>
-                    <div class="matchmaking-success-label">匹配成功</div>
                     <div class="matchmaking-core">
                         <strong data-match-current>0</strong>
                         <span>已加入玩家</span>
@@ -152,6 +182,7 @@ export class MatchmakingUI {
         `;
 
         const modeNameEl = this.root.querySelector<HTMLSpanElement>('[data-match-mode]');
+        const modeIconEl = this.root.querySelector<HTMLSpanElement>('[data-match-mode-icon]');
         const stageTextEl = this.root.querySelector<HTMLDivElement>('[data-match-stage]');
         const statusTextEl = this.root.querySelector<HTMLDivElement>('[data-match-status]');
         const etaTextEl = this.root.querySelector<HTMLSpanElement>('[data-match-eta]');
@@ -164,6 +195,7 @@ export class MatchmakingUI {
 
         if (
             !modeNameEl
+            || !modeIconEl
             || !stageTextEl
             || !statusTextEl
             || !etaTextEl
@@ -178,6 +210,7 @@ export class MatchmakingUI {
         }
 
         this.modeNameEl = modeNameEl;
+        this.modeIconEl = modeIconEl;
         this.stageTextEl = stageTextEl;
         this.statusTextEl = statusTextEl;
         this.etaTextEl = etaTextEl;
@@ -186,17 +219,10 @@ export class MatchmakingUI {
         this.targetPlayersEl = targetPlayersEl;
         this.progressBarEl = progressBarEl;
         this.progressLabelEl = progressLabelEl;
-        this.audioUnlockHandler = () => {
-            this.resumeAudioContextIfNeeded();
-        };
 
         cancelButton.addEventListener('click', () => {
             this.cancel();
         });
-        window.addEventListener('pointerdown', this.audioUnlockHandler, { passive: true });
-        window.addEventListener('click', this.audioUnlockHandler, { passive: true });
-        window.addEventListener('keydown', this.audioUnlockHandler);
-        window.addEventListener('touchstart', this.audioUnlockHandler, { passive: true });
 
         this.setSettings(this.settings);
         this.syncUI();
@@ -208,17 +234,14 @@ export class MatchmakingUI {
 
     destroy() {
         this.hide(true);
-        window.removeEventListener('pointerdown', this.audioUnlockHandler);
-        window.removeEventListener('click', this.audioUnlockHandler);
-        window.removeEventListener('keydown', this.audioUnlockHandler);
-        window.removeEventListener('touchstart', this.audioUnlockHandler);
-        this.audioMasterGain?.disconnect();
-        this.audioMasterGain = null;
-        if (this.audioContext) {
-            this.audioContext.close().catch(() => {
-                // no-op
-            });
-            this.audioContext = null;
+        if (typeof window.speechSynthesis !== 'undefined') {
+            window.speechSynthesis.cancel();
+        }
+        if (this.successVoiceAudio) {
+            this.successVoiceAudio.pause();
+            this.successVoiceAudio.src = '';
+            this.successVoiceAudio.load();
+            this.successVoiceAudio = null;
         }
         this.root.remove();
     }
@@ -252,6 +275,7 @@ export class MatchmakingUI {
         this.etaSeconds = Math.max(1, Math.ceil(this.expectedDurationMs / 1000));
         this.visible = true;
         this.successCuePlayed = false;
+        this.successVoiceFallbackUsed = false;
 
         this.root.classList.add('is-visible');
         this.root.classList.remove('is-confirming');
@@ -264,6 +288,10 @@ export class MatchmakingUI {
         this.visible = false;
         this.stopLoop();
         this.clearReadyTimer();
+        if (this.successVoiceAudio) {
+            this.successVoiceAudio.pause();
+            this.successVoiceAudio.currentTime = 0;
+        }
 
         if (resetState) {
             this.modeId = null;
@@ -344,9 +372,9 @@ export class MatchmakingUI {
             this.stage = 'confirming';
             this.progress = 1;
             this.etaSeconds = 0;
-            this.confirmingUntilMs = now + (this.settings.reducedMotion ? 320 : 1500);
+            this.confirmingUntilMs = now + (this.settings.reducedMotion ? 480 : 1820);
             this.root.classList.add('is-confirming');
-            this.playSuccessCue();
+            void this.playSuccessCue();
         }
     }
 
@@ -360,11 +388,14 @@ export class MatchmakingUI {
     private syncUI() {
         const modeMeta = this.modeId ? MODE_META[this.modeId] : null;
         const modeName = modeMeta?.name ?? '经典模式';
+        const modeIcon = modeMeta?.iconId ?? 'mode_classic';
         const target = Math.max(1, this.targetPlayers);
         const current = Math.max(0, this.currentPlayers);
         const progressPercent = Math.max(0, Math.min(100, this.progress * 100));
 
         this.modeNameEl.textContent = modeName;
+        this.modeIconEl.innerHTML = renderLobbyIcon(modeIcon, 'matchmaking-mode-icon');
+        this.root.dataset.modeTheme = modeMeta?.theme ?? 'cyan';
         this.currentPlayersEl.textContent = String(current);
         this.currentPlayersInlineEl.textContent = String(current);
         this.targetPlayersEl.textContent = String(target);
@@ -415,96 +446,59 @@ export class MatchmakingUI {
         }
     }
 
-    private ensureAudioContext(): boolean {
-        if (this.audioContext) {
-            return true;
-        }
-
-        if (typeof window.AudioContext === 'undefined') {
-            return false;
-        }
-
-        this.audioContext = new window.AudioContext();
-        this.audioMasterGain = this.audioContext.createGain();
-        this.audioMasterGain.gain.value = 0.72;
-        this.audioMasterGain.connect(this.audioContext.destination);
-        return true;
-    }
-
-    private resumeAudioContextIfNeeded() {
-        if (!this.ensureAudioContext() || !this.audioContext) {
-            return;
-        }
-
-        if (this.audioContext.state === 'running') {
-            return;
-        }
-
-        if (this.audioUnlockPending) {
-            return;
-        }
-
-        this.audioUnlockPending = true;
-        this.audioContext.resume().catch(() => {
-            // no-op
-        }).finally(() => {
-            this.audioUnlockPending = false;
-        });
-    }
-
-    private playSuccessCue() {
+    private async playSuccessCue(): Promise<void> {
         if (this.successCuePlayed) {
             return;
         }
         this.successCuePlayed = true;
-
-        if (!this.ensureAudioContext() || !this.audioContext || !this.audioMasterGain) {
-            return;
+        const playedByLocalVoice = await this.playSuccessVoiceFromAsset();
+        if (!playedByLocalVoice) {
+            this.playSuccessVoiceBySpeechSynthesis();
         }
-
-        this.resumeAudioContextIfNeeded();
-        if (this.audioContext.state !== 'running') {
-            return;
-        }
-
-        const now = this.audioContext.currentTime + 0.01;
-        this.playSweep(220, 620, now, 0.34, 0.28, 'triangle');
-        this.playSweep(420, 860, now + 0.09, 0.36, 0.22, 'sine');
-        this.playSweep(180, 140, now + 0.22, 0.28, 0.24, 'sawtooth');
-        this.playSuccessVoice();
     }
 
-    private playSweep(
-        fromHz: number,
-        toHz: number,
-        startTime: number,
-        duration: number,
-        volume: number,
-        wave: OscillatorType
-    ) {
-        if (!this.audioContext || !this.audioMasterGain) {
-            return;
+    private async playSuccessVoiceFromAsset(): Promise<boolean> {
+        if (!this.visible || this.stage !== 'confirming') {
+            return false;
+        }
+        if (typeof window.Audio === 'undefined') {
+            return false;
         }
 
-        const osc = this.audioContext.createOscillator();
-        const gain = this.audioContext.createGain();
-        const endTime = startTime + duration;
+        const audio = this.ensureSuccessVoiceAudio();
+        audio.volume = 1;
+        audio.currentTime = 0;
 
-        osc.type = wave;
-        osc.frequency.setValueAtTime(Math.max(50, fromHz), startTime);
-        osc.frequency.exponentialRampToValueAtTime(Math.max(60, toHz), endTime);
-
-        gain.gain.setValueAtTime(0.0001, startTime);
-        gain.gain.exponentialRampToValueAtTime(Math.max(0.001, volume), startTime + duration * 0.28);
-        gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
-
-        osc.connect(gain);
-        gain.connect(this.audioMasterGain);
-        osc.start(startTime);
-        osc.stop(endTime + 0.03);
+        try {
+            await audio.play();
+            return true;
+        } catch {
+            return false;
+        }
     }
 
-    private playSuccessVoice() {
+    private ensureSuccessVoiceAudio(): HTMLAudioElement {
+        if (this.successVoiceAudio) {
+            return this.successVoiceAudio;
+        }
+
+        const audio = new Audio('/audio/match-success-zh-female.mp3');
+        audio.preload = 'auto';
+        audio.volume = 1;
+        audio.addEventListener('error', () => {
+            if (this.visible && this.stage === 'confirming') {
+                this.playSuccessVoiceBySpeechSynthesis();
+            }
+        });
+        this.successVoiceAudio = audio;
+        return audio;
+    }
+
+    private playSuccessVoiceBySpeechSynthesis() {
+        if (this.successVoiceFallbackUsed) {
+            return;
+        }
+        this.successVoiceFallbackUsed = true;
         if (typeof window.speechSynthesis === 'undefined' || typeof window.SpeechSynthesisUtterance === 'undefined') {
             return;
         }
@@ -522,8 +516,8 @@ export class MatchmakingUI {
             const utterance = new SpeechSynthesisUtterance('匹配成功');
             utterance.lang = 'zh-CN';
             utterance.volume = 1;
-            utterance.rate = 0.92;
-            utterance.pitch = 1.2;
+            utterance.rate = 0.94;
+            utterance.pitch = 1.05;
 
             const voice = this.pickPreferredChineseFemaleVoice(voices) ?? this.pickFallbackChineseVoice(voices);
             if (voice) {
