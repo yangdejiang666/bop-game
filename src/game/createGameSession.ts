@@ -371,9 +371,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
 
         const overlayRect = overlay.getBoundingClientRect();
-        const viewportPadding = 8;
-        const availableWidth = Math.max(220, overlayRect.width - viewportPadding * 2);
-        const availableHeight = Math.max(220, overlayRect.height - viewportPadding * 2);
+        const overlayStyle = window.getComputedStyle(overlay);
+        const overlayPadX = parseFloat(overlayStyle.paddingLeft) + parseFloat(overlayStyle.paddingRight);
+        const overlayPadY = parseFloat(overlayStyle.paddingTop) + parseFloat(overlayStyle.paddingBottom);
+        const safeInset = 12;
+        const availableWidth = Math.max(220, overlayRect.width - overlayPadX - safeInset * 2);
+        const availableHeight = Math.max(220, overlayRect.height - overlayPadY - safeInset * 2);
 
         const widthScale = availableWidth / naturalWidth;
         const heightScale = availableHeight / naturalHeight;

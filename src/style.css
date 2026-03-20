@@ -199,10 +199,12 @@ button {
 
 .match-result-panel {
     --result-fit-scale: 1;
-    position: relative;
+    position: absolute;
+    left: 50%;
+    top: 50%;
     width: min(900px, calc(100% - 24px));
     max-height: none;
-    margin: auto;
+    margin: 0;
     padding: 20px 24px 22px;
     border-radius: 28px;
     background:
@@ -216,8 +218,9 @@ button {
     text-align: center;
     overflow-x: hidden;
     overflow-y: hidden;
-    transform: translateZ(0) scale(var(--result-fit-scale));
+    transform: translate3d(-50%, -50%, 0) scale(var(--result-fit-scale));
     transform-origin: center center;
+    will-change: transform;
 }
 
 .match-result-panel.is-fit-scaled {
