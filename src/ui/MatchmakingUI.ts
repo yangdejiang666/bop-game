@@ -344,7 +344,7 @@ export class MatchmakingUI {
             this.stage = 'confirming';
             this.progress = 1;
             this.etaSeconds = 0;
-            this.confirmingUntilMs = now + (this.settings.reducedMotion ? 260 : 1280);
+            this.confirmingUntilMs = now + (this.settings.reducedMotion ? 320 : 1500);
             this.root.classList.add('is-confirming');
             this.playSuccessCue();
         }
@@ -426,7 +426,7 @@ export class MatchmakingUI {
 
         this.audioContext = new window.AudioContext();
         this.audioMasterGain = this.audioContext.createGain();
-        this.audioMasterGain.gain.value = 0.42;
+        this.audioMasterGain.gain.value = 0.72;
         this.audioMasterGain.connect(this.audioContext.destination);
         return true;
     }
@@ -468,9 +468,10 @@ export class MatchmakingUI {
         }
 
         const now = this.audioContext.currentTime + 0.01;
-        this.playSweep(220, 620, now, 0.32, 0.18, 'triangle');
-        this.playSweep(420, 860, now + 0.09, 0.34, 0.14, 'sine');
-        this.playSweep(180, 140, now + 0.22, 0.26, 0.19, 'sawtooth');
+        this.playSweep(220, 620, now, 0.34, 0.28, 'triangle');
+        this.playSweep(420, 860, now + 0.09, 0.36, 0.22, 'sine');
+        this.playSweep(180, 140, now + 0.22, 0.28, 0.24, 'sawtooth');
+        this.playSuccessVoice();
     }
 
     private playSweep(
@@ -501,5 +502,54 @@ export class MatchmakingUI {
         gain.connect(this.audioMasterGain);
         osc.start(startTime);
         osc.stop(endTime + 0.03);
+    }
+
+    private playSuccessVoice() {
+        if (typeof window.speechSynthesis === 'undefined' || typeof window.SpeechSynthesisUtterance === 'undefined') {
+            return;
+        }
+
+        const synth = window.speechSynthesis;
+        const speak = (isRetry = false) => {
+            const voices = synth.getVoices();
+            if (!voices.length && !isRetry) {
+                window.setTimeout(() => {
+                    speak(true);
+                }, 120);
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance('匹配成功');
+            utterance.lang = 'zh-CN';
+            utterance.volume = 1;
+            utterance.rate = 0.92;
+            utterance.pitch = 1.2;
+
+            const voice = this.pickPreferredChineseFemaleVoice(voices) ?? this.pickFallbackChineseVoice(voices);
+            if (voice) {
+                utterance.voice = voice;
+                utterance.lang = voice.lang;
+            }
+
+            synth.cancel();
+            synth.speak(utterance);
+        };
+
+        speak();
+    }
+
+    private pickPreferredChineseFemaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+        const femaleNamePattern = /(female|woman|girl|女|xiaoxiao|xiaoyi|晓晓|小艺|小萱|小云|yunxi|huihui|mei-jia|meijia|hsiao|sin-ji)/i;
+        return voices.find((voice) => {
+            const lang = voice.lang.toLowerCase();
+            if (!lang.includes('zh')) {
+                return false;
+            }
+            return femaleNamePattern.test(voice.name);
+        }) ?? null;
+    }
+
+    private pickFallbackChineseVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+        return voices.find((voice) => voice.lang.toLowerCase().includes('zh')) ?? null;
     }
 }
