@@ -263,6 +263,7 @@ interface SessionHudRefs {
     virusInput: HTMLInputElement;
     modeBadgeEl: HTMLDivElement;
     resultOverlay: HTMLDivElement;
+    resultPanelEl: HTMLDivElement;
     resultTitleEl: HTMLHeadingElement;
     resultSubEl: HTMLDivElement;
     resultRankMainEl: HTMLElement;
@@ -341,6 +342,43 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let settlementProgressionBefore: PlayerProgression | null = null;
     let settlementProgressionAfter: PlayerProgression | null = null;
     let settlementLeveledUp = false;
+    let viewportResizeBound = false;
+
+    function fitSettlementPanelToViewport() {
+        if (!hudRefs) {
+            return;
+        }
+
+        const panel = hudRefs.resultPanelEl;
+        panel.style.setProperty('--result-fit-scale', '1');
+        panel.classList.remove('is-fit-scaled');
+
+        const viewportPadding = 10;
+        const availableWidth = Math.max(220, window.innerWidth - viewportPadding * 2);
+        const availableHeight = Math.max(220, window.innerHeight - viewportPadding * 2);
+        const panelRect = panel.getBoundingClientRect();
+        if (panelRect.width <= 0 || panelRect.height <= 0) {
+            return;
+        }
+
+        const widthScale = availableWidth / panelRect.width;
+        const heightScale = availableHeight / panelRect.height;
+        const targetScale = Math.min(1, widthScale, heightScale);
+        const safeScale = Math.max(0.4, targetScale);
+
+        panel.style.setProperty('--result-fit-scale', safeScale.toFixed(4));
+        panel.classList.toggle('is-fit-scaled', safeScale < 0.995);
+    }
+
+    const handleViewportResize = () => {
+        if (!hudRefs) {
+            return;
+        }
+        if (!hudRefs.resultOverlay.classList.contains('is-visible')) {
+            return;
+        }
+        fitSettlementPanelToViewport();
+    };
 
     function ensureMounted() {
         if (!sessionRoot || !worldRoot || !hudRefs) {
@@ -960,6 +998,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         `;
         root.appendChild(resultOverlay);
 
+        const resultPanelEl = resultOverlay.querySelector<HTMLDivElement>('.match-result-panel');
         const resultTitleEl = resultOverlay.querySelector<HTMLHeadingElement>('[data-result-title]');
         const resultSubEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-subtitle]');
         const resultRankMainEl = resultOverlay.querySelector<HTMLElement>('[data-result-rank-main]');
@@ -1004,6 +1043,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         if (
             !resultTitleEl
+            || !resultPanelEl
             || !resultSubEl
             || !resultRankMainEl
             || !resultPlayerRankCardEl
@@ -1064,6 +1104,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             virusInput,
             modeBadgeEl,
             resultOverlay,
+            resultPanelEl,
             resultTitleEl,
             resultSubEl,
             resultRankMainEl,
@@ -1154,6 +1195,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         stopSettlementAnimation();
         settlementStage = 'hidden';
         settlementElapsedMs = 0;
+        hudRefs.resultPanelEl.style.setProperty('--result-fit-scale', '1');
+        hudRefs.resultPanelEl.classList.remove('is-fit-scaled');
         hudRefs.resultOverlay.classList.remove(
             'is-visible',
             'is-record',
@@ -1325,6 +1368,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultOverlay.classList.remove('rank-theme-gold', 'rank-theme-silver', 'rank-theme-bronze', 'rank-theme-normal');
         hudRefs.resultOverlay.classList.add(`rank-theme-${playerRankTheme}`);
         hudRefs.resultOverlay.classList.toggle('is-level-up', settlementLeveledUp);
+        fitSettlementPanelToViewport();
+        window.requestAnimationFrame(() => fitSettlementPanelToViewport());
         matchFinished = true;
         stop();
 
@@ -1738,6 +1783,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs = createHud();
         tuningToolbox = new TuningToolbox();
         tuningToolbox.mount(hudRefs.toolboxHost);
+
+        if (!viewportResizeBound) {
+            window.addEventListener('resize', handleViewportResize);
+            viewportResizeBound = true;
+        }
+
         buildLoop();
         applySettings(settings);
     }
@@ -1760,6 +1811,10 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     function destroy() {
         stop();
         stopSettlementAnimation();
+        if (viewportResizeBound) {
+            window.removeEventListener('resize', handleViewportResize);
+            viewportResizeBound = false;
+        }
         input?.destroy();
         camera?.destroy();
         renderer?.destroy();

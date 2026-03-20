@@ -151,3 +151,6 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-20: Validation: `npm run build` passed after settlement/progression/lobby integration.
 - 2026-03-20: Fixed settlement-page viewport adaptation for short/small browsers: result overlay now supports vertical scrolling, result panel has dynamic max-height, and added low-height breakpoints (`<=860`, `<=700`) to compress/stack content and keep all controls visible instead of clipping out of bounds.
 - 2026-03-20: Validation: `npm run build` passed after settlement responsive-fit update.
+- 2026-03-20: Updated settlement fitting policy to “no scrolling, full on-screen fit”: added runtime viewport-fit scaling (`--result-fit-scale`) in `createGameSession`, auto-recompute on settlement show + window resize, and removed settlement panel scrolling/max-height clipping behaviors.
+- 2026-03-20: Added/kept compact breakpoints while preserving centered full-screen fit so the entire settlement content remains visible in one frame on short browser heights.
+- 2026-03-20: Validation: `npm run build` passed after no-scroll full-fit settlement update.
