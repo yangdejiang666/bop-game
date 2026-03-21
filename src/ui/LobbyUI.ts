@@ -57,7 +57,7 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
         id: 'classic5v5',
         modeId: 'classic',
         kicker: '休闲模式',
-        name: '经典模式 5v5',
+        name: '经典模式5v5',
         subtitle: '自由吞噬，畅快体验',
         icon: 'view_cozy',
         theme: 'violet',
@@ -332,10 +332,10 @@ export class LobbyUI {
                                 </div>
                                 <span class="stitch-mode-status" data-mode-status>已开放</span>
                             </div>
-                            <div class="stitch-mode-grid">
-                                ${this.buildModeCards()}
-                            </div>
-                        </section>
+                                <div class="stitch-mode-grid">
+                                    ${this.buildModeCards()}
+                                </div>
+                            </section>
 
                         <div class="stitch-info-grid">
                             <section class="stitch-panel glass-panel">
@@ -378,10 +378,6 @@ export class LobbyUI {
                                     ${renderMaterialSymbol('person_add', 'stitch-invite-btn-symbol')}
                                     <span>邀请好友</span>
                                 </button>
-                            </div>
-                            <div class="stitch-cta-note">
-                                当前选择：<strong data-selected-mode-name>排位赛</strong>
-                                <span data-selected-mode-subtitle>向最高荣誉发起冲锋</span>
                             </div>
                         </section>
                     </section>
@@ -433,7 +429,7 @@ export class LobbyUI {
                     </button>
                 </nav>
 
-                <div class="stitch-inline-tip" data-inline-tip aria-live="polite">选择模式后点击进入分厅，匹配入口会在分厅内触发。</div>
+                <div class="stitch-inline-tip" data-inline-tip aria-live="polite"></div>
             </div>
 
             <input type="file" accept="image/*" data-avatar-input class="stitch-hidden-file-input" />
@@ -515,7 +511,7 @@ export class LobbyUI {
 
             return `
                 <article
-                    class="stitch-mode-card flowing-border shimmer${themeClass}${activeClass}"
+                    class="stitch-mode-card flowing-border${themeClass}${activeClass}"
                     data-mode-card-id="${card.id}"
                     data-mode-id="${card.modeId}"
                     tabindex="0"
