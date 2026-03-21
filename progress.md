@@ -219,3 +219,17 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
     - 1024x768 tablet: mode hall rendered two-column top + intel full-width second row;
     - 390x844 mobile: single-column mode hall with visible fixed CTA bar (`设置/开始匹配`) and tab row kept `nowrap + overflow-x:auto`;
     - matching shell and settlement panel remained fully inside viewport bounds, with settlement bottom actions visible.
+- 2026-03-21: Started Stitch style migration (visual-only) for Lobby + ModeHall using `stitch.zip` as reference; kept all business logic, APIs, and data flow unchanged.
+- 2026-03-21: Added external visual resources in `index.html` (`Plus Jakarta Sans`, `Be Vietnam Pro`, `Material Symbols Outlined`) with graceful fallback to existing font stack/SVG icon flow.
+- 2026-03-21: Appended a dedicated Stitch theme layer in `src/style.css`:
+  - introduced neon-glass semantic tokens and typography overrides;
+  - applied nebula/streak backdrop, glass panel treatment, flowing border, shimmer CTA, and glow-hover feedback to Lobby + ModeHall containers/cards/buttons;
+  - preserved reduced-motion behavior by disabling continuous Stitch animations under existing reduced-motion selectors.
+- 2026-03-21: Fixed mobile ModeHall CTA regression after Stitch overlay:
+  - root cause: mobile `position: fixed` CTA inherited a transformed containing block due late `backdrop-filter` override order;
+  - fix: mobile shell alignment switched to top-start (`align-items:flex-start`) and forced mobile `mode-hall-shell` backdrop filter off in final cascade (`@media <=1023`), restoring viewport-fixed CTA visibility.
+- 2026-03-21: Validation after Stitch migration:
+  - `npm run build` passed;
+  - Playwright visual checks on `http://127.0.0.1:4174` passed for Lobby desktop (1440x900) and ModeHall mobile (390x844) with visible bottom CTA (`设置/开始匹配`);
+  - no new JS runtime errors introduced; existing Three.js model fallback warnings remain non-blocking.
+- 2026-03-21: Extracted `stitch.zip` to `stitch_reference/` (`code.html`, `DESIGN.md`, `screen.png`) so future style iterations can continue from a local, versioned reference source.
