@@ -371,69 +371,76 @@ export class LobbyUI {
                 </header>
 
                 <main class="lobby-main--v2 lobby-dashboard-main">
-                    <aside class="lobby-hero-card">
-                        <div class="lobby-hero-card-head">
-                            <div class="lobby-hero-rankline">
-                                <span class="lobby-hero-kicker">ELITE RANK</span>
-                                <span class="lobby-rank-chip">
-                                    ${renderMaterialSymbol('military_tech', 'lobby-rank-chip-symbol')}
-                                    <span data-progression-level>Lv.1</span>
-                                </span>
-                            </div>
-                            <div class="lobby-hero-name-row">
-                                <strong data-player-name>未命名玩家</strong>
-                                <span class="lobby-status-dot">在线</span>
-                            </div>
-                            <div class="lobby-hero-meta-row">
-                                <span class="lobby-hero-mode-pill" data-current-mode-tag>
-                                    <span class="lobby-hero-mode-glyph" data-current-mode-icon>
-                                        ${renderMaterialSymbol('deployed_code', 'lobby-hero-mode-symbol')}
+                    <aside class="lobby-hero-column">
+                        <section class="lobby-hero-card">
+                            <div class="lobby-hero-card-head">
+                                <div class="lobby-hero-rankline">
+                                    <div class="lobby-hero-kicker-wrap">
+                                        <span class="lobby-hero-kicker-dot"></span>
+                                        <span class="lobby-hero-kicker">ELITE RANK</span>
+                                    </div>
+                                    <span class="lobby-rank-chip">
+                                        <span data-progression-level>LV. 1</span>
                                     </span>
-                                    <span data-current-mode-label>经典模式</span>
-                                </span>
-                                <span class="lobby-growth-meta" data-progression-growth-meta>0 胜 / 0 局</span>
+                                </div>
+                                <div class="lobby-hero-name-row">
+                                    <strong data-player-name>未命名玩家</strong>
+                                </div>
+                                <div class="lobby-hero-meta-row">
+                                    <span class="lobby-status-dot">在线</span>
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="lobby-hero-stage-shell">
-                            <div class="lobby-hero-stage-ring"></div>
-                            <div class="lobby-hero-stage-scanline"></div>
-                            <canvas class="lobby-preview-canvas" width="420" height="560" data-preview-canvas></canvas>
-                        </div>
-
-                        <div class="lobby-hero-stats">
-                            <article class="lobby-hero-stat-card">
-                                <small>WIN RATE</small>
-                                <strong data-progression-winrate>0%</strong>
-                            </article>
-                            <article class="lobby-hero-stat-card">
-                                <small>TOTAL MASS</small>
-                                <strong data-progression-best-mass>0 kg</strong>
-                            </article>
-                        </div>
-
-                        <div class="lobby-hero-actions">
-                            <button type="button" class="lobby-start-button lobby-start-button--compact" data-toggle-skins aria-expanded="false">SKINS / CUSTOMIZE</button>
-                            <button type="button" class="lobby-season-card" data-feature="leaderboard">
-                                <span class="lobby-season-card-icon">
-                                    ${renderMaterialSymbol('deployed_code_history', 'lobby-season-card-symbol')}
-                                </span>
-                                <span class="lobby-season-card-copy">
-                                    <strong>SEASON 12: CYBER NEON</strong>
-                                    <small>New skins and limited modes.</small>
-                                </span>
-                            </button>
-                        </div>
-
-                        <div class="lobby-skin-drawer" data-skin-drawer>
-                            <div class="lobby-skin-drawer-head">
-                                <strong>装扮投影预览</strong>
-                                <small>昵称、头像、皮肤实时联动</small>
+                            <div class="lobby-hero-stage-shell">
+                                <div class="lobby-hero-stage-ring lobby-hero-stage-ring--outer"></div>
+                                <div class="lobby-hero-stage-ring lobby-hero-stage-ring--mid"></div>
+                                <div class="lobby-hero-stage-ring lobby-hero-stage-ring--inner"></div>
+                                <div class="lobby-hero-stage-axis lobby-hero-stage-axis--v-top"></div>
+                                <div class="lobby-hero-stage-axis lobby-hero-stage-axis--v-bottom"></div>
+                                <div class="lobby-hero-stage-axis lobby-hero-stage-axis--h-left"></div>
+                                <div class="lobby-hero-stage-axis lobby-hero-stage-axis--h-right"></div>
+                                <div class="lobby-hero-stage-scanline"></div>
+                                <div class="lobby-hero-stage-badge">
+                                    ${renderMaterialSymbol('bolt', 'lobby-hero-stage-badge-symbol')}
+                                </div>
+                                <canvas class="lobby-preview-canvas" width="420" height="560" data-preview-canvas></canvas>
                             </div>
-                            <div class="lobby-skin-strip" role="group" aria-label="皮肤选择">
-                                ${this.buildSkinButtons('main')}
+
+                            <div class="lobby-hero-stats">
+                                <article class="lobby-hero-stat-card is-primary">
+                                    <small>WIN RATE</small>
+                                    <strong data-progression-winrate>0%</strong>
+                                </article>
+                                <article class="lobby-hero-stat-card is-secondary">
+                                    <small>TOTAL MASS</small>
+                                    <strong data-progression-best-mass>0 kg</strong>
+                                </article>
                             </div>
-                        </div>
+
+                            <div class="lobby-hero-actions">
+                                <button type="button" class="lobby-start-button lobby-start-button--compact" data-toggle-skins aria-expanded="false">SKINS / CUSTOMIZE</button>
+                            </div>
+
+                            <div class="lobby-skin-drawer" data-skin-drawer>
+                                <div class="lobby-skin-drawer-head">
+                                    <strong>装扮投影预览</strong>
+                                    <small>昵称、头像、皮肤实时联动</small>
+                                </div>
+                                <div class="lobby-skin-strip" role="group" aria-label="皮肤选择">
+                                    ${this.buildSkinButtons('main')}
+                                </div>
+                            </div>
+                        </section>
+
+                        <button type="button" class="lobby-season-card" data-feature="leaderboard">
+                            <span class="lobby-season-card-icon">
+                                ${renderMaterialSymbol('deployed_code_history', 'lobby-season-card-symbol')}
+                            </span>
+                            <span class="lobby-season-card-copy">
+                                <strong>SEASON 12: CYBER NEON</strong>
+                                <small>New skins and limited modes.</small>
+                            </span>
+                        </button>
                     </aside>
 
                     <section class="lobby-dashboard-stack">
@@ -1199,129 +1206,187 @@ export class LobbyUI {
         ctx.clearRect(0, 0, width, height);
 
         const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
-        bgGradient.addColorStop(0, 'rgba(8, 20, 42, 0.98)');
+        bgGradient.addColorStop(0, 'rgba(10, 22, 44, 0.98)');
         bgGradient.addColorStop(0.45, 'rgba(8, 18, 35, 1)');
         bgGradient.addColorStop(1, 'rgba(5, 14, 28, 1)');
         ctx.fillStyle = bgGradient;
         ctx.fillRect(0, 0, width, height);
 
-        const panelGlow = ctx.createRadialGradient(width * 0.16, height * 0.12, 0, width * 0.16, height * 0.12, width * 0.72);
-        panelGlow.addColorStop(0, 'rgba(129, 236, 255, 0.18)');
+        const panelGlow = ctx.createRadialGradient(width * 0.5, height * 0.36, 0, width * 0.5, height * 0.36, width * 0.74);
+        panelGlow.addColorStop(0, 'rgba(129, 236, 255, 0.22)');
         panelGlow.addColorStop(1, 'rgba(129, 236, 255, 0)');
         ctx.fillStyle = panelGlow;
         ctx.fillRect(0, 0, width, height);
 
-        const panelGlowSecondary = ctx.createRadialGradient(width * 0.86, height * 0.18, 0, width * 0.86, height * 0.18, width * 0.54);
+        const panelGlowSecondary = ctx.createRadialGradient(width * 0.7, height * 0.22, 0, width * 0.7, height * 0.22, width * 0.54);
         panelGlowSecondary.addColorStop(0, 'rgba(195, 127, 255, 0.16)');
         panelGlowSecondary.addColorStop(1, 'rgba(195, 127, 255, 0)');
         ctx.fillStyle = panelGlowSecondary;
         ctx.fillRect(0, 0, width, height);
 
         const ringCenterX = width * 0.5;
-        const ringCenterY = height * 0.47;
-        const ringRadius = Math.min(width, height) * 0.27;
-        const offsetX = motionRate * Math.sin(t * 1.4) * 5;
-        const offsetY = motionRate * Math.cos(t * 1.1) * 4;
-        const pulse = 1 + motionRate * Math.sin(t * 2.2) * 0.03;
-        const radius = ringRadius * 0.72 * pulse;
+        const ringCenterY = height * 0.43;
+        const offsetX = motionRate * Math.sin(t * 1.1) * 3;
+        const offsetY = motionRate * Math.cos(t * 1.3) * 2;
         const centerX = ringCenterX + offsetX;
         const centerY = ringCenterY + offsetY;
 
-        ctx.strokeStyle = 'rgba(129, 236, 255, 0.22)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(ringCenterX, ringCenterY, ringRadius + 10, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.strokeStyle = 'rgba(195, 127, 255, 0.16)';
+        ctx.strokeStyle = 'rgba(129, 236, 255, 0.12)';
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(ringCenterX, ringCenterY, ringRadius + 24, Math.PI * 0.1, Math.PI * 1.6);
-        ctx.stroke();
-
-        ctx.strokeStyle = 'rgba(129, 236, 255, 0.1)';
-        ctx.lineWidth = 1;
-        for (let index = 0; index < 18; index += 1) {
-            const y = 74 + index * 22 + motionRate * Math.sin(t * 0.8 + index) * 1.8;
+        for (let index = 0; index < 12; index += 1) {
+            const y = 56 + index * 18 + motionRate * Math.sin(t * 0.8 + index) * 1.6;
             ctx.beginPath();
-            ctx.moveTo(32, y);
-            ctx.lineTo(width - 32, y);
+            ctx.moveTo(28, y);
+            ctx.lineTo(width - 28, y);
             ctx.stroke();
         }
 
-        const glow = ctx.createRadialGradient(centerX, centerY, 22, centerX, centerY, 180);
-        glow.addColorStop(0, skin.glow);
+        const ringStroke = (radius: number, alpha: number, widthPx: number, rotation = 0) => {
+            ctx.save();
+            ctx.translate(ringCenterX, ringCenterY);
+            ctx.rotate(rotation);
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(129, 236, 255, ${alpha})`;
+            ctx.lineWidth = widthPx;
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        };
+
+        ringStroke(116, 0.18, 1.4, t * 0.12);
+        ringStroke(136, 0.08, 1, -t * 0.08);
+        ringStroke(92, 0.26, 1.8, 0);
+
+        const markerLine = (x1: number, y1: number, x2: number, y2: number) => {
+            ctx.strokeStyle = 'rgba(129, 236, 255, 0.24)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        };
+
+        markerLine(ringCenterX, 28, ringCenterX, 44);
+        markerLine(ringCenterX, height - 120, ringCenterX, height - 104);
+        markerLine(20, ringCenterY, 36, ringCenterY);
+        markerLine(width - 36, ringCenterY, width - 20, ringCenterY);
+
+        const stageGlow = ctx.createRadialGradient(centerX, centerY, 30, centerX, centerY, 168);
+        stageGlow.addColorStop(0, 'rgba(129, 236, 255, 0.18)');
+        stageGlow.addColorStop(0.58, 'rgba(129, 236, 255, 0.06)');
+        stageGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = stageGlow;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 168, 0, Math.PI * 2);
+        ctx.fill();
+
+        const coreRadius = 92;
+        const glow = ctx.createRadialGradient(centerX, centerY, 22, centerX, centerY, 150);
+        glow.addColorStop(0, 'rgba(129, 236, 255, 0.34)');
+        glow.addColorStop(0.5, skin.glow);
         glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 180, 0, Math.PI * 2);
+        ctx.arc(centerX, centerY, 150, 0, Math.PI * 2);
         ctx.fill();
 
-        const fillGradient = ctx.createLinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
-        fillGradient.addColorStop(0, skin.colorA);
-        fillGradient.addColorStop(1, skin.colorB);
-        ctx.fillStyle = fillGradient;
+        const shellGradient = ctx.createLinearGradient(centerX - coreRadius, centerY - coreRadius, centerX + coreRadius, centerY + coreRadius);
+        shellGradient.addColorStop(0, 'rgba(129, 236, 255, 0.84)');
+        shellGradient.addColorStop(0.46, 'rgba(195, 127, 255, 0.78)');
+        shellGradient.addColorStop(1, 'rgba(129, 236, 255, 0.84)');
+        ctx.fillStyle = shellGradient;
         ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.arc(centerX, centerY, coreRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = 'rgba(213, 237, 255, 0.34)';
-        ctx.lineWidth = 4;
+        ctx.fillStyle = 'rgba(230, 237, 255, 0.96)';
         ctx.beginPath();
-        ctx.arc(centerX, centerY, radius - 1.5, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
-        ctx.beginPath();
-        ctx.arc(centerX - radius * 0.36, centerY - radius * 0.3, radius * 0.2, 0, Math.PI * 2);
+        ctx.arc(centerX, centerY, coreRadius - 10, 0, Math.PI * 2);
         ctx.fill();
 
-        const badgeRadius = 28;
-        const badgeX = centerX + radius * 0.58;
-        const badgeY = centerY - radius * 0.56;
+        const artSize = 108;
+        const artX = centerX - artSize / 2;
+        const artY = centerY - artSize / 2;
         ctx.save();
         ctx.beginPath();
-        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+        ctx.roundRect(artX, artY, artSize, artSize, 2);
         ctx.clip();
         if (this.previewAvatarImage) {
             ctx.drawImage(
                 this.previewAvatarImage,
-                badgeX - badgeRadius,
-                badgeY - badgeRadius,
-                badgeRadius * 2,
-                badgeRadius * 2
+                artX,
+                artY,
+                artSize,
+                artSize
             );
         } else {
-            ctx.fillStyle = 'rgba(12, 29, 46, 0.92)';
-            ctx.fillRect(badgeX - badgeRadius, badgeY - badgeRadius, badgeRadius * 2, badgeRadius * 2);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.86)';
-            ctx.font = '700 26px "Plus Jakarta Sans","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(displayName.charAt(0) || '球', badgeX, badgeY + 1);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(artX, artY, artSize, artSize);
+            const mockRadius = 34;
+            const mockX = centerX;
+            const mockY = centerY + 2;
+            const mockGradient = ctx.createRadialGradient(mockX - 12, mockY - 16, 4, mockX, mockY, mockRadius);
+            mockGradient.addColorStop(0, '#d9c1a1');
+            mockGradient.addColorStop(0.6, '#bf9b72');
+            mockGradient.addColorStop(1, '#86623d');
+            ctx.fillStyle = mockGradient;
+            ctx.beginPath();
+            ctx.arc(mockX, mockY, mockRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(92, 65, 41, 0.18)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 8; i += 1) {
+                const yy = mockY - mockRadius + (i + 1) * 8;
+                ctx.beginPath();
+                ctx.arc(mockX, yy, 12 + (i % 2) * 2, 0, Math.PI);
+                ctx.stroke();
+            }
         }
         ctx.restore();
 
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(badgeX, badgeY, badgeRadius + 1, 0, Math.PI * 2);
+        ctx.roundRect(artX, artY, artSize, artSize, 2);
         ctx.stroke();
 
-        const namePlateY = height - 78;
-        ctx.fillStyle = 'rgba(4, 14, 28, 0.82)';
-        ctx.fillRect(42, namePlateY, width - 84, 56);
-        ctx.strokeStyle = 'rgba(129, 236, 255, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(42, namePlateY, width - 84, 56);
+        const gloss = ctx.createRadialGradient(centerX - 28, centerY - 32, 0, centerX - 28, centerY - 32, 34);
+        gloss.addColorStop(0, 'rgba(255,255,255,0.38)');
+        gloss.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gloss;
+        ctx.beginPath();
+        ctx.arc(centerX - 28, centerY - 30, 34, 0, Math.PI * 2);
+        ctx.fill();
+
+        const stageShadow = ctx.createLinearGradient(0, centerY + coreRadius * 0.25, 0, centerY + coreRadius);
+        stageShadow.addColorStop(0, 'rgba(0,0,0,0)');
+        stageShadow.addColorStop(1, 'rgba(0,0,0,0.32)');
+        ctx.fillStyle = stageShadow;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, coreRadius - 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        const badgeRadius = 24;
+        const badgeX = centerX + 72;
+        const badgeY = centerY - 18;
+        ctx.fillStyle = 'rgba(7, 20, 38, 0.94)';
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.fillStyle = '#eff8ff';
-        ctx.font = '700 30px "Plus Jakarta Sans","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.font = '800 24px "Plus Jakarta Sans","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(displayName, width * 0.5, namePlateY + 34);
+        ctx.fillText((displayName.charAt(0) || '球').slice(0, 1), badgeX, badgeY + 1);
 
-        ctx.fillStyle = 'rgba(201, 227, 255, 0.84)';
-        ctx.font = '700 15px "Be Vietnam Pro","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
-        ctx.fillText(`SKIN · ${skin.name.toUpperCase()}`, width * 0.5, 28);
+        ctx.fillStyle = 'rgba(230, 243, 255, 0.72)';
+        ctx.font = '700 11px "Plus Jakarta Sans","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.fillText(`SKIN · ${skin.name}`, width * 0.5, 22);
     }
 }

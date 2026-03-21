@@ -5837,10 +5837,17 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
 
 .lobby-main--v2.lobby-dashboard-main {
     display: grid;
-    grid-template-columns: 292px minmax(0, 1fr);
+    grid-template-columns: 282px minmax(0, 1fr);
     gap: 14px;
     min-height: 0;
     overflow: hidden;
+}
+
+.lobby-hero-column {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 16px;
+    min-height: 0;
 }
 
 .lobby-hero-card,
@@ -5858,14 +5865,38 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto auto;
     gap: 12px;
-    padding: 16px;
+    padding: 18px 18px 20px;
     min-height: 0;
     overflow: hidden;
+    background:
+        radial-gradient(circle at 50% 34%, rgba(129, 236, 255, 0.12), transparent 54%),
+        linear-gradient(180deg, rgba(18, 29, 56, 0.98), rgba(8, 18, 36, 0.98));
+}
+
+.lobby-hero-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 40%, rgba(129, 236, 255, 0.14), transparent 58%);
+    pointer-events: none;
+}
+
+.lobby-hero-card::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(129, 236, 255, 0.88), rgba(195, 127, 255, 0.72), rgba(129, 236, 255, 0.88));
+    pointer-events: none;
 }
 
 .lobby-hero-card-head {
     display: grid;
-    gap: 6px;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
 }
 
 .lobby-hero-rankline {
@@ -5875,9 +5906,23 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
     gap: 10px;
 }
 
+.lobby-hero-kicker-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lobby-hero-kicker-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #7fe9ff;
+    box-shadow: 0 0 10px rgba(129, 236, 255, 0.65);
+}
+
 .lobby-hero-kicker {
-    color: rgba(150, 191, 239, 0.7);
-    font-size: 11px;
+    color: rgba(150, 191, 239, 0.8);
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -5887,13 +5932,16 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 7px 12px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 227, 141, 0.38);
-    background: linear-gradient(180deg, rgba(255, 227, 141, 0.24), rgba(86, 72, 24, 0.16));
-    color: #ffeaa6;
+    border: 1px solid rgba(129, 236, 255, 0.3);
+    background: linear-gradient(180deg, rgba(129, 236, 255, 0.18), rgba(35, 70, 92, 0.24));
+    color: #aef3ff;
     font-size: 12px;
     font-weight: 700;
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 0 16px rgba(129, 236, 255, 0.16);
 }
 
 .lobby-rank-chip-symbol {
@@ -5908,10 +5956,16 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
 }
 
 .lobby-hero-name-row strong {
-    color: #f4fbff;
+    color: #eff9ff;
     font-family: var(--stitch-headline-font);
-    font-size: 24px;
-    line-height: 1.05;
+    font-size: 38px;
+    font-weight: 900;
+    font-style: italic;
+    line-height: 0.94;
+    letter-spacing: -0.04em;
+    text-shadow:
+        0 0 14px rgba(129, 236, 255, 0.26),
+        0 0 24px rgba(129, 236, 255, 0.18);
 }
 
 .lobby-hero-meta-row {
@@ -5957,10 +6011,10 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
     position: relative;
     min-height: 0;
     overflow: hidden;
-    border-radius: 22px;
+    border-radius: 28px;
     background:
-        radial-gradient(circle at 50% 32%, rgba(129, 236, 255, 0.12), transparent 42%),
-        linear-gradient(180deg, rgba(7, 17, 34, 0.96), rgba(5, 13, 27, 0.98));
+        radial-gradient(circle at 50% 36%, rgba(129, 236, 255, 0.12), transparent 42%),
+        linear-gradient(180deg, rgba(9, 18, 38, 0.98), rgba(6, 14, 28, 0.98));
     box-shadow:
         inset 0 0 0 1px rgba(100, 131, 178, 0.12),
         0 16px 36px rgba(0, 0, 0, 0.22);
@@ -5973,12 +6027,65 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
 }
 
 .lobby-hero-stage-ring {
-    inset: 16% 14%;
     border-radius: 50%;
-    border: 1px solid rgba(129, 236, 255, 0.18);
+}
+
+.lobby-hero-stage-ring--outer {
+    inset: 17% 15%;
+    border: 1px solid rgba(129, 236, 255, 0.16);
+    animation: stitchRingSpin 14s linear infinite;
+}
+
+.lobby-hero-stage-ring--mid {
+    inset: 11% 9%;
+    border: 1px solid rgba(195, 127, 255, 0.14);
+    animation: stitchRingSpinReverse 18s linear infinite;
+}
+
+.lobby-hero-stage-ring--inner {
+    inset: 23% 21%;
+    border: 1.5px solid rgba(129, 236, 255, 0.26);
     box-shadow:
         0 0 18px rgba(129, 236, 255, 0.12),
         inset 0 0 18px rgba(129, 236, 255, 0.06);
+}
+
+.lobby-hero-stage-axis {
+    position: absolute;
+    background: rgba(129, 236, 255, 0.32);
+    pointer-events: none;
+}
+
+.lobby-hero-stage-axis--v-top,
+.lobby-hero-stage-axis--v-bottom {
+    left: 50%;
+    width: 1px;
+    height: 18px;
+    transform: translateX(-50%);
+}
+
+.lobby-hero-stage-axis--v-top {
+    top: 12%;
+}
+
+.lobby-hero-stage-axis--v-bottom {
+    bottom: 12%;
+}
+
+.lobby-hero-stage-axis--h-left,
+.lobby-hero-stage-axis--h-right {
+    top: 50%;
+    height: 1px;
+    width: 18px;
+    transform: translateY(-50%);
+}
+
+.lobby-hero-stage-axis--h-left {
+    left: 12%;
+}
+
+.lobby-hero-stage-axis--h-right {
+    right: 12%;
 }
 
 .lobby-hero-stage-scanline {
@@ -5988,27 +6095,52 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
     animation: stitchStageScan 7s linear infinite;
 }
 
+.lobby-hero-stage-badge {
+    position: absolute;
+    right: 18px;
+    top: 26%;
+    z-index: 2;
+    width: 44px;
+    height: 44px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    background: rgba(129, 236, 255, 0.12);
+    border: 1px solid rgba(129, 236, 255, 0.28);
+    box-shadow: 0 0 22px rgba(129, 236, 255, 0.18);
+}
+
+.lobby-hero-stage-badge-symbol {
+    font-size: 20px;
+    color: #8cebff;
+}
+
 .lobby-preview-canvas {
     width: 100%;
     height: 100%;
-    min-height: 270px;
-    border-radius: 22px;
+    min-height: 304px;
+    border-radius: 28px;
     background: transparent;
 }
 
 .lobby-hero-stats {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: 14px;
+    position: relative;
+    z-index: 1;
 }
 
 .lobby-hero-stat-card {
-    padding: 12px;
-    border-radius: 18px;
-    background: rgba(11, 22, 44, 0.92);
-    box-shadow: inset 0 0 0 1px rgba(118, 151, 202, 0.12);
+    padding: 14px 12px 12px;
+    border-radius: 20px;
+    background: rgba(25, 37, 64, 0.52);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(118, 151, 202, 0.16);
     display: grid;
     gap: 6px;
+    text-align: center;
 }
 
 .lobby-hero-stat-card small {
@@ -6021,20 +6153,36 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
 
 .lobby-hero-stat-card strong {
     font-family: var(--stitch-headline-font);
-    font-size: 22px;
+    font-size: 24px;
     color: #eff9ff;
     line-height: 1;
+}
+
+.lobby-hero-stat-card.is-primary strong {
+    color: #81ecff;
+    text-shadow: 0 0 16px rgba(129, 236, 255, 0.16);
+}
+
+.lobby-hero-stat-card.is-secondary strong {
+    color: #c37fff;
+    text-shadow: 0 0 16px rgba(195, 127, 255, 0.14);
 }
 
 .lobby-hero-actions {
     display: grid;
     gap: 8px;
+    position: relative;
+    z-index: 1;
 }
 
 .lobby-start-button--compact {
-    min-height: 46px;
-    font-size: 13px;
-    letter-spacing: 0.18em;
+    min-height: 58px;
+    font-size: 14px;
+    letter-spacing: 0.24em;
+    border-radius: 18px;
+    box-shadow:
+        0 8px 30px rgba(0, 227, 253, 0.36),
+        inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
 
 .lobby-season-card {
@@ -6042,10 +6190,10 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
     grid-template-columns: auto 1fr;
     align-items: center;
     gap: 10px;
-    min-height: 52px;
-    padding: 10px 12px;
+    min-height: 70px;
+    padding: 12px 14px;
     border: 0;
-    border-radius: 16px;
+    border-radius: 20px;
     background: rgba(13, 22, 42, 0.92);
     color: #eefaff;
     box-shadow: inset 0 0 0 1px rgba(117, 150, 202, 0.12);
@@ -6073,7 +6221,7 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
 }
 
 .lobby-season-card-copy strong {
-    color: #dff6ff;
+    color: #ffe483;
     font-size: 10px;
     letter-spacing: 0.14em;
 }
@@ -6081,6 +6229,26 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
 .lobby-season-card-copy small {
     color: rgba(183, 214, 247, 0.68);
     font-size: 11px;
+}
+
+@keyframes stitchRingSpin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes stitchRingSpinReverse {
+    from {
+        transform: rotate(360deg);
+    }
+
+    to {
+        transform: rotate(0deg);
+    }
 }
 
 .lobby-skin-drawer {
