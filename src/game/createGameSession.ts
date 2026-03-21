@@ -121,19 +121,19 @@ interface SettlementTiming {
 }
 
 const FULL_SETTLEMENT_TIMING: SettlementTiming = {
-    introEnd: 260,
-    rankEnd: 860,
-    heroEnd: 2100,
-    rewardsEnd: 3200,
-    total: 3200
+    introEnd: 420,
+    rankEnd: 1680,
+    heroEnd: 2760,
+    rewardsEnd: 3880,
+    total: 3880
 };
 
 const REDUCED_SETTLEMENT_TIMING: SettlementTiming = {
     introEnd: 120,
-    rankEnd: 240,
-    heroEnd: 500,
-    rewardsEnd: 800,
-    total: 800
+    rankEnd: 420,
+    heroEnd: 700,
+    rewardsEnd: 980,
+    total: 980
 };
 
 export interface GameSessionSnapshot {
@@ -485,7 +485,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     }
 
     function formatRankLabel(rank: number): string {
-        return `RANK ${Math.max(1, rank)}`;
+        return `NO.${Math.max(1, rank)}`;
     }
 
     function getRankSplashPresentation(rank: number): {
@@ -495,24 +495,24 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     } {
         if (rank === 1) {
             return {
-                title: 'Victory!',
-                caption: 'CROWNED CHAMPION',
-                icon: 'rank_gold'
+                title: 'CHAMPION',
+                caption: 'CROWNED IN GOLD',
+                icon: 'crown'
             };
         }
 
         if (rank === 2) {
             return {
-                title: 'Brilliant',
-                caption: 'TOP 2 FINISH',
+                title: 'RUNNER UP',
+                caption: 'ELITE FINISH',
                 icon: 'rank_silver'
             };
         }
 
         if (rank === 3) {
             return {
-                title: 'Excellent',
-                caption: 'TOP 3 FINISH',
+                title: 'TOP THREE',
+                caption: 'STRONG FINISH',
                 icon: 'rank_bronze'
             };
         }
@@ -942,19 +942,19 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             <div class="match-result-rank-splash" data-result-rank-splash>
                 <div class="match-result-rank-splash-rays" aria-hidden="true"></div>
                 <div class="match-result-rank-splash-inner">
-                    <div class="match-result-rank-splash-kicker" data-result-rank-splash-label>RANK 1</div>
+                    <div class="match-result-rank-splash-kicker" data-result-rank-splash-label>NO.1</div>
                     <div class="match-result-rank-splash-stage">
                         <div class="match-result-rank-splash-wings" aria-hidden="true">
                             <span></span>
                             <span></span>
                         </div>
                         <div class="match-result-rank-splash-medal-shell" data-result-rank-splash-medal>
-                            ${renderLobbyIcon('rank_gold', 'match-result-rank-splash-medal-icon')}
+                            ${renderLobbyIcon('crown', 'match-result-rank-splash-medal-icon')}
                         </div>
                         <div class="match-result-rank-splash-number" data-result-rank-splash-number>1</div>
                     </div>
-                    <div class="match-result-rank-splash-title" data-result-rank-splash-title>Victory!</div>
-                    <div class="match-result-rank-splash-caption" data-result-rank-splash-caption>CROWNED CHAMPION</div>
+                    <div class="match-result-rank-splash-title" data-result-rank-splash-title>CHAMPION</div>
+                    <div class="match-result-rank-splash-caption" data-result-rank-splash-caption>CROWNED IN GOLD</div>
                 </div>
             </div>
             <div class="match-result-panel">

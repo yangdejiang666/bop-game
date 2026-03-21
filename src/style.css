@@ -320,12 +320,12 @@ button {
     inset: 0;
     display: grid;
     place-items: center;
-    padding: 28px;
+    padding: 18px 24px 24px;
     pointer-events: none;
     z-index: 6;
     opacity: 0;
     visibility: hidden;
-    transform: scale(0.96);
+    transform: scale(0.94);
     transition: opacity 360ms ease, transform 360ms ease;
 }
 
@@ -333,43 +333,46 @@ button {
 .match-result-rank-splash::after {
     content: '';
     position: absolute;
-    inset: 8% 14%;
+    inset: 3% 8%;
     border-radius: 50%;
     pointer-events: none;
 }
 
 .match-result-rank-splash::before {
-    background: radial-gradient(circle, rgba(255, 233, 158, 0.22), transparent 58%);
-    filter: blur(26px);
-    opacity: 0.9;
+    background:
+        radial-gradient(circle, rgba(255, 233, 158, 0.24), transparent 45%),
+        radial-gradient(circle at center, rgba(88, 198, 255, 0.16), transparent 62%);
+    filter: blur(28px);
+    opacity: 0.95;
 }
 
 .match-result-rank-splash::after {
     border: 1px solid rgba(255, 255, 255, 0.08);
-    transform: scale(1.06);
+    transform: scale(1.08);
 }
 
 .match-result-rank-splash-inner {
     position: relative;
-    width: min(100%, 980px);
+    width: min(100%, 1180px);
     display: grid;
     justify-items: center;
-    gap: 10px;
+    gap: 14px;
 }
 
 .match-result-rank-splash-kicker {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 800;
-    letter-spacing: 0.34em;
+    letter-spacing: 0.42em;
     text-transform: uppercase;
     color: rgba(236, 245, 255, 0.82);
     text-shadow: 0 0 18px rgba(255, 255, 255, 0.16);
+    margin-top: 4px;
 }
 
 .match-result-rank-splash-stage {
     position: relative;
     width: 100%;
-    min-height: 360px;
+    min-height: 460px;
     display: grid;
     place-items: center;
 }
@@ -378,14 +381,17 @@ button {
 .match-result-rank-splash-stage::after {
     content: '';
     position: absolute;
-    inset: 12% 10%;
+    inset: 8% 8%;
     border-radius: 50%;
     pointer-events: none;
 }
 
 .match-result-rank-splash-stage::before {
-    background: radial-gradient(circle, rgba(120, 222, 255, 0.18), transparent 60%);
-    filter: blur(14px);
+    background:
+        radial-gradient(circle, rgba(120, 222, 255, 0.2), transparent 44%),
+        radial-gradient(circle, rgba(255, 237, 166, 0.14), transparent 62%);
+    filter: blur(18px);
+    animation: resultRankHaloPulse 3.4s ease-in-out infinite;
 }
 
 .match-result-rank-splash-stage::after {
@@ -395,17 +401,17 @@ button {
 
 .match-result-rank-splash-rays {
     position: absolute;
-    inset: 8%;
+    inset: 2%;
     pointer-events: none;
     background:
         radial-gradient(circle at center, rgba(255, 255, 255, 0.14), transparent 46%),
         repeating-conic-gradient(
             from 0deg,
-            rgba(255, 255, 255, 0.12) 0deg 5deg,
-            transparent 5deg 16deg
+            rgba(255, 255, 255, 0.14) 0deg 4deg,
+            transparent 4deg 14deg
         );
-    mask-image: radial-gradient(circle at center, transparent 0 22%, rgba(0, 0, 0, 0.94) 54%, transparent 78%);
-    opacity: 0.58;
+    mask-image: radial-gradient(circle at center, transparent 0 18%, rgba(0, 0, 0, 0.96) 48%, transparent 76%);
+    opacity: 0.62;
     filter: blur(0.4px);
     animation: resultRankRaySpin 18s linear infinite;
 }
@@ -413,8 +419,8 @@ button {
 .match-result-rank-splash-wings {
     position: absolute;
     left: 50%;
-    top: 40px;
-    width: min(86vw, 760px);
+    top: 24px;
+    width: min(92vw, 940px);
     transform: translateX(-50%);
     display: flex;
     justify-content: space-between;
@@ -422,11 +428,11 @@ button {
 }
 
 .match-result-rank-splash-wings span {
-    width: clamp(140px, 24vw, 248px);
-    height: clamp(56px, 8.5vw, 92px);
-    border-radius: 18% 82% 28% 72%;
+    width: clamp(176px, 28vw, 308px);
+    height: clamp(72px, 10vw, 116px);
+    border-radius: 18% 82% 24% 76%;
     opacity: 0.9;
-    filter: drop-shadow(0 0 18px rgba(255, 219, 129, 0.48));
+    filter: drop-shadow(0 0 24px rgba(255, 219, 129, 0.52));
 }
 
 .match-result-rank-splash-wings span:first-child {
@@ -442,10 +448,10 @@ button {
 
 .match-result-rank-splash-medal-shell {
     position: absolute;
-    top: 8px;
+    top: 4px;
     left: 50%;
-    width: clamp(86px, 10vw, 116px);
-    height: clamp(86px, 10vw, 116px);
+    width: clamp(102px, 11vw, 142px);
+    height: clamp(102px, 11vw, 142px);
     transform: translateX(-50%);
     border-radius: 50%;
     display: grid;
@@ -468,33 +474,34 @@ button {
 .match-result-rank-splash-number {
     position: relative;
     z-index: 2;
-    font-size: clamp(180px, 30vw, 360px);
-    line-height: 0.8;
+    font-size: clamp(220px, 34vw, 430px);
+    line-height: 0.72;
     font-weight: 900;
-    letter-spacing: -0.06em;
+    letter-spacing: -0.08em;
     text-shadow:
-        0 0 34px rgba(255, 255, 255, 0.16),
-        0 18px 36px rgba(0, 0, 0, 0.34);
+        0 0 38px rgba(255, 255, 255, 0.16),
+        0 20px 46px rgba(0, 0, 0, 0.38);
     animation: resultRankSplashNumberPop 0.76s cubic-bezier(0.16, 0.93, 0.18, 1.05) both;
 }
 
 .match-result-rank-splash-title {
     position: relative;
     z-index: 2;
-    margin-top: -10px;
-    font-size: clamp(30px, 4.4vw, 56px);
+    margin-top: -36px;
+    font-size: clamp(22px, 3vw, 36px);
     line-height: 1;
     font-weight: 900;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.24em;
     text-transform: uppercase;
 }
 
 .match-result-rank-splash-caption {
     position: relative;
     z-index: 2;
-    font-size: 14px;
+    margin-top: -2px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.28em;
+    letter-spacing: 0.32em;
     text-transform: uppercase;
     color: rgba(226, 237, 255, 0.82);
 }
@@ -517,6 +524,10 @@ button {
 
 .match-result-overlay.rank-theme-gold .match-result-rank-splash-wings span {
     background: linear-gradient(135deg, rgba(255, 242, 176, 0.96), rgba(255, 176, 84, 0.58));
+}
+
+.match-result-overlay.rank-theme-gold .match-result-rank-splash-rays {
+    opacity: 0.76;
 }
 
 .match-result-overlay.rank-theme-silver .match-result-rank-splash-medal-shell,
@@ -549,11 +560,15 @@ button {
 }
 
 .match-result-overlay.rank-theme-normal .match-result-rank-splash-wings span {
-    opacity: 0.62;
+    opacity: 0.48;
 }
 
 .match-result-overlay.rank-theme-normal .match-result-rank-splash-caption {
     color: rgba(220, 233, 248, 0.78);
+}
+
+.match-result-overlay.rank-theme-normal .match-result-rank-splash-rays {
+    opacity: 0.42;
 }
 
 .match-result-overlay.rank-theme-bronze .match-result-rank-splash-medal-shell {
@@ -1173,6 +1188,19 @@ button {
 
     100% {
         transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes resultRankHaloPulse {
+    0%,
+    100% {
+        transform: scale(0.96);
+        opacity: 0.62;
+    }
+
+    50% {
+        transform: scale(1.04);
         opacity: 1;
     }
 }
@@ -3125,7 +3153,7 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
     }
 
     .match-result-rank-splash-stage {
-        min-height: 280px;
+        min-height: 320px;
     }
 
     .match-result-rank-splash-kicker,
@@ -3134,21 +3162,22 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
     }
 
     .match-result-rank-splash-number {
-        font-size: clamp(138px, 32vw, 240px);
+        font-size: clamp(168px, 34vw, 280px);
     }
 
     .match-result-rank-splash-title {
-        font-size: clamp(24px, 8vw, 38px);
+        margin-top: -18px;
+        font-size: clamp(20px, 6vw, 30px);
     }
 
     .match-result-rank-splash-wings {
-        top: 34px;
-        width: min(92vw, 520px);
+        top: 22px;
+        width: min(94vw, 620px);
     }
 
     .match-result-rank-splash-wings span {
-        width: clamp(94px, 22vw, 154px);
-        height: clamp(38px, 9vw, 58px);
+        width: clamp(112px, 24vw, 182px);
+        height: clamp(44px, 10vw, 68px);
     }
 
     .match-result-title {
@@ -3329,19 +3358,21 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
     }
 
     .match-result-rank-splash-stage {
-        min-height: 244px;
+        min-height: 300px;
     }
 
     .match-result-rank-splash-number {
-        font-size: clamp(140px, 24vh, 220px);
+        font-size: clamp(176px, 28vh, 280px);
     }
 
     .match-result-rank-splash-title {
-        font-size: clamp(24px, 4vh, 40px);
+        margin-top: -20px;
+        font-size: clamp(18px, 3.2vh, 28px);
     }
 
     .match-result-rank-splash-wings {
-        width: min(82vw, 520px);
+        top: 22px;
+        width: min(88vw, 640px);
     }
 
     .match-result-title {
@@ -3382,7 +3413,7 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
     }
 
     .match-result-rank-splash-stage {
-        min-height: 204px;
+        min-height: 248px;
     }
 
     .match-result-rank-splash-kicker,
@@ -3392,12 +3423,12 @@ html[data-reduced-motion='true'] .lobby-start-button::after {
     }
 
     .match-result-rank-splash-number {
-        font-size: clamp(120px, 22vh, 180px);
+        font-size: clamp(148px, 24vh, 224px);
     }
 
     .match-result-rank-splash-title {
-        margin-top: -4px;
-        font-size: clamp(22px, 4.2vh, 34px);
+        margin-top: -14px;
+        font-size: clamp(18px, 3.4vh, 26px);
     }
 
     .match-result-rank-splash-rays,
