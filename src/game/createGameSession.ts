@@ -30,7 +30,7 @@ import {
 import { gameplayTuning } from '../gameplay/tuning';
 import { TuningToolbox } from '../ui/TuningToolbox';
 import type { LobbyModeId } from '../ui/LobbyUI';
-import { renderLobbyIcon } from '../ui/icons';
+import { renderLobbyIcon, type LobbyIconId } from '../ui/icons';
 import { GameAudioManager, type GameAudioDebugState } from '../audio/GameAudioManager';
 
 const WORLD_SIZE = 6000;
@@ -264,6 +264,12 @@ interface SessionHudRefs {
     modeBadgeEl: HTMLDivElement;
     resultOverlay: HTMLDivElement;
     resultPanelEl: HTMLDivElement;
+    resultRankSplashEl: HTMLDivElement;
+    resultRankSplashLabelEl: HTMLDivElement;
+    resultRankSplashNumberEl: HTMLDivElement;
+    resultRankSplashTitleEl: HTMLDivElement;
+    resultRankSplashCaptionEl: HTMLDivElement;
+    resultRankSplashMedalEl: HTMLDivElement;
     resultTitleEl: HTMLHeadingElement;
     resultSubEl: HTMLDivElement;
     resultRankMainEl: HTMLElement;
@@ -476,6 +482,46 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             return 'bronze';
         }
         return 'normal';
+    }
+
+    function formatRankLabel(rank: number): string {
+        return `RANK ${Math.max(1, rank)}`;
+    }
+
+    function getRankSplashPresentation(rank: number): {
+        title: string;
+        caption: string;
+        icon: LobbyIconId;
+    } {
+        if (rank === 1) {
+            return {
+                title: 'Victory!',
+                caption: 'CROWNED CHAMPION',
+                icon: 'rank_gold'
+            };
+        }
+
+        if (rank === 2) {
+            return {
+                title: 'Brilliant',
+                caption: 'TOP 2 FINISH',
+                icon: 'rank_silver'
+            };
+        }
+
+        if (rank === 3) {
+            return {
+                title: 'Excellent',
+                caption: 'TOP 3 FINISH',
+                icon: 'rank_bronze'
+            };
+        }
+
+        return {
+            title: 'So Close',
+            caption: 'KEEP CLIMBING',
+            icon: 'rank_silver'
+        };
     }
 
     function buildRankedEntries(playerMassOverride: number | null = null): RankedControllerEntry[] {
@@ -893,6 +939,24 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         const resultOverlay = document.createElement('div');
         resultOverlay.className = 'match-result-overlay';
         resultOverlay.innerHTML = `
+            <div class="match-result-rank-splash" data-result-rank-splash>
+                <div class="match-result-rank-splash-rays" aria-hidden="true"></div>
+                <div class="match-result-rank-splash-inner">
+                    <div class="match-result-rank-splash-kicker" data-result-rank-splash-label>RANK 1</div>
+                    <div class="match-result-rank-splash-stage">
+                        <div class="match-result-rank-splash-wings" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <div class="match-result-rank-splash-medal-shell" data-result-rank-splash-medal>
+                            ${renderLobbyIcon('rank_gold', 'match-result-rank-splash-medal-icon')}
+                        </div>
+                        <div class="match-result-rank-splash-number" data-result-rank-splash-number>1</div>
+                    </div>
+                    <div class="match-result-rank-splash-title" data-result-rank-splash-title>Victory!</div>
+                    <div class="match-result-rank-splash-caption" data-result-rank-splash-caption>CROWNED CHAMPION</div>
+                </div>
+            </div>
             <div class="match-result-panel">
                 <div class="match-result-cinematic-bg" aria-hidden="true">
                     <span class="match-result-bg-particle"></span>
@@ -900,14 +964,14 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                     <span class="match-result-bg-particle"></span>
                     <span class="match-result-bg-particle"></span>
                 </div>
-                <div class="match-result-kicker" data-result-kicker>对局结算</div>
+                <div class="match-result-kicker" data-result-kicker>MATCH RESULT</div>
                 <h2 class="match-result-title" data-result-title>Victory</h2>
-                <div class="match-result-rank-main-headline" data-result-rank-main>第 1 名</div>
+                <div class="match-result-rank-main-headline" data-result-rank-main>1</div>
                 <div class="match-result-subtitle" data-result-subtitle>正在统计结果...</div>
                 <div class="match-result-rank-stage">
                     <div class="match-result-rank-head">
-                        <span>${renderLobbyIcon('crown', 'match-result-rank-head-icon')} 名次结算</span>
-                        <strong data-result-player-rank>第 1 名</strong>
+                        <span>${renderLobbyIcon('crown', 'match-result-rank-head-icon')} PODIUM</span>
+                        <strong data-result-player-rank>RANK 1</strong>
                     </div>
                     <div class="match-result-podium">
                         <article class="match-result-podium-item is-silver" data-result-podium-item data-rank="2">
@@ -943,8 +1007,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                         </article>
                     </div>
                     <div class="match-result-player-rank-card" data-result-player-rank-card>
-                        <span>我的名次</span>
-                        <strong data-result-player-rank-echo>第 1 名</strong>
+                        <span>MY RANK</span>
+                        <strong data-result-player-rank-echo>RANK 1</strong>
                         <em data-result-player-rank-mass>0 kg</em>
                     </div>
                 </div>
@@ -1019,6 +1083,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         root.appendChild(resultOverlay);
 
         const resultPanelEl = resultOverlay.querySelector<HTMLDivElement>('.match-result-panel');
+        const resultRankSplashEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash]');
+        const resultRankSplashLabelEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash-label]');
+        const resultRankSplashNumberEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash-number]');
+        const resultRankSplashTitleEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash-title]');
+        const resultRankSplashCaptionEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash-caption]');
+        const resultRankSplashMedalEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash-medal]');
         const resultTitleEl = resultOverlay.querySelector<HTMLHeadingElement>('[data-result-title]');
         const resultSubEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-subtitle]');
         const resultRankMainEl = resultOverlay.querySelector<HTMLElement>('[data-result-rank-main]');
@@ -1064,6 +1134,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         if (
             !resultTitleEl
             || !resultPanelEl
+            || !resultRankSplashEl
+            || !resultRankSplashLabelEl
+            || !resultRankSplashNumberEl
+            || !resultRankSplashTitleEl
+            || !resultRankSplashCaptionEl
+            || !resultRankSplashMedalEl
             || !resultSubEl
             || !resultRankMainEl
             || !resultPlayerRankCardEl
@@ -1125,6 +1201,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             modeBadgeEl,
             resultOverlay,
             resultPanelEl,
+            resultRankSplashEl,
+            resultRankSplashLabelEl,
+            resultRankSplashNumberEl,
+            resultRankSplashTitleEl,
+            resultRankSplashCaptionEl,
+            resultRankSplashMedalEl,
             resultTitleEl,
             resultSubEl,
             resultRankMainEl,
@@ -1340,12 +1422,24 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         bestMassRecord = Math.max(computedBestMass, progressionApplied.after.bestMass);
         saveBestMassRecord(bestMassRecord);
 
-        hudRefs.resultTitleEl.textContent = playerWon ? 'Victory!' : 'Battle Over';
+        const rankLabel = formatRankLabel(playerRank);
+        const rankNumber = String(playerRank);
+        const splashPresentation = getRankSplashPresentation(playerRank);
+
+        hudRefs.resultTitleEl.textContent = splashPresentation.title;
         hudRefs.resultSubEl.textContent = resultSubtitle;
-        hudRefs.resultRankMainEl.textContent = `第 ${playerRank} 名`;
-        hudRefs.resultPlayerRankHeadEl.textContent = `第 ${playerRank} 名`;
-        hudRefs.resultPlayerRankEl.textContent = `第 ${playerRank} 名`;
+        hudRefs.resultRankMainEl.textContent = rankNumber;
+        hudRefs.resultPlayerRankHeadEl.textContent = rankLabel;
+        hudRefs.resultPlayerRankEl.textContent = rankLabel;
         hudRefs.resultPlayerRankMassEl.textContent = `${playerMass} kg`;
+        hudRefs.resultRankSplashLabelEl.textContent = rankLabel;
+        hudRefs.resultRankSplashNumberEl.textContent = rankNumber;
+        hudRefs.resultRankSplashTitleEl.textContent = splashPresentation.title;
+        hudRefs.resultRankSplashCaptionEl.textContent = splashPresentation.caption;
+        hudRefs.resultRankSplashMedalEl.innerHTML = renderLobbyIcon(
+            splashPresentation.icon,
+            'match-result-rank-splash-medal-icon'
+        );
         hudRefs.resultWinnerEl.textContent = winnerLabel;
         hudRefs.resultRewardXpEl.textContent = '+0';
         hudRefs.resultRewardCoinsEl.textContent = '+0';
