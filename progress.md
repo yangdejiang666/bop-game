@@ -218,6 +218,14 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
     - 1366x768 laptop: shell compressed to `84 / main / 156`, spacing/padding reduced (`16`);
     - 1024x768 tablet: mode hall rendered two-column top + intel full-width second row;
     - 390x844 mobile: single-column mode hall with visible fixed CTA bar (`设置/开始匹配`) and tab row kept `nowrap + overflow-x:auto`;
+- 2026-03-21: Rebuilt the Stitch migration from “theme overlay” into a true lobby dashboard structure based on `stitch_reference/code.html` while keeping the existing app logic untouched.
+- 2026-03-21: `src/ui/LobbyUI.ts` lobby DOM was remapped to a Stitch-style single-screen dashboard: compact top brand/resources/actions, left hero card, 4+2 mode matrix, task/friend info row, central CTA row, highlight strip, and bottom dock navigation.
+- 2026-03-21: Lobby data mapping now uses real local progression fields in the new dashboard layout (`coins`, `currentXp/requiredXp`, win rate, best mass) and keeps avatar/name/skin persistence unchanged.
+- 2026-03-21: Added Stitch-style dashboard support content without changing flows: season card under hero, CTA-side friend invite cluster, and three bottom highlight cards driven by existing placeholder feature actions.
+- 2026-03-21: `src/style.css` Stitch migration was upgraded into a full component layer: segmented resource chips, compact hero card, tighter mode-card rhythm, liquid CTA, info-strip cards, dock-style nav, and lighter follow-through styles for `ModeHallUI`.
+- 2026-03-21: Mobile Stitch layout was corrected to prioritize entry usability: collapsed hero card, hidden heavy preview/highlight blocks, CTA moved ahead of the full mode list, and bottom dock changed from sticky overlay to normal flow so it no longer blocks mode cards.
+- 2026-03-21: Validation: `npm run build` passed after the dashboard reconstruction; Playwright screenshots verified the new desktop lobby (`current-stitch-lobby-v4.png`), mode-hall visual follow (`mode-hall-stitch-follow.png`), and mobile lobby with visible CTA (`lobby-mobile-stitch-follow-v4.png`).
+- 2026-03-21: Runtime/state regression check passed: `render_game_to_text()` still reports unchanged business semantics (`phase=lobby`, progression/settings intact, modeHall snapshot unchanged except expected `breakpointBucket=mobile` on mobile test).
     - matching shell and settlement panel remained fully inside viewport bounds, with settlement bottom actions visible.
 - 2026-03-21: Started Stitch style migration (visual-only) for Lobby + ModeHall using `stitch.zip` as reference; kept all business logic, APIs, and data flow unchanged.
 - 2026-03-21: Added external visual resources in `index.html` (`Plus Jakarta Sans`, `Be Vietnam Pro`, `Material Symbols Outlined`) with graceful fallback to existing font stack/SVG icon flow.

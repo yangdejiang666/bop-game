@@ -1,5 +1,5 @@
 import type { GameSettings } from '../app/settings';
-import { type LobbyIconId, renderLobbyIcon } from './icons';
+import type { LobbyIconId } from './icons';
 import {
     type PlayerProgression,
     getRequiredXpForLevel,
@@ -77,6 +77,80 @@ const SKIN_OPTIONS: SkinOption[] = [
         glow: 'rgba(132, 163, 204, 0.38)'
     }
 ];
+
+const LOBBY_MODE_ORDER: LobbyModeId[] = [
+    'ranked',
+    'classic',
+    'speed',
+    'team',
+    'peak',
+    'battleRoyale'
+];
+
+const MODE_SYMBOLS: Record<LobbyModeId, string> = {
+    ranked: 'trophy',
+    peak: 'social_leaderboard',
+    classic: 'deployed_code',
+    speed: 'bolt',
+    team: 'groups',
+    battleRoyale: 'radio_button_checked'
+};
+
+const FEATURE_SYMBOLS: Record<LobbyFeatureId, string> = {
+    shop: 'storefront',
+    magic: 'auto_awesome',
+    friends: 'group',
+    leaderboard: 'leaderboard'
+};
+
+const TASK_PRESETS = [
+    { icon: 'radio_button_checked', title: '累计吞噬 500 个小球', progress: '376 / 500', ratio: 0.752 },
+    { icon: 'social_leaderboard', title: '获得 1 场排位赛胜利', progress: '0 / 1', ratio: 0 }
+] as const;
+
+const FRIEND_PRESETS = [
+    { name: 'Pixie', status: '在线', accent: '#81ecff' },
+    { name: 'Glitch', status: '组队中', accent: '#c37fff' },
+    { name: 'Void', status: '空闲', accent: '#ffe483' }
+] as const;
+
+const LOBBY_HIGHLIGHTS: Array<{
+    feature: LobbyFeatureId;
+    symbol: string;
+    kicker: string;
+    title: string;
+    subtitle: string;
+    theme: 'cyan' | 'gold' | 'violet';
+}> = [
+    {
+        feature: 'shop',
+        symbol: 'blur_on',
+        kicker: '限时新品',
+        title: '幻彩晶核整备场',
+        subtitle: '查看详情',
+        theme: 'violet'
+    },
+    {
+        feature: 'magic',
+        symbol: 'timer',
+        kicker: '限时模式',
+        title: '重力漂流 · 压缩开局',
+        subtitle: '立即加入',
+        theme: 'gold'
+    },
+    {
+        feature: 'leaderboard',
+        symbol: 'confirmation_number',
+        kicker: '赛季通行证',
+        title: '提升等级赢取成长奖励',
+        subtitle: 'Lv.1 / 100',
+        theme: 'cyan'
+    }
+];
+
+function renderMaterialSymbol(symbol: string, className: string) {
+    return `<span class="material-symbols-outlined ${className}" aria-hidden="true">${symbol}</span>`;
+}
 
 export class LobbyUI {
     private root: HTMLDivElement;
@@ -199,6 +273,7 @@ export class LobbyUI {
 
     showLobby() {
         this.refreshProgression();
+        this.setSkinDrawerOpen(false);
         this.root.classList.add('is-visible');
         this.root.classList.remove('is-modal-only', 'is-settings-open');
         const shell = this.root.querySelector<HTMLElement>('.lobby-shell');
@@ -221,6 +296,7 @@ export class LobbyUI {
     }
 
     openSettings(modalOnly: boolean) {
+        this.setSkinDrawerOpen(false);
         this.root.classList.add('is-visible', 'is-settings-open');
         this.root.classList.toggle('is-modal-only', modalOnly);
         this.options.onSettingsOpened();
@@ -246,138 +322,207 @@ export class LobbyUI {
             </div>
 
             <div class="lobby-shell lobby-shell--v2">
-                <header class="lobby-topbar lobby-topbar--v2">
-                    <div class="lobby-profile-card lobby-profile-card--home">
-                        <div class="lobby-avatar-stack">
-                            <button type="button" class="lobby-avatar-button" data-avatar-trigger aria-label="上传头像">
-                                <span class="lobby-avatar-slot" data-avatar-slot>
-                                    <img class="lobby-avatar-img" data-avatar-img alt="头像" />
-                                    <span class="lobby-avatar-fallback" data-avatar-fallback>球</span>
-                                </span>
-                                <span class="lobby-avatar-upload-text">更换头像</span>
-                            </button>
-                        </div>
-                        <div class="lobby-profile-meta">
-                            <div class="lobby-profile-name-row">
-                                <strong data-player-name>个人主页</strong>
-                                <span class="lobby-rank-chip">
-                                    ${renderLobbyIcon('crown', 'lobby-rank-chip-icon')}
-                                    <span data-progression-level>Lv.1</span>
-                                </span>
-                                <span class="lobby-status-dot">在线</span>
-                            </div>
-                            <div class="lobby-profile-growth-row">
-                                <span class="lobby-coin-chip">
-                                    ${renderLobbyIcon('coin', 'lobby-coin-chip-icon')}
-                                    <strong data-progression-coins>0</strong>
-                                </span>
-                                <span class="lobby-growth-meta" data-progression-growth-meta>0 胜 / 0 局</span>
-                            </div>
-                            <label class="lobby-quick-name-wrap">
-                                <span>局内昵称</span>
-                                <input class="lobby-quick-name-input" data-quick-name type="text" maxlength="${MAX_PLAYER_NAME_LENGTH}" />
-                            </label>
-                            <div class="lobby-xp-track" aria-label="经验进度">
-                                <div class="lobby-xp-fill" data-progression-xp-fill></div>
-                            </div>
-                            <div class="lobby-xp-text" data-progression-xp-text>0 / 208 XP</div>
-                        </div>
-                        <button type="button" class="lobby-ghost-button lobby-ghost-button--compact" data-open-settings>个人主页</button>
-                    </div>
-
-                    <div class="lobby-brand lobby-brand--v2">
-                        <div class="lobby-brand-mark">BOP</div>
-                        <div>
+                <header class="lobby-topbar lobby-dashboard-topbar">
+                    <div class="lobby-dashboard-brand">
+                        <div class="lobby-dashboard-brand-mark">BOP</div>
+                        <div class="lobby-dashboard-brand-copy">
+                            <div class="lobby-dashboard-brand-kicker">球球实验室</div>
                             <div class="lobby-brand-title">球球竞技大厅</div>
                             <div class="lobby-brand-subtitle">模式选择 · 个人资料 · 装扮预览</div>
                         </div>
                     </div>
 
-                    <div class="lobby-right-widgets">
-                        <div class="lobby-mini-card">
-                            <div class="lobby-mini-card-icon">${renderLobbyIcon('activity', 'lobby-mini-card-icon-svg')}</div>
-                            <div>
-                                <strong>活动中心</strong>
-                                <small>春季冲榜活动进行中</small>
+                    <div class="lobby-resource-strip">
+                        <article class="lobby-resource-chip">
+                            <span class="lobby-resource-chip-icon">
+                                ${renderMaterialSymbol('monetization_on', 'lobby-resource-symbol')}
+                            </span>
+                            <div class="lobby-resource-copy">
+                                <small>金币</small>
+                                <strong data-progression-coins>0</strong>
                             </div>
-                        </div>
-                        <div class="lobby-mini-card">
-                            <div class="lobby-mini-card-icon">${renderLobbyIcon('tasks', 'lobby-mini-card-icon-svg')}</div>
-                            <div>
-                                <strong>今日任务</strong>
-                                <small>3 / 5 已完成</small>
+                        </article>
+                        <article class="lobby-resource-chip">
+                            <span class="lobby-resource-chip-icon">
+                                ${renderMaterialSymbol('diamond', 'lobby-resource-symbol')}
+                            </span>
+                            <div class="lobby-resource-copy">
+                                <small>经验</small>
+                                <strong data-progression-xp-display>0 / 208 XP</strong>
                             </div>
-                        </div>
+                        </article>
+                    </div>
+
+                    <div class="lobby-top-actions">
+                        <button type="button" class="lobby-icon-button" data-top-action="activity" aria-label="活动中心">
+                            ${renderMaterialSymbol('notifications', 'lobby-icon-button-symbol')}
+                        </button>
+                        <button type="button" class="lobby-icon-button" data-open-settings aria-label="打开设置">
+                            ${renderMaterialSymbol('settings', 'lobby-icon-button-symbol')}
+                        </button>
+                        <button type="button" class="lobby-top-avatar-button" data-avatar-trigger aria-label="上传头像">
+                            <span class="lobby-avatar-slot" data-avatar-slot>
+                                <img class="lobby-avatar-img" data-avatar-img alt="头像" />
+                                <span class="lobby-avatar-fallback" data-avatar-fallback>球</span>
+                            </span>
+                            <span class="lobby-top-avatar-online"></span>
+                        </button>
                     </div>
                 </header>
 
-                <main class="lobby-main--v2">
-                    <section class="lobby-preview-panel--v2">
-                        <div class="lobby-panel-head">
-                            <div>
+                <main class="lobby-main--v2 lobby-dashboard-main">
+                    <aside class="lobby-hero-card">
+                        <div class="lobby-hero-card-head">
+                            <div class="lobby-hero-rankline">
+                                <span class="lobby-hero-kicker">ELITE RANK</span>
+                                <span class="lobby-rank-chip">
+                                    ${renderMaterialSymbol('military_tech', 'lobby-rank-chip-symbol')}
+                                    <span data-progression-level>Lv.1</span>
+                                </span>
+                            </div>
+                            <div class="lobby-hero-name-row">
+                                <strong data-player-name>未命名玩家</strong>
+                                <span class="lobby-status-dot">在线</span>
+                            </div>
+                            <div class="lobby-hero-meta-row">
+                                <span class="lobby-hero-mode-pill" data-current-mode-tag>
+                                    <span class="lobby-hero-mode-glyph" data-current-mode-icon>
+                                        ${renderMaterialSymbol('deployed_code', 'lobby-hero-mode-symbol')}
+                                    </span>
+                                    <span data-current-mode-label>经典模式</span>
+                                </span>
+                                <span class="lobby-growth-meta" data-progression-growth-meta>0 胜 / 0 局</span>
+                            </div>
+                        </div>
+
+                        <div class="lobby-hero-stage-shell">
+                            <div class="lobby-hero-stage-ring"></div>
+                            <div class="lobby-hero-stage-scanline"></div>
+                            <canvas class="lobby-preview-canvas" width="420" height="560" data-preview-canvas></canvas>
+                        </div>
+
+                        <div class="lobby-hero-stats">
+                            <article class="lobby-hero-stat-card">
+                                <small>WIN RATE</small>
+                                <strong data-progression-winrate>0%</strong>
+                            </article>
+                            <article class="lobby-hero-stat-card">
+                                <small>TOTAL MASS</small>
+                                <strong data-progression-best-mass>0 kg</strong>
+                            </article>
+                        </div>
+
+                        <div class="lobby-hero-actions">
+                            <button type="button" class="lobby-start-button lobby-start-button--compact" data-toggle-skins aria-expanded="false">SKINS / CUSTOMIZE</button>
+                            <button type="button" class="lobby-season-card" data-feature="leaderboard">
+                                <span class="lobby-season-card-icon">
+                                    ${renderMaterialSymbol('deployed_code_history', 'lobby-season-card-symbol')}
+                                </span>
+                                <span class="lobby-season-card-copy">
+                                    <strong>SEASON 12: CYBER NEON</strong>
+                                    <small>New skins and limited modes.</small>
+                                </span>
+                            </button>
+                        </div>
+
+                        <div class="lobby-skin-drawer" data-skin-drawer>
+                            <div class="lobby-skin-drawer-head">
                                 <strong>装扮投影预览</strong>
                                 <small>昵称、头像、皮肤实时联动</small>
                             </div>
-                            <span class="lobby-tag" data-current-mode-tag>
-                                <span class="lobby-tag-icon" data-current-mode-icon>${renderLobbyIcon('mode_classic', 'lobby-tag-icon-svg')}</span>
-                                <span data-current-mode-label>经典模式</span>
-                            </span>
-                        </div>
-                        <canvas class="lobby-preview-canvas" width="560" height="360" data-preview-canvas></canvas>
-                        <div class="lobby-skin-strip" role="group" aria-label="皮肤选择">
-                            ${this.buildSkinButtons('main')}
-                        </div>
-                    </section>
-
-                    <section class="lobby-mode-panel--v2">
-                        <div class="lobby-panel-head">
-                            <div>
-                                <strong>模式选择</strong>
-                                <small>六模式入口，全部支持匹配，可按模式测试手感</small>
+                            <div class="lobby-skin-strip" role="group" aria-label="皮肤选择">
+                                ${this.buildSkinButtons('main')}
                             </div>
-                            <span class="lobby-tag lobby-tag--muted" data-mode-status>已开放</span>
                         </div>
-                        <div class="lobby-mode-grid--v2">
-                            ${this.buildModeCards()}
+                    </aside>
+
+                    <section class="lobby-dashboard-stack">
+                        <section class="lobby-mode-panel--v2 lobby-dashboard-panel">
+                            <div class="lobby-panel-head lobby-panel-head--dashboard">
+                                <div>
+                                    <strong>模式选择</strong>
+                                    <small>六模式入口，全部支持匹配，可按模式测试手感</small>
+                                </div>
+                                <span class="lobby-tag lobby-tag--muted" data-mode-status>已开放</span>
+                            </div>
+                            <div class="lobby-mode-grid--v2 lobby-mode-grid--dashboard">
+                                ${this.buildModeCards()}
+                            </div>
+                        </section>
+
+                        <div class="lobby-insight-row">
+                            <section class="lobby-dashboard-panel lobby-task-card">
+                                <div class="lobby-panel-head lobby-panel-head--dashboard">
+                                    <div>
+                                        <strong>每日任务</strong>
+                                        <small>今日进度与实验目标</small>
+                                    </div>
+                                    <span class="lobby-mini-chip">2 / 5 已完成</span>
+                                </div>
+                                <div class="lobby-task-list">
+                                    ${this.buildTaskRows()}
+                                </div>
+                            </section>
+
+                            <section class="lobby-dashboard-panel lobby-friends-card">
+                                <div class="lobby-panel-head lobby-panel-head--dashboard">
+                                    <div>
+                                        <strong>好友在线</strong>
+                                        <small>当前有 3 位好友可互动</small>
+                                    </div>
+                                    <button type="button" class="lobby-link-button" data-feature="friends">查看全部</button>
+                                </div>
+                                <div class="lobby-friends-strip">
+                                    ${this.buildFriendItems()}
+                                </div>
+                            </section>
                         </div>
+
+                        <section class="lobby-cta-panel lobby-dashboard-panel">
+                            <div class="lobby-cta-copy">
+                                <span class="lobby-cta-kicker" data-mode-cta-status>已开放</span>
+                                <strong data-selected-mode>经典模式</strong>
+                                <small data-selected-mode-hint>经典模式点击开始会先进入匹配阶段，再进入对局。</small>
+                            </div>
+                            <div class="lobby-cta-actions">
+                                <button type="button" class="lobby-start-button lobby-dashboard-cta" data-start-game>进入经典模式分厅</button>
+                                <button type="button" class="lobby-cta-invite-button" data-feature="friends">
+                                    ${renderMaterialSymbol('rocket_launch', 'lobby-cta-invite-symbol')}
+                                </button>
+                            </div>
+                            <div class="lobby-cta-social">
+                                <div class="lobby-cta-avatar-cluster">
+                                    ${this.buildFriendCluster()}
+                                </div>
+                                <button type="button" class="lobby-cta-social-button" data-feature="friends">邀请好友</button>
+                            </div>
+                        </section>
                     </section>
                 </main>
 
-                <footer class="lobby-bottom--v2">
-                    <div class="lobby-feature-strip">
+                <footer class="lobby-bottom--v2 lobby-dock-shell">
+                    <div class="lobby-highlight-strip">
+                        ${this.buildHighlightCards()}
+                    </div>
+                    <div class="lobby-feature-strip lobby-feature-strip--dock">
                         <button type="button" class="lobby-feature-button" data-feature="shop">
-                            ${renderLobbyIcon('shop', 'lobby-feature-icon')}
+                            ${renderMaterialSymbol(FEATURE_SYMBOLS.shop, 'lobby-feature-symbol')}
                             <span>商店</span>
                         </button>
                         <button type="button" class="lobby-feature-button" data-feature="magic">
-                            ${renderLobbyIcon('magic', 'lobby-feature-icon')}
+                            ${renderMaterialSymbol(FEATURE_SYMBOLS.magic, 'lobby-feature-symbol')}
                             <span>魔法屋</span>
                         </button>
                         <button type="button" class="lobby-feature-button" data-feature="friends">
-                            ${renderLobbyIcon('friends', 'lobby-feature-icon')}
+                            ${renderMaterialSymbol(FEATURE_SYMBOLS.friends, 'lobby-feature-symbol')}
                             <span>好友</span>
                         </button>
                         <button type="button" class="lobby-feature-button" data-feature="leaderboard">
-                            ${renderLobbyIcon('leaderboard', 'lobby-feature-icon')}
+                            ${renderMaterialSymbol(FEATURE_SYMBOLS.leaderboard, 'lobby-feature-symbol')}
                             <span>排行榜</span>
                         </button>
                     </div>
-
-                    <div class="lobby-footer-actions--v2">
-                        <div class="lobby-selection-copy">
-                            <span>当前选择</span>
-                            <strong data-selected-mode>经典模式</strong>
-                            <small data-selected-mode-hint>经典模式点击开始会先进入匹配阶段，再进入对局。</small>
-                        </div>
-                        <div class="lobby-action-buttons">
-                            <button type="button" class="lobby-ghost-button" data-open-settings>设置</button>
-                            <button type="button" class="lobby-start-button" data-start-game>进入分厅</button>
-                        </div>
-                    </div>
-
-                    <div class="lobby-inline-tip" data-inline-tip aria-live="polite">
-                        选择模式后可进入对应分厅，匹配入口在分厅内触发。
-                    </div>
+                    <div class="lobby-inline-tip" data-inline-tip aria-live="polite">选择模式后可进入对应分厅，匹配入口在分厅内触发。</div>
                 </footer>
             </div>
 
@@ -449,10 +594,14 @@ export class LobbyUI {
     }
 
     private buildModeCards(): string {
-        return Object.values(this.modeOptions).map((mode) => {
+        return LOBBY_MODE_ORDER.map((modeId) => {
+            const mode = this.modeOptions[modeId];
             const disabledClass = mode.playable ? '' : ' is-disabled';
             const activeClass = mode.id === this.selectedModeId ? ' is-active' : '';
             const themeClass = ` is-theme-${mode.theme}`;
+            const sizeClass = mode.id === 'peak' || mode.id === 'battleRoyale'
+                ? ' is-wide'
+                : ' is-primary';
             const statusClass = mode.status === '已开放'
                 ? ' is-open'
                 : mode.status === '测试中'
@@ -460,7 +609,7 @@ export class LobbyUI {
                     : ' is-locked';
             return `
                 <article
-                    class="lobby-mode-card--v2${disabledClass}${activeClass}${themeClass}"
+                    class="lobby-mode-card--v2${disabledClass}${activeClass}${themeClass}${sizeClass}"
                     data-mode-id="${mode.id}"
                     tabindex="0"
                     role="button"
@@ -469,7 +618,7 @@ export class LobbyUI {
                     <div class="lobby-mode-card-head">
                         <div class="lobby-mode-title-wrap">
                             <span class="lobby-mode-icon">
-                                ${renderLobbyIcon(mode.iconId, 'lobby-mode-icon-svg')}
+                                ${renderMaterialSymbol(MODE_SYMBOLS[mode.id], 'lobby-mode-icon-symbol')}
                             </span>
                             <strong>${mode.name}</strong>
                         </div>
@@ -496,9 +645,72 @@ export class LobbyUI {
         `).join('');
     }
 
+    private buildFriendCluster(): string {
+        return FRIEND_PRESETS.map((friend) => `
+            <span class="lobby-cta-avatar" style="--friend-accent:${friend.accent}">
+                ${friend.name.slice(0, 1)}
+            </span>
+        `).join('');
+    }
+
+    private buildHighlightCards(): string {
+        return LOBBY_HIGHLIGHTS.map((item) => `
+            <button type="button" class="lobby-highlight-card is-theme-${item.theme}" data-feature="${item.feature}">
+                <span class="lobby-highlight-icon">
+                    ${renderMaterialSymbol(item.symbol, 'lobby-highlight-symbol')}
+                </span>
+                <span class="lobby-highlight-copy">
+                    <small>${item.kicker}</small>
+                    <strong>${item.title}</strong>
+                    <em>${item.subtitle}</em>
+                </span>
+            </button>
+        `).join('');
+    }
+
+    private buildTaskRows(): string {
+        return TASK_PRESETS.map((task) => `
+            <article class="lobby-task-row">
+                <span class="lobby-task-icon">
+                    ${renderMaterialSymbol(task.icon, 'lobby-task-symbol')}
+                </span>
+                <div class="lobby-task-copy">
+                    <strong>${task.title}</strong>
+                    <div class="lobby-task-progress">
+                        <div class="lobby-task-progress-fill" style="width:${(task.ratio * 100).toFixed(1)}%"></div>
+                    </div>
+                </div>
+                <span class="lobby-task-meta">${task.progress}</span>
+            </article>
+        `).join('');
+    }
+
+    private buildFriendItems(): string {
+        return FRIEND_PRESETS.map((friend) => `
+            <article class="lobby-friend-pill">
+                <span class="lobby-friend-avatar" style="--friend-accent:${friend.accent};">${friend.name.charAt(0)}</span>
+                <strong>${friend.name}</strong>
+                <small>${friend.status}</small>
+            </article>
+        `).join('');
+    }
+
     private bindEvents() {
         this.root.querySelectorAll<HTMLElement>('[data-open-settings]').forEach((element) => {
             element.addEventListener('click', () => this.openSettings(false));
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-toggle-skins]').forEach((element) => {
+            element.addEventListener('click', () => {
+                const next = !this.root.classList.contains('is-skin-drawer-open');
+                this.setSkinDrawerOpen(next);
+            });
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-top-action]').forEach((element) => {
+            element.addEventListener('click', () => {
+                this.showFeatureTip('活动中心正在整理新的实验任务与限时挑战。');
+            });
         });
 
         this.root.querySelectorAll<HTMLElement>('[data-close-settings]').forEach((element) => {
@@ -620,6 +832,9 @@ export class LobbyUI {
             button.addEventListener('click', () => {
                 const skinId = button.dataset.skinId || SKIN_OPTIONS[0].id;
                 this.updateSettings({ equippedSkinId: skinId });
+                if (button.dataset.skinGroup === 'main') {
+                    this.setSkinDrawerOpen(false);
+                }
             });
         });
 
@@ -682,7 +897,7 @@ export class LobbyUI {
         }
         const currentModeIcon = this.root.querySelector<HTMLElement>('[data-current-mode-icon]');
         if (currentModeIcon) {
-            currentModeIcon.innerHTML = renderLobbyIcon(mode.iconId, 'lobby-tag-icon-svg');
+            currentModeIcon.innerHTML = renderMaterialSymbol(MODE_SYMBOLS[mode.id], 'lobby-hero-mode-symbol');
         }
 
         const footerMode = this.root.querySelector<HTMLElement>('[data-selected-mode]');
@@ -695,10 +910,15 @@ export class LobbyUI {
             footerHint.textContent = mode.footerHint;
         }
 
+        const ctaStatus = this.root.querySelector<HTMLElement>('[data-mode-cta-status]');
+        if (ctaStatus) {
+            ctaStatus.textContent = mode.status;
+        }
+
         const startButton = this.root.querySelector<HTMLButtonElement>('[data-start-game]');
         if (startButton) {
             startButton.disabled = !mode.playable;
-            startButton.textContent = mode.playable ? '进入分厅' : '敬请期待';
+            startButton.textContent = mode.playable ? `进入${mode.name}分厅` : '敬请期待';
             startButton.classList.toggle('is-disabled', !mode.playable);
         }
 
@@ -781,6 +1001,10 @@ export class LobbyUI {
         const currentXp = Math.max(0, this.progression.currentXp);
         const requiredXp = getRequiredXpForLevel(level);
         const safeRatio = requiredXp <= 0 ? 0 : Math.max(0, Math.min(1, currentXp / requiredXp));
+        const winRate = this.progression.totalMatches > 0
+            ? ((this.progression.totalWins / this.progression.totalMatches) * 100).toFixed(1)
+            : '0.0';
+        const bestMass = Math.max(0, Math.round(this.progression.bestMass));
 
         this.root.querySelectorAll<HTMLElement>('[data-progression-level]').forEach((el) => {
             el.textContent = `Lv.${level}`;
@@ -800,6 +1024,18 @@ export class LobbyUI {
 
         this.root.querySelectorAll<HTMLElement>('[data-progression-xp-text]').forEach((el) => {
             el.textContent = `${currentXp} / ${requiredXp} XP`;
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-progression-xp-display]').forEach((el) => {
+            el.textContent = `${currentXp} / ${requiredXp} XP`;
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-progression-winrate]').forEach((el) => {
+            el.textContent = `${winRate}%`;
+        });
+
+        this.root.querySelectorAll<HTMLElement>('[data-progression-best-mass]').forEach((el) => {
+            el.textContent = `${bestMass} kg`;
         });
     }
 
@@ -897,6 +1133,13 @@ export class LobbyUI {
         });
     }
 
+    private setSkinDrawerOpen(isOpen: boolean) {
+        this.root.classList.toggle('is-skin-drawer-open', isOpen);
+        this.root.querySelectorAll<HTMLElement>('[data-toggle-skins]').forEach((button) => {
+            button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+    }
+
     private readFileAsDataUrl(file: File): Promise<string> {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -955,39 +1198,56 @@ export class LobbyUI {
 
         ctx.clearRect(0, 0, width, height);
 
-        const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-        bgGradient.addColorStop(0, 'rgba(12, 28, 45, 0.96)');
-        bgGradient.addColorStop(0.6, 'rgba(8, 18, 31, 0.98)');
-        bgGradient.addColorStop(1, 'rgba(6, 12, 24, 1)');
+        const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+        bgGradient.addColorStop(0, 'rgba(8, 20, 42, 0.98)');
+        bgGradient.addColorStop(0.45, 'rgba(8, 18, 35, 1)');
+        bgGradient.addColorStop(1, 'rgba(5, 14, 28, 1)');
         ctx.fillStyle = bgGradient;
         ctx.fillRect(0, 0, width, height);
 
-        const projectorX = width * 0.5;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.11)';
-        ctx.fillRect(projectorX - 18, 12, 36, 12);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
-        ctx.fillRect(projectorX - 6, 24, 12, 48);
+        const panelGlow = ctx.createRadialGradient(width * 0.16, height * 0.12, 0, width * 0.16, height * 0.12, width * 0.72);
+        panelGlow.addColorStop(0, 'rgba(129, 236, 255, 0.18)');
+        panelGlow.addColorStop(1, 'rgba(129, 236, 255, 0)');
+        ctx.fillStyle = panelGlow;
+        ctx.fillRect(0, 0, width, height);
 
-        const beamGradient = ctx.createRadialGradient(projectorX, 68, 10, projectorX, 68, 240);
-        beamGradient.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
-        beamGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = beamGradient;
-        ctx.beginPath();
-        ctx.moveTo(projectorX - 130, 76);
-        ctx.lineTo(projectorX + 130, 76);
-        ctx.lineTo(projectorX + 240, height - 18);
-        ctx.lineTo(projectorX - 240, height - 18);
-        ctx.closePath();
-        ctx.fill();
+        const panelGlowSecondary = ctx.createRadialGradient(width * 0.86, height * 0.18, 0, width * 0.86, height * 0.18, width * 0.54);
+        panelGlowSecondary.addColorStop(0, 'rgba(195, 127, 255, 0.16)');
+        panelGlowSecondary.addColorStop(1, 'rgba(195, 127, 255, 0)');
+        ctx.fillStyle = panelGlowSecondary;
+        ctx.fillRect(0, 0, width, height);
 
-        const ballBaseX = width * 0.5;
-        const ballBaseY = height * 0.57;
-        const offsetX = motionRate * Math.sin(t * 1.4) * 8;
-        const offsetY = motionRate * Math.cos(t * 1.1) * 5;
+        const ringCenterX = width * 0.5;
+        const ringCenterY = height * 0.47;
+        const ringRadius = Math.min(width, height) * 0.27;
+        const offsetX = motionRate * Math.sin(t * 1.4) * 5;
+        const offsetY = motionRate * Math.cos(t * 1.1) * 4;
         const pulse = 1 + motionRate * Math.sin(t * 2.2) * 0.03;
-        const radius = 78 * pulse;
-        const centerX = ballBaseX + offsetX;
-        const centerY = ballBaseY + offsetY;
+        const radius = ringRadius * 0.72 * pulse;
+        const centerX = ringCenterX + offsetX;
+        const centerY = ringCenterY + offsetY;
+
+        ctx.strokeStyle = 'rgba(129, 236, 255, 0.22)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ringCenterX, ringCenterY, ringRadius + 10, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(195, 127, 255, 0.16)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(ringCenterX, ringCenterY, ringRadius + 24, Math.PI * 0.1, Math.PI * 1.6);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(129, 236, 255, 0.1)';
+        ctx.lineWidth = 1;
+        for (let index = 0; index < 18; index += 1) {
+            const y = 74 + index * 22 + motionRate * Math.sin(t * 0.8 + index) * 1.8;
+            ctx.beginPath();
+            ctx.moveTo(32, y);
+            ctx.lineTo(width - 32, y);
+            ctx.stroke();
+        }
 
         const glow = ctx.createRadialGradient(centerX, centerY, 22, centerX, centerY, 180);
         glow.addColorStop(0, skin.glow);
@@ -1005,7 +1265,7 @@ export class LobbyUI {
         ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.strokeStyle = 'rgba(213, 237, 255, 0.34)';
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius - 1.5, 0, Math.PI * 2);
@@ -1016,7 +1276,7 @@ export class LobbyUI {
         ctx.arc(centerX - radius * 0.36, centerY - radius * 0.3, radius * 0.2, 0, Math.PI * 2);
         ctx.fill();
 
-        const badgeRadius = 22;
+        const badgeRadius = 28;
         const badgeX = centerX + radius * 0.58;
         const badgeY = centerY - radius * 0.56;
         ctx.save();
@@ -1035,7 +1295,7 @@ export class LobbyUI {
             ctx.fillStyle = 'rgba(12, 29, 46, 0.92)';
             ctx.fillRect(badgeX - badgeRadius, badgeY - badgeRadius, badgeRadius * 2, badgeRadius * 2);
             ctx.fillStyle = 'rgba(255, 255, 255, 0.86)';
-            ctx.font = 'bold 20px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+            ctx.font = '700 26px "Plus Jakarta Sans","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(displayName.charAt(0) || '球', badgeX, badgeY + 1);
@@ -1048,16 +1308,20 @@ export class LobbyUI {
         ctx.arc(badgeX, badgeY, badgeRadius + 1, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.36)';
-        ctx.fillRect(90, height - 64, width - 180, 38);
+        const namePlateY = height - 78;
+        ctx.fillStyle = 'rgba(4, 14, 28, 0.82)';
+        ctx.fillRect(42, namePlateY, width - 84, 56);
+        ctx.strokeStyle = 'rgba(129, 236, 255, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(42, namePlateY, width - 84, 56);
         ctx.fillStyle = '#eff8ff';
-        ctx.font = '700 24px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.font = '700 30px "Plus Jakarta Sans","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(displayName, width * 0.5, height - 45);
+        ctx.fillText(displayName, width * 0.5, namePlateY + 34);
 
-        ctx.fillStyle = 'rgba(201, 227, 255, 0.8)';
-        ctx.font = '600 14px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
-        ctx.fillText(`皮肤：${skin.name}`, width * 0.5, 24);
+        ctx.fillStyle = 'rgba(201, 227, 255, 0.84)';
+        ctx.font = '700 15px "Be Vietnam Pro","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.fillText(`SKIN · ${skin.name.toUpperCase()}`, width * 0.5, 28);
     }
 }
