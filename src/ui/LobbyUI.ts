@@ -243,7 +243,7 @@ export class LobbyUI {
                 playable: true
             }
         };
-        this.selectedModeId = 'classic';
+        this.selectedModeId = 'team';
 
         this.root = document.createElement('div');
         this.root.className = 'lobby-overlay';

@@ -258,3 +258,15 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
   - Playwright snapshot confirms preserved behavior (`render_game_to_text` still reports unchanged app semantics, phase transitions intact);
   - interaction smoke test passed: selecting `ranked` updates CTA text to `进入排位赛分厅`, clicking CTA transitions to `{ phase: "modeHall", modeId: "ranked" }`;
   - visual captures generated: `lobby-stitch-same-reference-1440.png`, `lobby-stitch-same-reference-1440-viewport-v2.png`, `lobby-stitch-same-reference-390.png`.
+- 2026-03-21: Applied another parity pass against the user-provided target screenshot (1707x866):
+  - default selected mode switched to `team` to match target emphasis;
+  - removed visible left-card skins drawer/button block from the main lobby surface (settings flow remains);
+  - normalized top action buttons to circular icon style and tightened shell radius/spacing;
+  - tuned hero title + stat overlap density for closer card silhouette to the target frame.
+- 2026-03-21: Added explicit browser-side visual comparison workflow in the loop:
+  - viewport set to `1707x866` and compared against target composition;
+  - latest comparison capture: `lobby-match-user-reference-1707x866-v3.png`;
+  - desktop and mobile sanity captures retained for regression checks.
+- 2026-03-21: Validation after parity pass:
+  - `npm run build` passed;
+  - Playwright interaction smoke still passes (`mode select -> enter mode hall`) and snapshot semantics remain unchanged.

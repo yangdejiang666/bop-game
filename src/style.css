@@ -7148,7 +7148,7 @@ html[data-reduced-motion='true'] .lobby-hero-stage-scanline {
     margin: 15px auto;
     padding: 16px 18px 14px;
     gap: 14px;
-    border-radius: 26px;
+    border-radius: 32px;
     border: 1px solid rgba(118, 150, 202, 0.26);
     background:
         radial-gradient(circle at 14% 18%, rgba(129, 236, 255, 0.12), transparent 30%),
@@ -7265,7 +7265,7 @@ html[data-reduced-motion='true'] .lobby-hero-stage-scanline {
 .lobby-overlay .lobby-icon-button {
     width: 42px;
     height: 42px;
-    border-radius: 14px;
+    border-radius: 999px;
     background: rgba(12, 24, 50, 0.78);
 }
 
@@ -7329,9 +7329,10 @@ html[data-reduced-motion='true'] .lobby-hero-stage-scanline {
 }
 
 .lobby-overlay .lobby-hero-name-row strong {
-    font-size: 46px;
-    font-style: italic;
-    line-height: 0.92;
+    font-size: 58px;
+    font-style: normal;
+    line-height: 0.9;
+    letter-spacing: -0.02em;
 }
 
 .lobby-overlay .lobby-hero-meta-row {
@@ -7391,6 +7392,7 @@ html[data-reduced-motion='true'] .lobby-hero-stage-scanline {
 
 .lobby-overlay .lobby-hero-stats {
     gap: 10px;
+    margin-top: -8px;
 }
 
 .lobby-overlay .lobby-hero-stat-card {
@@ -7405,6 +7407,11 @@ html[data-reduced-motion='true'] .lobby-hero-stage-scanline {
 
 .lobby-overlay .lobby-start-button--compact {
     min-height: 54px;
+}
+
+.lobby-overlay .lobby-hero-actions,
+.lobby-overlay .lobby-skin-drawer {
+    display: none;
 }
 
 .lobby-overlay .lobby-season-card {
@@ -7858,7 +7865,7 @@ html[data-reduced-motion='true'] .lobby-hero-stage-scanline {
     }
 
     .lobby-overlay .lobby-hero-name-row strong {
-        font-size: 30px;
+        font-size: 40px;
     }
 
     .lobby-overlay .lobby-hero-stage-shell {
