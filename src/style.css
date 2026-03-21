@@ -223,6 +223,7 @@ button {
     will-change: transform;
     z-index: 2;
     opacity: 1;
+    visibility: visible;
     transition: opacity 320ms ease, filter 320ms ease, box-shadow 220ms ease;
 }
 
@@ -323,6 +324,7 @@ button {
     pointer-events: none;
     z-index: 6;
     opacity: 0;
+    visibility: hidden;
     transform: scale(0.96);
     transition: opacity 360ms ease, transform 360ms ease;
 }
@@ -1008,12 +1010,14 @@ button {
 .match-result-overlay[data-settlement-stage='intro'] .match-result-rank-splash,
 .match-result-overlay[data-settlement-stage='rank'] .match-result-rank-splash {
     opacity: 1;
+    visibility: visible;
     transform: scale(1);
 }
 
 .match-result-overlay[data-settlement-stage='intro'] .match-result-panel,
 .match-result-overlay[data-settlement-stage='rank'] .match-result-panel {
     opacity: 0;
+    visibility: hidden;
     filter: blur(14px);
     pointer-events: none;
 }
@@ -1074,6 +1078,7 @@ button {
 .match-result-overlay[data-settlement-stage='rewards'] .match-result-rank-splash,
 .match-result-overlay[data-settlement-stage='actions'] .match-result-rank-splash {
     opacity: 0;
+    visibility: hidden;
     transform: scale(1.04);
 }
 
