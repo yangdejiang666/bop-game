@@ -244,3 +244,17 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
   - Playwright visual checks on `http://127.0.0.1:4174` passed for Lobby desktop (1440x900) and ModeHall mobile (390x844) with visible bottom CTA (`设置/开始匹配`);
   - no new JS runtime errors introduced; existing Three.js model fallback warnings remain non-blocking.
 - 2026-03-21: Extracted `stitch.zip` to `stitch_reference/` (`code.html`, `DESIGN.md`, `screen.png`) so future style iterations can continue from a local, versioned reference source.
+- 2026-03-21: Implemented Lobby same-structure reconstruction toward `stitch_reference/code.html` while preserving existing flow hooks:
+  - rebuilt `LobbyUI` shell into the six-zone dashboard skeleton (top resource bar, left hero card, 4+2 mode matrix, task/friends row, central CTA row, activity strip + dock);
+  - kept all business `data-*` bindings for mode selection, settings, avatar upload, skin persistence, and start-to-modeHall path unchanged;
+  - upgraded mode card markup to include corner glyph + flowing border layers and per-mode category labels for stronger parity with the reference card language.
+- 2026-03-21: Added a final high-specificity CSS override block in `src/style.css` for exact Stitch lobby rendering:
+  - desktop-first shell proportions, hero-card hierarchy, glass stacking, stronger typography scale, and CTA sweep;
+  - flowing border/surface shimmer animations on each mode card with per-theme flow colors;
+  - friend tile online dots + add tile, bottom highlight strip, and dock nav restyled to reference rhythm.
+- 2026-03-21: Applied overflow containment fix for the reconstructed lobby (`.lobby-overlay { overflow: hidden; }`) to avoid old container scroll behavior leaking into the new shell.
+- 2026-03-21: Validation after same-structure reconstruction:
+  - `npm run build` passed;
+  - Playwright snapshot confirms preserved behavior (`render_game_to_text` still reports unchanged app semantics, phase transitions intact);
+  - interaction smoke test passed: selecting `ranked` updates CTA text to `进入排位赛分厅`, clicking CTA transitions to `{ phase: "modeHall", modeId: "ranked" }`;
+  - visual captures generated: `lobby-stitch-same-reference-1440.png`, `lobby-stitch-same-reference-1440-viewport-v2.png`, `lobby-stitch-same-reference-390.png`.

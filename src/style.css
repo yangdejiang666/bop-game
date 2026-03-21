@@ -2489,7 +2489,7 @@ button {
     opacity: 0;
     visibility: hidden;
     transition: opacity 220ms ease, visibility 220ms ease;
-    overflow: auto;
+    overflow: hidden;
     overscroll-behavior: contain;
 }
 
@@ -7137,5 +7137,789 @@ html[data-reduced-motion='true'] .mode-hall-header-btn--highlight::before {
 
 [data-reduced-motion='true'] .lobby-hero-stage-scanline,
 html[data-reduced-motion='true'] .lobby-hero-stage-scanline {
+    animation: none;
+}
+
+/* Lobby Stitch Same-As-Reference Override */
+.lobby-overlay .lobby-shell--v2.lobby-stitch-shell {
+    width: min(1680px, calc(100vw - 30px));
+    height: calc(100dvh - 30px);
+    max-height: calc(100dvh - 30px);
+    margin: 15px auto;
+    padding: 16px 18px 14px;
+    gap: 14px;
+    border-radius: 26px;
+    border: 1px solid rgba(118, 150, 202, 0.26);
+    background:
+        radial-gradient(circle at 14% 18%, rgba(129, 236, 255, 0.12), transparent 30%),
+        radial-gradient(circle at 86% 12%, rgba(195, 127, 255, 0.1), transparent 34%),
+        linear-gradient(180deg, rgba(9, 18, 39, 0.98), rgba(4, 10, 24, 0.98));
+    box-shadow:
+        0 28px 76px rgba(0, 0, 0, 0.52),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    overflow: hidden;
+}
+
+.lobby-overlay .lobby-dashboard-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 480px) auto;
+    align-items: center;
+    gap: 16px;
+    min-height: 76px;
+}
+
+.lobby-overlay .lobby-dashboard-brand-copy {
+    display: grid;
+    gap: 3px;
+}
+
+.lobby-overlay .lobby-dashboard-brand-kicker {
+    color: rgba(150, 187, 238, 0.72);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+}
+
+.lobby-overlay .lobby-brand-title {
+    color: #eef8ff;
+    font-family: var(--stitch-headline-font);
+    font-size: clamp(38px, 3.4vw, 52px);
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+    text-shadow: 0 0 26px rgba(129, 236, 255, 0.22);
+}
+
+.lobby-overlay .lobby-brand-subtitle {
+    color: rgba(183, 210, 247, 0.72);
+    font-size: 16px;
+}
+
+.lobby-overlay .lobby-resource-strip {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 8px 12px;
+    border-radius: 22px;
+    background: rgba(10, 20, 44, 0.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow:
+        inset 0 0 0 1px rgba(116, 151, 206, 0.24),
+        0 14px 30px rgba(0, 0, 0, 0.24);
+}
+
+.lobby-overlay .lobby-resource-chip {
+    padding: 9px 18px;
+}
+
+.lobby-overlay .lobby-resource-chip-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.lobby-overlay .lobby-resource-chip + .lobby-resource-chip {
+    border-left: 1px solid rgba(120, 154, 206, 0.18);
+}
+
+.lobby-overlay .lobby-resource-copy small {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+}
+
+.lobby-overlay .lobby-resource-copy strong {
+    font-size: 34px;
+    line-height: 0.9;
+    font-weight: 900;
+}
+
+.lobby-overlay .lobby-resource-add {
+    margin-left: 10px;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    border: 0;
+    background: rgba(129, 236, 255, 0.15);
+    color: #81ecff;
+    display: grid;
+    place-items: center;
+    box-shadow: inset 0 0 0 1px rgba(129, 236, 255, 0.3);
+    transition: transform 160ms ease, filter 160ms ease;
+}
+
+.lobby-overlay .lobby-resource-add:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.12);
+}
+
+.lobby-overlay .lobby-resource-add-symbol {
+    font-size: 20px;
+}
+
+.lobby-overlay .lobby-top-actions {
+    gap: 12px;
+}
+
+.lobby-overlay .lobby-icon-button {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: rgba(12, 24, 50, 0.78);
+}
+
+.lobby-overlay .lobby-top-avatar-button .lobby-avatar-slot {
+    width: 52px;
+    height: 52px;
+}
+
+.lobby-overlay .lobby-main--v2.lobby-dashboard-main {
+    display: grid;
+    grid-template-columns: 334px minmax(0, 1fr);
+    gap: 16px;
+    min-height: 0;
+}
+
+.lobby-overlay .lobby-left-pane {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 12px;
+    min-height: 0;
+}
+
+.lobby-overlay .lobby-hero-card {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    gap: 12px;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at 50% 34%, rgba(129, 236, 255, 0.18), transparent 52%),
+        linear-gradient(180deg, rgba(14, 26, 56, 0.96), rgba(8, 17, 37, 0.98));
+    box-shadow:
+        inset 0 0 0 1px rgba(123, 151, 198, 0.18),
+        0 18px 40px rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+}
+
+.lobby-overlay .lobby-hero-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, #81ecff, #c37fff, #81ecff);
+}
+
+.lobby-overlay .lobby-hero-rankline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.lobby-overlay .lobby-rank-chip {
+    padding: 7px 14px;
+    border-radius: 12px;
+    color: #9deeff;
+    background: rgba(129, 236, 255, 0.15);
+    border: 1px solid rgba(129, 236, 255, 0.35);
+}
+
+.lobby-overlay .lobby-hero-name-row strong {
+    font-size: 46px;
+    font-style: italic;
+    line-height: 0.92;
+}
+
+.lobby-overlay .lobby-hero-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.lobby-overlay .lobby-status-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #9ffff0;
+}
+
+.lobby-overlay .lobby-status-dot::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #30d88b;
+    box-shadow: 0 0 12px rgba(48, 216, 139, 0.6);
+    animation: lobbyStatusPulse 1.9s ease-in-out infinite;
+}
+
+.lobby-overlay .lobby-hero-mode-pill {
+    background: rgba(18, 43, 80, 0.9);
+    border-radius: 999px;
+    padding: 6px 10px;
+}
+
+.lobby-overlay .lobby-growth-meta {
+    color: rgba(190, 217, 250, 0.76);
+    font-size: 12px;
+}
+
+.lobby-overlay .lobby-hero-stage-shell {
+    border-radius: 24px;
+    min-height: 280px;
+    background:
+        linear-gradient(180deg, rgba(12, 24, 49, 0.95), rgba(7, 15, 31, 0.97));
+}
+
+.lobby-overlay .lobby-hero-stage-ring--outer {
+    animation-duration: 9.5s;
+}
+
+.lobby-overlay .lobby-hero-stage-ring--mid {
+    animation-duration: 14s;
+}
+
+.lobby-overlay .lobby-preview-canvas {
+    min-height: 292px;
+}
+
+.lobby-overlay .lobby-hero-stats {
+    gap: 10px;
+}
+
+.lobby-overlay .lobby-hero-stat-card {
+    padding: 13px 10px 11px;
+    border-radius: 16px;
+}
+
+.lobby-overlay .lobby-hero-stat-card strong {
+    font-size: 44px;
+    letter-spacing: -0.03em;
+}
+
+.lobby-overlay .lobby-start-button--compact {
+    min-height: 54px;
+}
+
+.lobby-overlay .lobby-season-card {
+    min-height: 78px;
+    border-radius: 18px;
+}
+
+.lobby-overlay .lobby-right-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+}
+
+.lobby-overlay .lobby-dashboard-panel {
+    border-radius: 24px;
+    padding: 14px 16px;
+    background: linear-gradient(180deg, rgba(16, 30, 60, 0.92), rgba(10, 20, 42, 0.94));
+}
+
+.lobby-overlay .lobby-mode-panel--v2 {
+    min-height: 290px;
+}
+
+.lobby-overlay .lobby-mode-grid--dashboard {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.lobby-overlay .lobby-mode-card--v2 {
+    position: relative;
+    overflow: hidden;
+    min-height: 144px;
+    padding: 14px;
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.06), transparent 44%),
+        linear-gradient(180deg, rgba(26, 42, 78, 0.92), rgba(18, 30, 58, 0.94));
+    box-shadow:
+        inset 0 0 0 1px rgba(123, 151, 198, 0.2),
+        0 12px 24px rgba(0, 0, 0, 0.2);
+    transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.lobby-overlay .lobby-mode-card--v2.is-wide {
+    min-height: 104px;
+    grid-column: span 2;
+}
+
+.lobby-overlay .lobby-mode-card--v2::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(from 0deg, transparent 0deg, transparent 290deg, var(--flow-color) 334deg, transparent 360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: lobbyFlowSpin 4.2s linear infinite;
+    opacity: 0.8;
+    pointer-events: none;
+}
+
+.lobby-overlay .lobby-mode-card--v2::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -160%;
+    width: 140%;
+    height: 100%;
+    background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.12) 48%, transparent 100%);
+    transform: skewX(-20deg);
+    animation: lobbySurfaceSweep 4.8s ease-in-out infinite;
+    pointer-events: none;
+    opacity: 0.42;
+}
+
+.lobby-overlay .lobby-mode-card--v2.is-theme-gold {
+    --flow-color: rgba(255, 228, 131, 0.92);
+}
+
+.lobby-overlay .lobby-mode-card--v2.is-theme-violet {
+    --flow-color: rgba(195, 127, 255, 0.9);
+}
+
+.lobby-overlay .lobby-mode-card--v2.is-theme-cyan {
+    --flow-color: rgba(129, 236, 255, 0.92);
+}
+
+.lobby-overlay .lobby-mode-card--v2.is-theme-amber {
+    --flow-color: rgba(255, 194, 98, 0.9);
+}
+
+.lobby-overlay .lobby-mode-card--v2.is-theme-purple {
+    --flow-color: rgba(170, 112, 255, 0.9);
+}
+
+.lobby-overlay .lobby-mode-card--v2.is-theme-red {
+    --flow-color: rgba(255, 145, 115, 0.9);
+}
+
+.lobby-overlay .lobby-mode-card--v2:hover {
+    transform: translateY(-3px) scale(1.012);
+    filter: brightness(1.06);
+}
+
+.lobby-overlay .lobby-mode-card--v2.is-active {
+    box-shadow:
+        inset 0 0 0 1px rgba(129, 236, 255, 0.45),
+        0 0 28px rgba(129, 236, 255, 0.22);
+}
+
+.lobby-overlay .lobby-mode-card-corner {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    color: rgba(201, 220, 255, 0.32);
+    line-height: 1;
+}
+
+.lobby-overlay .lobby-mode-corner-symbol {
+    font-size: 46px;
+}
+
+.lobby-overlay .lobby-mode-status-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 2;
+}
+
+.lobby-overlay .lobby-mode-card-body {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 12px;
+    display: grid;
+    gap: 3px;
+}
+
+.lobby-overlay .lobby-mode-kicker {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--flow-color);
+}
+
+.lobby-overlay .lobby-mode-card-body strong {
+    font-size: 32px;
+    font-family: var(--stitch-headline-font);
+    line-height: 0.96;
+    letter-spacing: -0.03em;
+}
+
+.lobby-overlay .lobby-mode-card-body p {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(204, 226, 255, 0.8);
+}
+
+.lobby-overlay .lobby-insight-row {
+    grid-template-columns: minmax(0, 1.46fr) minmax(0, 1fr);
+    gap: 12px;
+}
+
+.lobby-overlay .lobby-task-row {
+    min-height: 56px;
+}
+
+.lobby-overlay .lobby-task-copy strong {
+    font-size: 14px;
+}
+
+.lobby-overlay .lobby-friends-strip {
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.lobby-overlay .lobby-friend-pill {
+    position: relative;
+    min-width: 72px;
+}
+
+.lobby-overlay .lobby-friend-avatar {
+    width: 54px;
+    height: 54px;
+}
+
+.lobby-overlay .lobby-friend-online-dot {
+    position: absolute;
+    right: 8px;
+    top: 42px;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #2dd889;
+    box-shadow: 0 0 0 2px rgba(8, 16, 30, 0.98);
+}
+
+.lobby-overlay .lobby-friend-add {
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+    border: 1px dashed rgba(129, 236, 255, 0.34);
+    background: rgba(10, 23, 46, 0.82);
+    color: #81ecff;
+    display: grid;
+    place-items: center;
+    margin-top: 4px;
+}
+
+.lobby-overlay .lobby-friend-add-symbol {
+    font-size: 22px;
+}
+
+.lobby-overlay .lobby-cta-panel {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        'copy copy'
+        'actions social';
+    row-gap: 10px;
+}
+
+.lobby-overlay .lobby-cta-copy strong {
+    font-size: 20px;
+}
+
+.lobby-overlay .lobby-dashboard-cta {
+    min-height: 66px;
+    font-size: 28px;
+    letter-spacing: 0.08em;
+    position: relative;
+    overflow: hidden;
+}
+
+.lobby-overlay .lobby-dashboard-cta::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -160%;
+    width: 140%;
+    height: 100%;
+    transform: skewX(-18deg);
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+    animation: lobbyCtaSweep 3.6s ease-in-out infinite;
+}
+
+.lobby-overlay .lobby-cta-social-button {
+    min-height: 42px;
+}
+
+.lobby-overlay .lobby-dock-shell {
+    padding: 6px 6px 4px;
+    border-radius: 22px;
+    background: rgba(8, 18, 38, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+
+.lobby-overlay .lobby-highlight-strip {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 4px 2px 8px;
+    scrollbar-width: none;
+}
+
+.lobby-overlay .lobby-highlight-strip::-webkit-scrollbar {
+    display: none;
+}
+
+.lobby-overlay .lobby-highlight-card {
+    flex: 0 0 340px;
+    min-height: 82px;
+}
+
+.lobby-overlay .lobby-feature-strip--dock {
+    margin-top: 2px;
+    gap: 10px;
+}
+
+.lobby-overlay .lobby-feature-button {
+    min-height: 56px;
+    border-radius: 14px;
+}
+
+.lobby-overlay .lobby-feature-button.is-active {
+    background:
+        radial-gradient(circle at 50% 0%, rgba(129, 236, 255, 0.14), transparent 65%),
+        rgba(18, 31, 61, 0.56);
+}
+
+.lobby-overlay .lobby-inline-tip {
+    display: block;
+    min-height: 20px;
+    color: rgba(173, 201, 240, 0.78);
+    font-size: 12px;
+    padding: 0 4px 2px;
+}
+
+@keyframes lobbyFlowSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes lobbySurfaceSweep {
+    0% {
+        left: -160%;
+    }
+
+    50% {
+        left: 140%;
+    }
+
+    100% {
+        left: 140%;
+    }
+}
+
+@keyframes lobbyCtaSweep {
+    0% {
+        left: -160%;
+    }
+
+    52% {
+        left: 150%;
+    }
+
+    100% {
+        left: 150%;
+    }
+}
+
+@keyframes lobbyStatusPulse {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.18);
+        opacity: 0.72;
+    }
+}
+
+@media (max-width: 1366px) {
+    .lobby-overlay .lobby-shell--v2.lobby-stitch-shell {
+        width: min(100%, calc(100vw - 18px));
+        height: calc(100dvh - 18px);
+        max-height: calc(100dvh - 18px);
+        margin: 6px auto;
+        padding: 12px;
+    }
+
+    .lobby-overlay .lobby-main--v2.lobby-dashboard-main {
+        grid-template-columns: 300px minmax(0, 1fr);
+    }
+
+    .lobby-overlay .lobby-mode-grid--dashboard {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .lobby-overlay .lobby-mode-card--v2.is-wide {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 1100px) {
+    .lobby-overlay .lobby-shell--v2.lobby-stitch-shell {
+        height: auto;
+        max-height: none;
+        min-height: calc(100dvh - 8px);
+        overflow-y: auto;
+    }
+
+    .lobby-overlay .lobby-dashboard-topbar {
+        grid-template-columns: 1fr;
+        align-items: start;
+    }
+
+    .lobby-overlay .lobby-main--v2.lobby-dashboard-main {
+        grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay .lobby-right-pane {
+        gap: 10px;
+    }
+
+    .lobby-overlay .lobby-insight-row {
+        grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay .lobby-mode-grid--dashboard {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .lobby-overlay .lobby-cta-panel {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            'copy'
+            'actions'
+            'social';
+    }
+
+    .lobby-overlay .lobby-cta-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay .lobby-cta-invite-button {
+        display: none;
+    }
+}
+
+@media (max-width: 767px) {
+    .lobby-overlay .lobby-shell--v2.lobby-stitch-shell {
+        width: min(100%, calc(100% - 6px));
+        min-height: calc(100dvh - 6px);
+        padding: 8px;
+        gap: 10px;
+    }
+
+    .lobby-overlay .lobby-brand-title {
+        font-size: clamp(26px, 9vw, 34px);
+    }
+
+    .lobby-overlay .lobby-brand-subtitle {
+        font-size: 12px;
+    }
+
+    .lobby-overlay .lobby-resource-strip {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+
+    .lobby-overlay .lobby-resource-chip {
+        flex: 1 1 calc(50% - 3px);
+        padding: 8px 10px;
+    }
+
+    .lobby-overlay .lobby-resource-copy strong {
+        font-size: 21px;
+    }
+
+    .lobby-overlay .lobby-resource-add {
+        margin-left: auto;
+    }
+
+    .lobby-overlay .lobby-hero-name-row strong {
+        font-size: 30px;
+    }
+
+    .lobby-overlay .lobby-hero-stage-shell {
+        min-height: 242px;
+    }
+
+    .lobby-overlay .lobby-preview-canvas {
+        min-height: 236px;
+    }
+
+    .lobby-overlay .lobby-hero-stat-card strong {
+        font-size: 26px;
+    }
+
+    .lobby-overlay .lobby-mode-grid--dashboard {
+        grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay .lobby-mode-card--v2,
+    .lobby-overlay .lobby-mode-card--v2.is-wide {
+        min-height: 98px;
+        grid-column: span 1;
+    }
+
+    .lobby-overlay .lobby-mode-corner-symbol {
+        font-size: 34px;
+    }
+
+    .lobby-overlay .lobby-mode-kicker {
+        font-size: 9px;
+    }
+
+    .lobby-overlay .lobby-mode-card-body strong {
+        font-size: 22px;
+    }
+
+    .lobby-overlay .lobby-mode-card-body p {
+        font-size: 11px;
+    }
+
+    .lobby-overlay .lobby-dashboard-cta {
+        font-size: 19px;
+        min-height: 56px;
+    }
+
+    .lobby-overlay .lobby-highlight-card {
+        flex-basis: min(300px, 90vw);
+    }
+
+    .lobby-overlay .lobby-inline-tip {
+        display: none;
+    }
+}
+
+[data-reduced-motion='true'] .lobby-overlay .lobby-mode-card--v2::before,
+html[data-reduced-motion='true'] .lobby-overlay .lobby-mode-card--v2::before,
+[data-reduced-motion='true'] .lobby-overlay .lobby-mode-card--v2::after,
+html[data-reduced-motion='true'] .lobby-overlay .lobby-mode-card--v2::after,
+[data-reduced-motion='true'] .lobby-overlay .lobby-dashboard-cta::before,
+html[data-reduced-motion='true'] .lobby-overlay .lobby-dashboard-cta::before,
+[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before,
+html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
     animation: none;
 }

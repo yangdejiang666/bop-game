@@ -96,6 +96,15 @@ const MODE_SYMBOLS: Record<LobbyModeId, string> = {
     battleRoyale: 'radio_button_checked'
 };
 
+const MODE_CATEGORY_LABELS: Record<LobbyModeId, string> = {
+    ranked: '竞技模式',
+    peak: '高分模式',
+    classic: '休闲模式',
+    speed: '极速模式',
+    team: '协作模式',
+    battleRoyale: '生存模式'
+};
+
 const FEATURE_SYMBOLS: Record<LobbyFeatureId, string> = {
     shop: 'storefront',
     magic: 'auto_awesome',
@@ -321,10 +330,9 @@ export class LobbyUI {
                 <div class="lobby-orb lobby-orb--three"></div>
             </div>
 
-            <div class="lobby-shell lobby-shell--v2">
+            <div class="lobby-shell lobby-shell--v2 lobby-stitch-shell">
                 <header class="lobby-topbar lobby-dashboard-topbar">
                     <div class="lobby-dashboard-brand">
-                        <div class="lobby-dashboard-brand-mark">BOP</div>
                         <div class="lobby-dashboard-brand-copy">
                             <div class="lobby-dashboard-brand-kicker">球球实验室</div>
                             <div class="lobby-brand-title">球球竞技大厅</div>
@@ -351,6 +359,9 @@ export class LobbyUI {
                                 <strong data-progression-xp-display>0 / 208 XP</strong>
                             </div>
                         </article>
+                        <button type="button" class="lobby-resource-add" data-feature="shop" aria-label="打开商店">
+                            ${renderMaterialSymbol('add', 'lobby-resource-add-symbol')}
+                        </button>
                     </div>
 
                     <div class="lobby-top-actions">
@@ -371,7 +382,7 @@ export class LobbyUI {
                 </header>
 
                 <main class="lobby-main--v2 lobby-dashboard-main">
-                    <aside class="lobby-hero-column">
+                    <aside class="lobby-left-pane lobby-hero-column">
                         <section class="lobby-hero-card">
                             <div class="lobby-hero-card-head">
                                 <div class="lobby-hero-rankline">
@@ -388,6 +399,13 @@ export class LobbyUI {
                                 </div>
                                 <div class="lobby-hero-meta-row">
                                     <span class="lobby-status-dot">在线</span>
+                                    <span class="lobby-hero-mode-pill">
+                                        <span class="lobby-hero-mode-glyph" data-current-mode-icon>
+                                            ${renderMaterialSymbol(MODE_SYMBOLS.classic, 'lobby-hero-mode-symbol')}
+                                        </span>
+                                        <span data-current-mode-label>经典模式</span>
+                                    </span>
+                                    <span class="lobby-growth-meta" data-progression-growth-meta>0 胜 / 0 局</span>
                                 </div>
                             </div>
 
@@ -443,7 +461,7 @@ export class LobbyUI {
                         </button>
                     </aside>
 
-                    <section class="lobby-dashboard-stack">
+                    <section class="lobby-right-pane lobby-dashboard-stack">
                         <section class="lobby-mode-panel--v2 lobby-dashboard-panel">
                             <div class="lobby-panel-head lobby-panel-head--dashboard">
                                 <div>
@@ -622,16 +640,15 @@ export class LobbyUI {
                     role="button"
                     aria-label="选择${mode.name}"
                 >
-                    <div class="lobby-mode-card-head">
-                        <div class="lobby-mode-title-wrap">
-                            <span class="lobby-mode-icon">
-                                ${renderMaterialSymbol(MODE_SYMBOLS[mode.id], 'lobby-mode-icon-symbol')}
-                            </span>
-                            <strong>${mode.name}</strong>
-                        </div>
-                        <span class="lobby-mode-status-badge${statusClass}">${mode.status}</span>
+                    <div class="lobby-mode-card-corner">
+                        ${renderMaterialSymbol(MODE_SYMBOLS[mode.id], 'lobby-mode-corner-symbol')}
                     </div>
-                    <p>${mode.subtitle}</p>
+                    <span class="lobby-mode-status-badge${statusClass}">${mode.status}</span>
+                    <div class="lobby-mode-card-body">
+                        <span class="lobby-mode-kicker">${MODE_CATEGORY_LABELS[mode.id]}</span>
+                        <strong>${mode.name}</strong>
+                        <p>${mode.subtitle}</p>
+                    </div>
                 </article>
             `;
         }).join('');
@@ -693,13 +710,19 @@ export class LobbyUI {
     }
 
     private buildFriendItems(): string {
-        return FRIEND_PRESETS.map((friend) => `
+        const rows = FRIEND_PRESETS.map((friend) => `
             <article class="lobby-friend-pill">
                 <span class="lobby-friend-avatar" style="--friend-accent:${friend.accent};">${friend.name.charAt(0)}</span>
+                <span class="lobby-friend-online-dot"></span>
                 <strong>${friend.name}</strong>
                 <small>${friend.status}</small>
             </article>
         `).join('');
+        return `${rows}
+            <button type="button" class="lobby-friend-add" data-feature="friends" aria-label="邀请好友">
+                ${renderMaterialSymbol('add', 'lobby-friend-add-symbol')}
+            </button>
+        `;
     }
 
     private bindEvents() {
