@@ -1,6 +1,7 @@
 import type { GameSettings } from '../app/settings';
 import type { LobbyModeId } from './LobbyUI';
 import { type LobbyIconId, renderLobbyIcon } from './icons';
+import { getModeDefinition } from '../modes/definitions';
 
 type MatchmakingStage = 'idle' | 'searching' | 'confirming';
 
@@ -13,56 +14,17 @@ interface MatchModeMeta {
     expectedSeconds: number;
 }
 
-const MODE_META: Record<LobbyModeId, MatchModeMeta> = {
-    ranked: {
-        name: '排位赛',
-        iconId: 'mode_ranked',
-        theme: 'gold',
-        targetPlayers: 50,
-        minStartPlayers: 16,
-        expectedSeconds: 7.2
-    },
-    peak: {
-        name: '巅峰赛',
-        iconId: 'mode_peak',
-        theme: 'violet',
-        targetPlayers: 50,
-        minStartPlayers: 18,
-        expectedSeconds: 7.8
-    },
-    classic: {
-        name: '经典模式',
-        iconId: 'mode_classic',
-        theme: 'cyan',
-        targetPlayers: 50,
-        minStartPlayers: 14,
-        expectedSeconds: 6.6
-    },
-    speed: {
-        name: '极速模式',
-        iconId: 'mode_speed',
-        theme: 'amber',
-        targetPlayers: 40,
-        minStartPlayers: 12,
-        expectedSeconds: 5.4
-    },
-    team: {
-        name: '团队模式',
-        iconId: 'mode_team',
-        theme: 'purple',
-        targetPlayers: 40,
-        minStartPlayers: 12,
-        expectedSeconds: 6
-    },
-    battleRoyale: {
-        name: '大逃杀',
-        iconId: 'mode_battleRoyale',
-        theme: 'red',
-        targetPlayers: 60,
-        minStartPlayers: 20,
-        expectedSeconds: 8.4
-    }
-};
+function getMatchModeMeta(modeId: LobbyModeId): MatchModeMeta {
+    const definition = getModeDefinition(modeId);
+    return {
+        name: definition.name,
+        iconId: definition.iconId,
+        theme: definition.theme,
+        targetPlayers: definition.matching.targetPlayers,
+        minStartPlayers: definition.matching.minStartPlayers,
+        expectedSeconds: definition.matching.expectedSeconds
+    };
+}
 
 export interface MatchmakingSnapshot {
     visible: boolean;
@@ -259,7 +221,7 @@ export class MatchmakingUI {
         this.stopLoop();
         this.clearReadyTimer();
 
-        const meta = MODE_META[modeId];
+        const meta = getMatchModeMeta(modeId);
         const now = performance.now();
         const jitterFactor = 0.92 + Math.random() * 0.16;
 
@@ -317,7 +279,7 @@ export class MatchmakingUI {
     }
 
     getSnapshot(): MatchmakingSnapshot {
-        const modeMeta = this.modeId ? MODE_META[this.modeId] : null;
+        const modeMeta = this.modeId ? getMatchModeMeta(this.modeId) : null;
         return {
             visible: this.visible,
             modeId: this.modeId,
@@ -386,7 +348,7 @@ export class MatchmakingUI {
     }
 
     private syncUI() {
-        const modeMeta = this.modeId ? MODE_META[this.modeId] : null;
+        const modeMeta = this.modeId ? getMatchModeMeta(this.modeId) : null;
         const modeName = modeMeta?.name ?? '经典模式';
         const modeIcon = modeMeta?.iconId ?? 'mode_classic';
         const target = Math.max(1, this.targetPlayers);

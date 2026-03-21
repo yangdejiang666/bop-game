@@ -168,3 +168,36 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-21: Live verification on Cloudflare production deployment `ffd6a037` succeeded: `window.apply_gameplay_tuning({ eject: { cost_mass: 10, spawn_mass: 25 }})` now returns `spawn_mass: 10`, proving runtime/toolbox patches are clamped too.
 - 2026-03-21: Additional live gameplay check on `ffd6a037`: with hidden debug controls setting `playerMass=200`, `food=0`, `virus=0`, and eject tuned to immediate reabsorb conditions (`spawn_distance=0`, `reabsorb_lock=0`, `ejectSpeedScale=1`, `launch_speed=0.5`), one `W` eject resulted in `playerMass=198.4` and `lastEjectMetrics.lastSpawnMass=10`, confirming no mass gain after eject/re-eat.
 - 2026-03-21: Refined the new settlement rank-splash into a more dominant “NO.x + giant numeral + medal + metallic wings” stage: switched rank label copy to `NO.x`, extended splash-exclusive timing before the panel appears, upgraded the rank-1 icon to crown-in-medal, and enlarged splash geometry/glow so the first beat reads as a true full-screen rank reveal.
+- 2026-03-21: Implemented mode-hall foundation for the six-mode system: added `src/modes/definitions.ts` as single source for mode UI theme, gameplay rule multipliers, HUD profile, settlement profile, and local-social capabilities across `ranked/peak/classic/speed/team/battleRoyale`.
+- 2026-03-21: Added standalone mode hall UI (`src/ui/ModeHallUI.ts`) with six-zone structure (header, hero, operation, intel, tab content, CTA), tabbed local content (`rules/rewards/stats/map`), and local room simulation flow (create/invite/ready/start-check/spectate/disband).
+- 2026-03-21: Added Three.js mode hero stage (`src/ui/ModeHeroStage.ts`) with glTF loading + procedural fallback, per-mode theme lighting, reduced-motion support, and safe lifecycle cleanup.
+- 2026-03-21: Refactored app navigation to include `modeHall` phase in the live flow (`lobby -> modeHall -> matching -> playing`) and wired debug hooks: `debug_set_mode`, `debug_open_mode_hall`, `debug_room_simulate`, `debug_set_zone`.
+- 2026-03-21: Integrated mode definitions into session runtime: per-mode timed duration, food/virus targets, speed & decay multipliers on player/bots, battle-royale zone shrink + out-of-zone damage, and mode-specific reward scaling.
+- 2026-03-21: Extended session snapshot for six-mode observability: `match.modeRulesSnapshot`, `match.hudProfile`, `match.settlementProfile`, `match.roomSimulation` plus battle-zone stage/radius.
+- 2026-03-21: Added missing settings propagation to mode hall (`syncSettings -> modeHallUI.setSettings`) to keep reduced-motion and profile changes consistent across phases.
+- 2026-03-21: Optimized initial bundle by lazy-loading `ModeHeroStage` (and thus Three.js) only when entering mode hall; build result moved from single ~887KB entry chunk to split bundles (`index ~198KB`, `ModeHeroStage ~690KB` lazy chunk).
+- 2026-03-21: Extended mode-hall snapshot typing with `ModeHallState` (`modeId/tabId/roomState/heroState/ctaState`) while preserving backward-compatible flattened fields (`modeId/tabId/room`) in `render_game_to_text`.
+- 2026-03-21: Validation: `npm run build` passed; Playwright chain verified `lobby -> modeHall -> matching -> playing` and snapshot consistency (`phase=modeHall`, mode rules/hud/settlement profiles present during gameplay, local room simulation actions reflected in snapshot).
+- 2026-03-21: Mode hall interaction layer extended with local social module in right intel panel (`好友/排行榜/观战` tabs) and deterministic snapshot state `modeHall.state.socialTab`; social content is mode-aware placeholder data and updates live on tab switches.
+- 2026-03-21: Session HUD now supports mode-profile overlays: added `hud-team-summary` (team mode mass/delta/member readout) and `hud-zone-alert` (battle royale zone stage/radius/damage), both toggled by `modeDefinition.hud` flags in `syncHud()`.
+- 2026-03-21: Settlement theme bridge completed: result overlay now consumes mode settlement metadata (`data-settlement-style`, mode title kicker) so six modes can share one cinematic skeleton while still differentiating style and copy.
+- 2026-03-21: Added responsive and visual tokens for new HUD/social modules in `src/style.css`, including emphasis tints (`game-hud[data-hud-emphasis=...]`) and mobile placement fallback for team/zone overlays.
+- 2026-03-21: Fixed team HUD readout wording bug (`队友席位 25/5`) by switching to side-by-side live counts (`我方成员 X / 敌方成员 Y`) derived from runtime controller partitions.
+- 2026-03-21: Validation: `npm run build` passed after HUD/social/settlement updates; Playwright checks confirmed (1) mode hall social tabs visible and switchable, (2) team mode displays team summary panel in-game, (3) battle royale displays zone warning panel and zone badge text, and (4) settlement shows mode-specific kicker text (`Survival Result`) with profile snapshot consistency.
+- 2026-03-21: Added mode-specific settlement stat templates (3 dynamic cards) to the cinematic result page and wired them to mode definitions. New output is no longer one-size-fits-all:
+  - Ranked: 排位倍率 / 赛季积分估值 / 最终名次
+  - Peak: 巅峰系数 / 高压衰减 / 冲榜名次
+  - Classic: 成长倍率 / 当前体重 / 最终名次
+  - Speed: 快局时长 / 节奏倍率 / 冲刺名次
+  - Team: 队伍总质量 / 团队质量差 / 个人名次
+  - BattleRoyale: 安全圈终态 / 圈外伤害 / 生存名次
+- 2026-03-21: Extended snapshot schema with `session.match.modeStats` (label/value/icon array) for deterministic inspection via `render_game_to_text`, synchronized with on-screen settlement cards.
+- 2026-03-21: Validation: `npm run build` passed; Playwright verified speed and team settlements both show distinct `modeStats` payloads and matching UI cards, and no new console errors were introduced.
+- 2026-03-21: Added mode-driven settlement pacing in `createGameSession`: the cinematic timeline (`intro/rank/hero/rewards/actions`) now scales per mode via `modeDefinition.settlement.revealPace` (`cinematic/standard/fast`), so ranked/peak/team run longer reveals while speed mode resolves faster.
+- 2026-03-21: Extended mode settlement profile in `src/modes/definitions.ts` with per-mode CTA copy (`settlement.cta.replay/lobby`) and wired result actions to those labels at settlement time.
+- 2026-03-21: Upgraded rank splash copy to mode-aware English variants (ranked/peak/speed/team/battleRoyale/classic) while preserving NO.x rank format and medal icon mapping.
+- 2026-03-21: Extended `session.match.settlementProfile` snapshot with `revealPace`, `replayLabel`, and `lobbyLabel` for deterministic inspection during tuning.
+- 2026-03-21: Validation: `npm run build` passed after mode-paced settlement and CTA wiring updates.
+- 2026-03-21: Consolidated matchmaking config into mode definitions by adding `ModeDefinition.matching` (`targetPlayers/minStartPlayers/expectedSeconds`) and removing duplicated hardcoded match meta in `MatchmakingUI`.
+- 2026-03-21: `MatchmakingUI` now derives mode name/icon/theme/人数节奏 from `getModeDefinition(modeId)`, keeping lobby/modeHall/matching driven by a single mode source of truth.
+- 2026-03-21: Validation: `npm run build` passed after matchmaking metadata unification.

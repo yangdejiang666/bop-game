@@ -7,6 +7,8 @@ export class Controller {
     public color: string = '#fff';
     public score: number = 0; // Pellets eaten count
     public displayName: string = 'Player';
+    public movementSpeedMultiplier: number = 1;
+    public decayRateMultiplier: number = 1;
 
     constructor() { }
 
@@ -14,6 +16,11 @@ export class Controller {
         blob.color = this.color;
         blob.owner = this;
         this.cells.push(blob);
+    }
+
+    setModeMultipliers(moveSpeedMultiplier: number, decayRateMultiplier: number) {
+        this.movementSpeedMultiplier = Math.max(0.2, moveSpeedMultiplier);
+        this.decayRateMultiplier = Math.max(0.1, decayRateMultiplier);
     }
 
     removeCell(blob: Blob) {
@@ -31,7 +38,9 @@ export class Controller {
 
         const baseRate = this.getDecayRate(totalMass);
         if (baseRate <= 0) return;
-        const finalRate = baseRate * (1 + (this.cells.length - 1) * gameplayTuning.decay.extra_cell_factor);
+        const finalRate = baseRate
+            * this.decayRateMultiplier
+            * (1 + (this.cells.length - 1) * gameplayTuning.decay.extra_cell_factor);
 
         const totalLoss = totalMass * finalRate * dt;
         if (!Number.isFinite(totalLoss) || totalLoss <= 0) return;
@@ -56,7 +65,9 @@ export class Controller {
         if (!Number.isFinite(totalMass) || totalMass <= 0) return 0;
         const baseRate = this.getDecayRate(totalMass);
         if (baseRate <= 0) return 0;
-        return baseRate * (1 + (this.cells.length - 1) * gameplayTuning.decay.extra_cell_factor);
+        return baseRate
+            * this.decayRateMultiplier
+            * (1 + (this.cells.length - 1) * gameplayTuning.decay.extra_cell_factor);
     }
 
     // Calculate center of mass / geometry for camera following

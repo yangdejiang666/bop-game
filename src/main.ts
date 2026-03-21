@@ -21,6 +21,8 @@ import {
 } from './app/progression';
 import { LobbyUI, type LobbyModeId } from './ui/LobbyUI';
 import { MatchmakingUI } from './ui/MatchmakingUI';
+import { ModeHallUI, type RoomAction } from './ui/ModeHallUI';
+import type { ModeHallTabId } from './modes/definitions';
 
 declare global {
     interface Window {
@@ -33,6 +35,10 @@ declare global {
         debug_set_best_record: (value: number) => string;
         debug_reset_progression: () => string;
         debug_set_progression: (payload: Partial<PlayerProgression> | string) => string;
+        debug_set_mode: (modeId: LobbyModeId) => string;
+        debug_open_mode_hall: (modeId: LobbyModeId, tabId?: ModeHallTabId) => string;
+        debug_room_simulate: (action: RoomAction, payload?: string) => string;
+        debug_set_zone: (stage: number) => string;
     }
 }
 
@@ -52,6 +58,8 @@ let phase: GamePhase = 'lobby';
 let settings: GameSettings = loadGameSettings();
 let currentSession: GameSession | null = null;
 let pendingModeForMatch: LobbyModeId | null = null;
+let activeModeHall: LobbyModeId | null = null;
+let activeModeHallTab: ModeHallTabId = 'rules';
 
 function applyReducedMotionState() {
     document.documentElement.dataset.reducedMotion = String(settings.reducedMotion);
@@ -63,6 +71,7 @@ function syncSettings(nextSettings: GameSettings) {
     saveGameSettings(settings);
     applyReducedMotionState();
     lobbyUI.setSettings(settings);
+    modeHallUI.setSettings(settings);
     matchmakingUI.setSettings(settings);
     currentSession?.applySettings(settings);
 }
@@ -75,10 +84,37 @@ function destroyCurrentSession() {
 function showLobby() {
     destroyCurrentSession();
     pendingModeForMatch = null;
+    activeModeHall = null;
     matchmakingUI.hide(true);
+    modeHallUI.hide();
     phase = 'lobby';
     lobbyUI.refreshProgression();
     lobbyUI.showLobby();
+    applyReducedMotionState();
+}
+
+function isLobbyModeId(value: string): value is LobbyModeId {
+    return value === 'ranked'
+        || value === 'peak'
+        || value === 'classic'
+        || value === 'speed'
+        || value === 'team'
+        || value === 'battleRoyale';
+}
+
+function isModeHallTabId(value: string): value is ModeHallTabId {
+    return value === 'rules' || value === 'rewards' || value === 'stats' || value === 'map';
+}
+
+function showModeHall(modeId: LobbyModeId, tabId: ModeHallTabId = 'rules') {
+    destroyCurrentSession();
+    pendingModeForMatch = modeId;
+    activeModeHall = modeId;
+    activeModeHallTab = tabId;
+    matchmakingUI.hide(true);
+    lobbyUI.hideAll();
+    modeHallUI.show(modeId, tabId);
+    phase = 'modeHall';
     applyReducedMotionState();
 }
 
@@ -95,6 +131,9 @@ function closeSettings() {
     } else if (matchmakingUI.isActive()) {
         phase = 'matching';
         lobbyUI.hideAll();
+    } else if (activeModeHall) {
+        phase = 'modeHall';
+        lobbyUI.hideAll();
     } else {
         phase = 'lobby';
         lobbyUI.showLobby();
@@ -105,7 +144,9 @@ function closeSettings() {
 function launchGame(modeId: LobbyModeId = 'classic') {
     destroyCurrentSession();
     pendingModeForMatch = null;
+    activeModeHall = modeId;
     matchmakingUI.hide(true);
+    modeHallUI.hide();
 
     currentSession = createGameSession({
         settings,
@@ -125,8 +166,10 @@ function launchGame(modeId: LobbyModeId = 'classic') {
 function startMatchmaking(modeId: LobbyModeId = 'classic') {
     destroyCurrentSession();
     pendingModeForMatch = modeId;
+    activeModeHall = modeId;
     phase = 'matching';
     lobbyUI.hideAll();
+    modeHallUI.hide();
     matchmakingUI.start(modeId);
     applyReducedMotionState();
 }
@@ -137,13 +180,32 @@ const matchmakingUI = new MatchmakingUI({
         launchGame(modeId);
     },
     onCancelled: () => {
+        if (pendingModeForMatch) {
+            showModeHall(pendingModeForMatch, activeModeHallTab);
+            return;
+        }
         showLobby();
+    }
+});
+
+const modeHallUI = new ModeHallUI({
+    settings,
+    onBackLobby: () => {
+        showLobby();
+    },
+    onOpenSettings: () => {
+        openSettings(true);
+    },
+    onStartMatch: (modeId) => {
+        startMatchmaking(modeId);
     }
 });
 
 const lobbyUI = new LobbyUI({
     settings,
-    onStartGame: startMatchmaking,
+    onOpenModeHall: (modeId) => {
+        showModeHall(modeId, 'rules');
+    },
     onSettingsChange: syncSettings,
     onSettingsOpened: () => {
         phase = 'settings';
@@ -153,6 +215,7 @@ const lobbyUI = new LobbyUI({
 });
 
 matchmakingUI.mount(overlayMount);
+modeHallUI.mount(overlayMount);
 lobbyUI.mount(overlayMount);
 lobbyUI.showLobby();
 applyReducedMotionState();
@@ -171,6 +234,7 @@ window.render_game_to_text = () => {
             reducedMotion: settings.reducedMotion
         },
         matching: matchmakingUI.getSnapshot(),
+        modeHall: modeHallUI.getSnapshot(),
         pendingModeForMatch,
         session: currentSession?.getSnapshot() ?? null
     };
@@ -257,5 +321,33 @@ window.debug_set_progression = (payload: Partial<PlayerProgression> | string) =>
     }
     setPlayerProgression(patch);
     lobbyUI.refreshProgression();
+    return window.render_game_to_text();
+};
+
+window.debug_set_mode = (modeId: LobbyModeId) => {
+    if (!isLobbyModeId(modeId)) {
+        return window.render_game_to_text();
+    }
+    showModeHall(modeId, 'rules');
+    return window.render_game_to_text();
+};
+
+window.debug_open_mode_hall = (modeId: LobbyModeId, tabId: ModeHallTabId = 'rules') => {
+    if (!isLobbyModeId(modeId) || !isModeHallTabId(tabId)) {
+        return window.render_game_to_text();
+    }
+    showModeHall(modeId, tabId);
+    return window.render_game_to_text();
+};
+
+window.debug_room_simulate = (action: RoomAction, payload?: string) => {
+    modeHallUI.simulateRoom(action, payload);
+    return window.render_game_to_text();
+};
+
+window.debug_set_zone = (stage: number) => {
+    if (currentSession && Number.isFinite(stage)) {
+        currentSession.debugSetBattleZone(Math.max(0, Number(stage)));
+    }
     return window.render_game_to_text();
 };

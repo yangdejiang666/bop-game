@@ -57,7 +57,7 @@ export class Bot extends Controller {
             }
 
             const speed = BASE_SPEED / Math.pow(cell.mass, 0.24);
-            const desired = direction.mult(Math.max(46, speed * 14.5));
+            const desired = direction.mult(Math.max(46, speed * 14.5) * this.movementSpeedMultiplier);
 
             // Add cohesion force - cells orbit around the main ball (same as Player)
             let cohesionForce = new Vector(0, 0);

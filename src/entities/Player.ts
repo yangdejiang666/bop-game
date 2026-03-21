@@ -44,7 +44,7 @@ export class Player extends Controller {
 
             // 1. Base Movement Speed
             const speed = this.BASE_SPEED / Math.pow(cell.mass, 0.24);
-            const moveSpeedValue = Math.max(52, speed * 15);
+            const moveSpeedValue = Math.max(52, speed * 15) * this.movementSpeedMultiplier;
             const moveVec = direction.mult(moveSpeedValue);
 
             // 2. Cohesion (Attract to Center of Mass)

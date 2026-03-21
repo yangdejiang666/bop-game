@@ -10,7 +10,7 @@ export type LobbyModeId = 'ranked' | 'peak' | 'classic' | 'speed' | 'team' | 'ba
 
 interface LobbyUIOptions {
     settings: GameSettings;
-    onStartGame: (modeId: LobbyModeId) => void;
+    onOpenModeHall: (modeId: LobbyModeId) => void;
     onSettingsChange: (settings: GameSettings) => void;
     onSettingsOpened: () => void;
     onSettingsClosed: () => void;
@@ -211,7 +211,7 @@ export class LobbyUI {
         }
         const tip = this.root.querySelector<HTMLElement>('[data-inline-tip]');
         if (tip) {
-            tip.textContent = '选择模式后将先进入匹配阶段，其他入口当前为占位。';
+            tip.textContent = '选择模式后可进入对应分厅，匹配入口在分厅内触发。';
         }
         (document.activeElement as HTMLElement | null)?.blur();
     }
@@ -371,12 +371,12 @@ export class LobbyUI {
                         </div>
                         <div class="lobby-action-buttons">
                             <button type="button" class="lobby-ghost-button" data-open-settings>设置</button>
-                            <button type="button" class="lobby-start-button" data-start-game>开始匹配</button>
+                            <button type="button" class="lobby-start-button" data-start-game>进入分厅</button>
                         </div>
                     </div>
 
                     <div class="lobby-inline-tip" data-inline-tip aria-live="polite">
-                        选择模式后将先进入匹配阶段，其他入口当前为占位。
+                        选择模式后可进入对应分厅，匹配入口在分厅内触发。
                     </div>
                 </footer>
             </div>
@@ -521,15 +521,29 @@ export class LobbyUI {
             }
 
             this.hideAll();
-            this.options.onStartGame(this.selectedModeId);
+            this.options.onOpenModeHall(this.selectedModeId);
         });
 
         this.root.querySelectorAll<HTMLElement>('[data-mode-id]').forEach((card) => {
-            card.addEventListener('click', () => this.selectMode(card.dataset.modeId || 'classic'));
+            card.addEventListener('click', () => {
+                const modeId = card.dataset.modeId || 'classic';
+                if (modeId === this.selectedModeId) {
+                    this.hideAll();
+                    this.options.onOpenModeHall(this.selectedModeId);
+                    return;
+                }
+                this.selectMode(modeId);
+            });
             card.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    this.selectMode(card.dataset.modeId || 'classic');
+                    const modeId = card.dataset.modeId || 'classic';
+                    if (modeId === this.selectedModeId) {
+                        this.hideAll();
+                        this.options.onOpenModeHall(this.selectedModeId);
+                        return;
+                    }
+                    this.selectMode(modeId);
                 }
             });
         });
@@ -684,7 +698,7 @@ export class LobbyUI {
         const startButton = this.root.querySelector<HTMLButtonElement>('[data-start-game]');
         if (startButton) {
             startButton.disabled = !mode.playable;
-            startButton.textContent = mode.playable ? '开始匹配' : '敬请期待';
+            startButton.textContent = mode.playable ? '进入分厅' : '敬请期待';
             startButton.classList.toggle('is-disabled', !mode.playable);
         }
 

@@ -32,6 +32,7 @@ import { TuningToolbox } from '../ui/TuningToolbox';
 import type { LobbyModeId } from '../ui/LobbyUI';
 import { renderLobbyIcon, type LobbyIconId } from '../ui/icons';
 import { GameAudioManager, type GameAudioDebugState } from '../audio/GameAudioManager';
+import { getModeDefinition, type ModeDefinition } from '../modes/definitions';
 
 const WORLD_SIZE = 6000;
 const DEFAULT_FOOD_COUNT = 1200;
@@ -39,7 +40,6 @@ const DEFAULT_VIRUS_COUNT = 12;
 const MAX_VIRUS_COUNT = 64;
 const BOT_COUNT = 49;
 const LEADERBOARD_SIZE = 10;
-const MATCH_DURATION_SECONDS = 6 * 60;
 const BEST_MASS_RECORD_KEY = 'bop:best-mass-record';
 
 type MatchRankTheme = 'gold' | 'silver' | 'bronze' | 'normal';
@@ -50,6 +50,12 @@ interface MatchTop3Entry {
     name: string;
     mass: number;
     isPlayer: boolean;
+}
+
+interface ModeSettlementStat {
+    label: string;
+    value: string;
+    icon: LobbyIconId;
 }
 
 interface RankedControllerEntry {
@@ -67,57 +73,19 @@ interface MatchModeConfig {
     teamMode: boolean;
 }
 
-const MATCH_MODE_CONFIG: Record<LobbyModeId, MatchModeConfig> = {
-    ranked: {
-        id: 'ranked',
-        name: '排位赛',
-        timed: true,
-        durationSeconds: MATCH_DURATION_SECONDS,
-        teamMode: false
-    },
-    peak: {
-        id: 'peak',
-        name: '巅峰赛',
-        timed: false,
-        durationSeconds: 0,
-        teamMode: false
-    },
-    classic: {
-        id: 'classic',
-        name: '经典模式',
-        timed: true,
-        durationSeconds: MATCH_DURATION_SECONDS,
-        teamMode: false
-    },
-    speed: {
-        id: 'speed',
-        name: '极速模式',
-        timed: false,
-        durationSeconds: 0,
-        teamMode: false
-    },
-    team: {
-        id: 'team',
-        name: '团队模式',
-        timed: true,
-        durationSeconds: MATCH_DURATION_SECONDS,
-        teamMode: true
-    },
-    battleRoyale: {
-        id: 'battleRoyale',
-        name: '大逃杀',
-        timed: false,
-        durationSeconds: 0,
-        teamMode: false
-    }
-};
-
 interface SettlementTiming {
     introEnd: number;
     rankEnd: number;
     heroEnd: number;
     rewardsEnd: number;
     total: number;
+}
+
+interface SettlementPaceScale {
+    intro: number;
+    rank: number;
+    hero: number;
+    rewards: number;
 }
 
 const FULL_SETTLEMENT_TIMING: SettlementTiming = {
@@ -134,6 +102,27 @@ const REDUCED_SETTLEMENT_TIMING: SettlementTiming = {
     heroEnd: 700,
     rewardsEnd: 980,
     total: 980
+};
+
+const SETTLEMENT_PACE_SCALES: Record<ModeDefinition['settlement']['revealPace'], SettlementPaceScale> = {
+    cinematic: {
+        intro: 1.12,
+        rank: 1.24,
+        hero: 1.1,
+        rewards: 1.08
+    },
+    standard: {
+        intro: 1,
+        rank: 1,
+        hero: 1,
+        rewards: 1
+    },
+    fast: {
+        intro: 0.78,
+        rank: 0.74,
+        hero: 0.82,
+        rewards: 0.85
+    }
 };
 
 export interface GameSessionSnapshot {
@@ -214,6 +203,42 @@ export interface GameSessionSnapshot {
         progressionBefore: PlayerProgression | null;
         progressionAfter: PlayerProgression | null;
         leveledUp: boolean;
+        modeStats: ModeSettlementStat[];
+        modeRulesSnapshot: {
+            foodTarget: number;
+            virusTarget: number;
+            decayMultiplier: number;
+            speedMultiplier: number;
+            scoreMultiplier: number;
+            rankPointMultiplier: number;
+            battleZone: {
+                enabled: boolean;
+                radius: number;
+                stage: number;
+                shrinkStartSeconds: number;
+                shrinkDurationSeconds: number;
+            };
+        };
+        hudProfile: {
+            emphasis: ModeDefinition['hud']['emphasis'];
+            showCombo: boolean;
+            showTeamPanel: boolean;
+            showZoneWarning: boolean;
+        };
+        settlementProfile: {
+            style: ModeDefinition['settlement']['style'];
+            title: string;
+            subtitle: string;
+            revealPace: ModeDefinition['settlement']['revealPace'];
+            replayLabel: string;
+            lobbyLabel: string;
+        };
+        roomSimulation: {
+            supportsRoom: boolean;
+            roomSize: number;
+            supportsSpectate: boolean;
+            supportsReplay: boolean;
+        };
     };
 }
 
@@ -236,6 +261,7 @@ export interface GameSession {
     advanceTime(ms: number): void;
     debugFinishMatch(options?: DebugMatchFinishOptions): void;
     debugSetBestMassRecord(value: number): void;
+    debugSetBattleZone(stage: number): void;
 }
 
 interface CreateGameSessionOptions {
@@ -262,6 +288,13 @@ interface SessionHudRefs {
     foodInput: HTMLInputElement;
     virusInput: HTMLInputElement;
     modeBadgeEl: HTMLDivElement;
+    teamSummaryEl: HTMLDivElement;
+    teamMassEl: HTMLDivElement;
+    teamDeltaEl: HTMLDivElement;
+    teamMembersEl: HTMLDivElement;
+    zoneAlertEl: HTMLDivElement;
+    zoneStatusEl: HTMLDivElement;
+    zoneDamageEl: HTMLDivElement;
     resultOverlay: HTMLDivElement;
     resultPanelEl: HTMLDivElement;
     resultRankSplashEl: HTMLDivElement;
@@ -270,6 +303,7 @@ interface SessionHudRefs {
     resultRankSplashTitleEl: HTMLDivElement;
     resultRankSplashCaptionEl: HTMLDivElement;
     resultRankSplashMedalEl: HTMLDivElement;
+    resultKickerEl: HTMLDivElement;
     resultTitleEl: HTMLHeadingElement;
     resultSubEl: HTMLDivElement;
     resultRankMainEl: HTMLElement;
@@ -289,6 +323,9 @@ interface SessionHudRefs {
     resultRewardXpEl: HTMLDivElement;
     resultRewardCoinsEl: HTMLDivElement;
     resultRewardRecordEl: HTMLDivElement;
+    resultModeStatLabelEls: [HTMLSpanElement, HTMLSpanElement, HTMLSpanElement];
+    resultModeStatValueEls: [HTMLDivElement, HTMLDivElement, HTMLDivElement];
+    resultModeStatIconEls: [HTMLSpanElement, HTMLSpanElement, HTMLSpanElement];
     resultGrowthLevelEl: HTMLDivElement;
     resultGrowthMetaEl: HTMLDivElement;
     resultGrowthFillEl: HTMLDivElement;
@@ -302,7 +339,14 @@ interface SessionHudRefs {
 
 export function createGameSession(options: CreateGameSessionOptions): GameSession {
     let settings = { ...options.settings };
-    const modeConfig = MATCH_MODE_CONFIG[options.modeId] ?? MATCH_MODE_CONFIG.classic;
+    const modeDefinition = getModeDefinition(options.modeId);
+    const modeConfig: MatchModeConfig = {
+        id: modeDefinition.id,
+        name: modeDefinition.name,
+        timed: modeDefinition.gameplay.timed,
+        durationSeconds: modeDefinition.gameplay.durationSeconds,
+        teamMode: modeDefinition.gameplay.teamMode
+    };
 
     let mountRoot: HTMLElement | null = null;
     let sessionRoot: HTMLDivElement | null = null;
@@ -324,8 +368,12 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let tuningToolbox: TuningToolbox | null = null;
     let audioManager: GameAudioManager | null = null;
 
-    let targetFoodCount = DEFAULT_FOOD_COUNT;
-    let targetVirusCount = DEFAULT_VIRUS_COUNT;
+    let targetFoodCount = modeDefinition.gameplay.foodTarget || DEFAULT_FOOD_COUNT;
+    let targetVirusCount = modeDefinition.gameplay.virusTarget || DEFAULT_VIRUS_COUNT;
+    let battleZoneRadius = modeDefinition.gameplay.battleRoyale.enabled
+        ? modeDefinition.gameplay.battleRoyale.initialRadius
+        : 0;
+    let battleZoneStage = 0;
     let gameStartTime = 0;
     let lastFrameTime = performance.now();
     let frameCount = 0;
@@ -348,6 +396,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let settlementProgressionBefore: PlayerProgression | null = null;
     let settlementProgressionAfter: PlayerProgression | null = null;
     let settlementLeveledUp = false;
+    let settlementModeStats: ModeSettlementStat[] = [];
     let viewportResizeBound = false;
 
     function fitSettlementPanelToViewport() {
@@ -460,6 +509,65 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         return Math.max(0, modeConfig.durationSeconds - getElapsedSeconds(now));
     }
 
+    function resolveBattleZoneRadius(elapsedSeconds: number): number {
+        const zone = modeDefinition.gameplay.battleRoyale;
+        if (!zone.enabled) {
+            return 0;
+        }
+        if (elapsedSeconds <= zone.shrinkStartSeconds) {
+            return zone.initialRadius;
+        }
+        const shrinkElapsed = elapsedSeconds - zone.shrinkStartSeconds;
+        const shrinkDuration = Math.max(1, zone.shrinkDurationSeconds);
+        const t = Math.max(0, Math.min(1, shrinkElapsed / shrinkDuration));
+        return zone.initialRadius + (zone.finalRadius - zone.initialRadius) * t;
+    }
+
+    function updateBattleZoneState(elapsedSeconds: number) {
+        const zone = modeDefinition.gameplay.battleRoyale;
+        if (!zone.enabled) {
+            battleZoneRadius = 0;
+            battleZoneStage = 0;
+            return;
+        }
+        battleZoneRadius = resolveBattleZoneRadius(elapsedSeconds);
+        if (elapsedSeconds < zone.shrinkStartSeconds) {
+            battleZoneStage = 0;
+        } else if (elapsedSeconds < zone.shrinkStartSeconds + zone.shrinkDurationSeconds) {
+            battleZoneStage = 1;
+        } else {
+            battleZoneStage = 2;
+        }
+    }
+
+    function applyBattleZoneDamage(controller: { cells: Blob[] }, dt: number) {
+        const zone = modeDefinition.gameplay.battleRoyale;
+        if (!zone.enabled || battleZoneRadius <= 0 || dt <= 0 || controller.cells.length === 0) {
+            return;
+        }
+
+        const worldCenter = WORLD_SIZE / 2;
+        const damageTotal = zone.outOfZoneDamagePerSecond * dt;
+        if (damageTotal <= 0) {
+            return;
+        }
+
+        const massFloor = gameplayTuning.limits.min_cell_mass;
+        controller.cells.forEach((cell) => {
+            const dx = cell.position.x - worldCenter;
+            const dy = cell.position.y - worldCenter;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance <= battleZoneRadius) {
+                return;
+            }
+            const nextMass = Math.max(massFloor, cell.mass - damageTotal);
+            if (nextMass !== cell.mass) {
+                cell.mass = nextMass;
+                cell.updateRadiusFromMass();
+            }
+        });
+    }
+
     function resolvePlayerDisplayName(rawName: string): string {
         const trimmed = rawName.trim();
         return trimmed.length > 0 ? trimmed : '未命名玩家';
@@ -488,15 +596,118 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         return `NO.${Math.max(1, rank)}`;
     }
 
-    function getRankSplashPresentation(rank: number): {
+    function getRankSplashPresentation(rank: number, playerWonInSettlement: boolean): {
         title: string;
         caption: string;
         icon: LobbyIconId;
     } {
+        if (modeConfig.id === 'speed') {
+            if (rank === 1) {
+                return {
+                    title: 'BLITZ WIN',
+                    caption: 'MAX PACE LOCKED',
+                    icon: 'crown'
+                };
+            }
+            if (rank <= 3) {
+                return {
+                    title: 'RUSH FINISH',
+                    caption: 'KEEP THE STREAK',
+                    icon: rank === 2 ? 'rank_silver' : 'rank_bronze'
+                };
+            }
+            return {
+                title: 'NEXT SPRINT',
+                caption: 'ONE MORE SPEED RUN',
+                icon: 'mode_speed'
+            };
+        }
+
+        if (modeConfig.id === 'team') {
+            if (playerWonInSettlement) {
+                return {
+                    title: 'TEAM VICTORY',
+                    caption: 'FORMATION SECURED',
+                    icon: 'crown'
+                };
+            }
+            return {
+                title: 'TEAM RETRY',
+                caption: 'REGROUP AND PUSH',
+                icon: 'mode_team'
+            };
+        }
+
+        if (modeConfig.id === 'battleRoyale') {
+            if (rank === 1) {
+                return {
+                    title: 'LAST ONE',
+                    caption: 'SURVIVAL CROWNED',
+                    icon: 'crown'
+                };
+            }
+            if (rank <= 3) {
+                return {
+                    title: 'SURVIVOR',
+                    caption: 'TOP THREE ESCAPE',
+                    icon: rank === 2 ? 'rank_silver' : 'rank_bronze'
+                };
+            }
+            return {
+                title: 'ALMOST OUT',
+                caption: 'STAY INSIDE THE ZONE',
+                icon: 'mode_battleRoyale'
+            };
+        }
+
+        if (modeConfig.id === 'peak') {
+            if (rank === 1) {
+                return {
+                    title: 'PEAK ASCENT',
+                    caption: 'ELITE PEDESTAL',
+                    icon: 'crown'
+                };
+            }
+            if (rank <= 3) {
+                return {
+                    title: 'ELITE FINISH',
+                    caption: 'CLIMB CONTINUES',
+                    icon: rank === 2 ? 'rank_silver' : 'rank_bronze'
+                };
+            }
+            return {
+                title: 'ALMOST ELITE',
+                caption: 'PUSH FOR THE TOP',
+                icon: 'mode_peak'
+            };
+        }
+
+        if (modeConfig.id === 'ranked') {
+            if (rank === 1) {
+                return {
+                    title: 'RANK GLORY',
+                    caption: 'CROWNED IN GOLD',
+                    icon: 'crown'
+                };
+            }
+            if (rank <= 3) {
+                return {
+                    title: 'RANK CLIMB',
+                    caption: 'POINTS SECURED',
+                    icon: rank === 2 ? 'rank_silver' : 'rank_bronze'
+                };
+            }
+            return {
+                title: 'RANK BATTLE',
+                caption: 'KEEP CLIMBING',
+                icon: 'mode_ranked'
+            };
+        }
+
         if (rank === 1) {
             return {
-                title: 'CHAMPION',
-                caption: 'CROWNED IN GOLD',
+                title: 'VICTORY',
+                caption: 'CLASSIC CROWN',
                 icon: 'crown'
             };
         }
@@ -524,6 +735,155 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         };
     }
 
+    function scaleSettlementTiming(base: SettlementTiming): SettlementTiming {
+        const pace = modeDefinition.settlement.revealPace;
+        const scale = SETTLEMENT_PACE_SCALES[pace];
+        const introDuration = Math.max(80, Math.round(base.introEnd * scale.intro));
+        const rankDuration = Math.max(180, Math.round((base.rankEnd - base.introEnd) * scale.rank));
+        const heroDuration = Math.max(200, Math.round((base.heroEnd - base.rankEnd) * scale.hero));
+        const rewardsDuration = Math.max(220, Math.round((base.rewardsEnd - base.heroEnd) * scale.rewards));
+
+        const introEnd = introDuration;
+        const rankEnd = introEnd + rankDuration;
+        const heroEnd = rankEnd + heroDuration;
+        const rewardsEnd = heroEnd + rewardsDuration;
+        return {
+            introEnd,
+            rankEnd,
+            heroEnd,
+            rewardsEnd,
+            total: rewardsEnd
+        };
+    }
+
+    function buildModeSettlementStats(
+        playerRankValue: number,
+        playerMassValue: number,
+        teamMassA: number,
+        teamMassB: number
+    ): ModeSettlementStat[] {
+        const safeRank = formatRankLabel(playerRankValue);
+
+        if (modeConfig.id === 'ranked') {
+            return [
+                {
+                    label: '排位倍率',
+                    value: `${modeDefinition.gameplay.rankPointMultiplier.toFixed(2)}x`,
+                    icon: 'mode_ranked'
+                },
+                {
+                    label: '赛季积分估值',
+                    value: `${Math.max(1, Math.floor(playerMassValue / 12))}`,
+                    icon: 'xp'
+                },
+                {
+                    label: '最终名次',
+                    value: safeRank,
+                    icon: 'crown'
+                }
+            ];
+        }
+
+        if (modeConfig.id === 'peak') {
+            return [
+                {
+                    label: '巅峰系数',
+                    value: `${(modeDefinition.gameplay.rankPointMultiplier * modeDefinition.gameplay.scoreMultiplier).toFixed(2)}x`,
+                    icon: 'mode_peak'
+                },
+                {
+                    label: '高压衰减',
+                    value: `${modeDefinition.gameplay.decayMultiplier.toFixed(2)}x`,
+                    icon: 'record'
+                },
+                {
+                    label: '冲榜名次',
+                    value: safeRank,
+                    icon: 'rank_silver'
+                }
+            ];
+        }
+
+        if (modeConfig.id === 'speed') {
+            return [
+                {
+                    label: '快局时长',
+                    value: `${modeDefinition.gameplay.durationSeconds}s`,
+                    icon: 'mode_speed'
+                },
+                {
+                    label: '节奏倍率',
+                    value: `${modeDefinition.gameplay.speedMultiplier.toFixed(2)}x`,
+                    icon: 'xp'
+                },
+                {
+                    label: '冲刺名次',
+                    value: safeRank,
+                    icon: 'crown'
+                }
+            ];
+        }
+
+        if (modeConfig.id === 'team') {
+            const delta = teamMassA - teamMassB;
+            return [
+                {
+                    label: '队伍总质量',
+                    value: `A:${teamMassA} / B:${teamMassB}`,
+                    icon: 'mode_team'
+                },
+                {
+                    label: '团队质量差',
+                    value: `${delta >= 0 ? '+' : ''}${delta}kg`,
+                    icon: 'record'
+                },
+                {
+                    label: '个人名次',
+                    value: safeRank,
+                    icon: 'crown'
+                }
+            ];
+        }
+
+        if (modeConfig.id === 'battleRoyale') {
+            return [
+                {
+                    label: '安全圈终态',
+                    value: `阶段${battleZoneStage} · ${Math.floor(battleZoneRadius)}m`,
+                    icon: 'mode_battleRoyale'
+                },
+                {
+                    label: '圈外伤害',
+                    value: `${modeDefinition.gameplay.battleRoyale.outOfZoneDamagePerSecond}/秒`,
+                    icon: 'record'
+                },
+                {
+                    label: '生存名次',
+                    value: safeRank,
+                    icon: 'crown'
+                }
+            ];
+        }
+
+        return [
+            {
+                label: '成长倍率',
+                value: `${modeDefinition.gameplay.scoreMultiplier.toFixed(2)}x`,
+                icon: 'mode_classic'
+            },
+            {
+                label: '当前体重',
+                value: `${playerMassValue}kg`,
+                icon: 'coin'
+            },
+            {
+                label: '最终名次',
+                value: safeRank,
+                icon: 'crown'
+            }
+        ];
+    }
+
     function buildRankedEntries(playerMassOverride: number | null = null): RankedControllerEntry[] {
         if (!player) {
             return [];
@@ -545,7 +905,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     }
 
     function getActiveSettlementTiming(): SettlementTiming {
-        return settings.reducedMotion ? REDUCED_SETTLEMENT_TIMING : FULL_SETTLEMENT_TIMING;
+        const baseTiming = settings.reducedMotion ? REDUCED_SETTLEMENT_TIMING : FULL_SETTLEMENT_TIMING;
+        return scaleSettlementTiming(baseTiming);
     }
 
     function resolveSettlementStage(elapsedMs: number, timing: SettlementTiming): SettlementStage {
@@ -701,6 +1062,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     function createHud(): SessionHudRefs {
         const root = document.createElement('div');
         root.className = 'game-hud';
+        root.dataset.hudEmphasis = modeDefinition.hud.emphasis;
 
         const statsPanel = document.createElement('div');
         statsPanel.className = 'hud-panel hud-stats';
@@ -730,6 +1092,38 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         modeBadgeEl.className = 'hud-timer-mode';
         modeBadgeEl.textContent = modeConfig.name;
         timerWrap.appendChild(modeBadgeEl);
+
+        const teamSummaryEl = document.createElement('div');
+        teamSummaryEl.className = 'hud-panel hud-team-summary';
+        teamSummaryEl.innerHTML = `
+            <div class="hud-team-summary-title">团队概览</div>
+            <div class="hud-team-summary-mass" data-team-mass>我方 0kg / 敌方 0kg</div>
+            <div class="hud-team-summary-delta" data-team-delta>质量差 0kg</div>
+            <div class="hud-team-summary-members" data-team-members>队友在线：0</div>
+        `;
+        root.appendChild(teamSummaryEl);
+
+        const teamMassEl = teamSummaryEl.querySelector<HTMLDivElement>('[data-team-mass]');
+        const teamDeltaEl = teamSummaryEl.querySelector<HTMLDivElement>('[data-team-delta]');
+        const teamMembersEl = teamSummaryEl.querySelector<HTMLDivElement>('[data-team-members]');
+        if (!teamMassEl || !teamDeltaEl || !teamMembersEl) {
+            throw new Error('Failed to initialize team summary HUD.');
+        }
+
+        const zoneAlertEl = document.createElement('div');
+        zoneAlertEl.className = 'hud-panel hud-zone-alert';
+        zoneAlertEl.innerHTML = `
+            <div class="hud-zone-alert-title">安全圈协议</div>
+            <div class="hud-zone-alert-status" data-zone-status>等待收缩</div>
+            <div class="hud-zone-alert-damage" data-zone-damage>圈外伤害 0 / 秒</div>
+        `;
+        root.appendChild(zoneAlertEl);
+
+        const zoneStatusEl = zoneAlertEl.querySelector<HTMLDivElement>('[data-zone-status]');
+        const zoneDamageEl = zoneAlertEl.querySelector<HTMLDivElement>('[data-zone-damage]');
+        if (!zoneStatusEl || !zoneDamageEl) {
+            throw new Error('Failed to initialize zone alert HUD.');
+        }
 
         const actionBar = document.createElement('div');
         actionBar.className = 'hud-action-bar';
@@ -1065,6 +1459,29 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                         <strong data-result-reward-record>未触发</strong>
                     </div>
                 </div>
+                <div class="match-result-mode-stats">
+                    <div class="match-result-reward-card match-result-mode-stat-card">
+                        <span class="match-result-reward-label">
+                            <span data-result-mode-stat-icon="0">${renderLobbyIcon('mode_classic', 'match-result-reward-icon')}</span>
+                            <span data-result-mode-stat-label="0">模式统计A</span>
+                        </span>
+                        <strong data-result-mode-stat-value="0">--</strong>
+                    </div>
+                    <div class="match-result-reward-card match-result-mode-stat-card">
+                        <span class="match-result-reward-label">
+                            <span data-result-mode-stat-icon="1">${renderLobbyIcon('record', 'match-result-reward-icon')}</span>
+                            <span data-result-mode-stat-label="1">模式统计B</span>
+                        </span>
+                        <strong data-result-mode-stat-value="1">--</strong>
+                    </div>
+                    <div class="match-result-reward-card match-result-mode-stat-card">
+                        <span class="match-result-reward-label">
+                            <span data-result-mode-stat-icon="2">${renderLobbyIcon('crown', 'match-result-reward-icon')}</span>
+                            <span data-result-mode-stat-label="2">模式统计C</span>
+                        </span>
+                        <strong data-result-mode-stat-value="2">--</strong>
+                    </div>
+                </div>
                 <div class="match-result-growth">
                     <div class="match-result-growth-head">
                         <div class="match-result-growth-level" data-result-growth-level>Lv.1</div>
@@ -1089,6 +1506,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         const resultRankSplashTitleEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash-title]');
         const resultRankSplashCaptionEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash-caption]');
         const resultRankSplashMedalEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-rank-splash-medal]');
+        const resultKickerEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-kicker]');
         const resultTitleEl = resultOverlay.querySelector<HTMLHeadingElement>('[data-result-title]');
         const resultSubEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-subtitle]');
         const resultRankMainEl = resultOverlay.querySelector<HTMLElement>('[data-result-rank-main]');
@@ -1102,6 +1520,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         const resultRewardXpEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-reward-xp]');
         const resultRewardCoinsEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-reward-coins]');
         const resultRewardRecordEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-reward-record]');
+        const resultModeStatLabelNodeList = resultOverlay.querySelectorAll<HTMLSpanElement>('[data-result-mode-stat-label]');
+        const resultModeStatValueNodeList = resultOverlay.querySelectorAll<HTMLDivElement>('[data-result-mode-stat-value]');
+        const resultModeStatIconNodeList = resultOverlay.querySelectorAll<HTMLSpanElement>('[data-result-mode-stat-icon]');
         const resultGrowthLevelEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-growth-level]');
         const resultGrowthMetaEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-growth-meta]');
         const resultGrowthFillEl = resultOverlay.querySelector<HTMLDivElement>('[data-result-growth-fill]');
@@ -1140,6 +1561,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             || !resultRankSplashTitleEl
             || !resultRankSplashCaptionEl
             || !resultRankSplashMedalEl
+            || !resultKickerEl
             || !resultSubEl
             || !resultRankMainEl
             || !resultPlayerRankCardEl
@@ -1152,6 +1574,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             || !resultRewardXpEl
             || !resultRewardCoinsEl
             || !resultRewardRecordEl
+            || resultModeStatLabelNodeList.length !== 3
+            || resultModeStatValueNodeList.length !== 3
+            || resultModeStatIconNodeList.length !== 3
             || !resultGrowthLevelEl
             || !resultGrowthMetaEl
             || !resultGrowthFillEl
@@ -1163,6 +1588,22 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         ) {
             throw new Error('Failed to initialize match result overlay.');
         }
+
+        const resultModeStatLabelEls = [
+            resultModeStatLabelNodeList[0],
+            resultModeStatLabelNodeList[1],
+            resultModeStatLabelNodeList[2]
+        ] as [HTMLSpanElement, HTMLSpanElement, HTMLSpanElement];
+        const resultModeStatValueEls = [
+            resultModeStatValueNodeList[0],
+            resultModeStatValueNodeList[1],
+            resultModeStatValueNodeList[2]
+        ] as [HTMLDivElement, HTMLDivElement, HTMLDivElement];
+        const resultModeStatIconEls = [
+            resultModeStatIconNodeList[0],
+            resultModeStatIconNodeList[1],
+            resultModeStatIconNodeList[2]
+        ] as [HTMLSpanElement, HTMLSpanElement, HTMLSpanElement];
 
         resultLobbyButton.addEventListener('click', () => {
             hideMatchResultOverlay();
@@ -1199,6 +1640,13 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             foodInput,
             virusInput,
             modeBadgeEl,
+            teamSummaryEl,
+            teamMassEl,
+            teamDeltaEl,
+            teamMembersEl,
+            zoneAlertEl,
+            zoneStatusEl,
+            zoneDamageEl,
             resultOverlay,
             resultPanelEl,
             resultRankSplashEl,
@@ -1207,6 +1655,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             resultRankSplashTitleEl,
             resultRankSplashCaptionEl,
             resultRankSplashMedalEl,
+            resultKickerEl,
             resultTitleEl,
             resultSubEl,
             resultRankMainEl,
@@ -1221,6 +1670,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             resultRewardXpEl,
             resultRewardCoinsEl,
             resultRewardRecordEl,
+            resultModeStatLabelEls,
+            resultModeStatValueEls,
+            resultModeStatIconEls,
             resultGrowthLevelEl,
             resultGrowthMetaEl,
             resultGrowthFillEl,
@@ -1234,6 +1686,13 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     }
 
     function initializeWorld() {
+        targetFoodCount = modeDefinition.gameplay.foodTarget || DEFAULT_FOOD_COUNT;
+        targetVirusCount = modeDefinition.gameplay.virusTarget || DEFAULT_VIRUS_COUNT;
+        battleZoneRadius = modeDefinition.gameplay.battleRoyale.enabled
+            ? modeDefinition.gameplay.battleRoyale.initialRadius
+            : 0;
+        battleZoneStage = 0;
+
         quadTree = new QuadTree(
             new Rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE / 2),
             10
@@ -1241,10 +1700,13 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         player = new Player(WORLD_SIZE / 2, WORLD_SIZE / 2);
         player.displayName = resolvePlayerDisplayName(settings.playerName);
+        player.setModeMultipliers(modeDefinition.gameplay.speedMultiplier, modeDefinition.gameplay.decayMultiplier);
 
         bots = [];
         for (let i = 0; i < BOT_COUNT; i += 1) {
-            bots.push(new Bot(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE));
+            const bot = new Bot(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE);
+            bot.setModeMultipliers(modeDefinition.gameplay.speedMultiplier, modeDefinition.gameplay.decayMultiplier);
+            bots.push(bot);
         }
 
         foods = [];
@@ -1272,6 +1734,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         settlementProgressionBefore = null;
         settlementProgressionAfter = null;
         settlementLeveledUp = false;
+        settlementModeStats = [];
         settlementStage = 'hidden';
         settlementElapsedMs = 0;
 
@@ -1310,6 +1773,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             'rank-theme-bronze',
             'rank-theme-normal'
         );
+        delete hudRefs.resultOverlay.dataset.modeTheme;
+        delete hudRefs.resultOverlay.dataset.settlementStyle;
         hudRefs.resultOverlay.dataset.settlementStage = 'hidden';
         setSettlementActionsEnabled(false);
     }
@@ -1350,6 +1815,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         let resultSubtitle = modeConfig.timed
             ? `${modeConfig.durationSeconds / 60} 分钟结束，按体重排名结算。`
             : '开发者手动结束当前对局，按当前排名结算。';
+        let teamATotalForResult = 0;
+        let teamBTotalForResult = 0;
 
         if (modeConfig.teamMode) {
             let teamATotal = 0;
@@ -1365,8 +1832,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 }
             });
 
-            const teamATotalForResult = teamATotal;
-            const teamBTotalForResult = teamBTotal;
+            teamATotalForResult = teamATotal;
+            teamBTotalForResult = teamBTotal;
             const forcedTeam = forcedWinner === 'teamA' || forcedWinner === 'player'
                 ? 'teamA'
                 : (forcedWinner === 'teamB' || forcedWinner === 'bot' ? 'teamB' : null);
@@ -1408,7 +1875,16 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             ? (naturallyNewRecord ? playerMass : Math.max(playerMass, previousBest + 1))
             : previousBest;
 
-        settlementRewardBreakdown = computeMatchRewards(playerRank, playerMass, playerWon, isNewRecord);
+        const rawReward = computeMatchRewards(playerRank, playerMass, playerWon, isNewRecord);
+        const rewardMultiplier = Math.max(
+            0.5,
+            modeDefinition.gameplay.scoreMultiplier * modeDefinition.gameplay.rankPointMultiplier
+        );
+        settlementRewardBreakdown = {
+            ...rawReward,
+            totalXp: Math.max(1, Math.floor(rawReward.totalXp * rewardMultiplier)),
+            totalCoins: Math.max(1, Math.floor(rawReward.totalCoins * rewardMultiplier))
+        };
         const progressionBaseline = loadPlayerProgression();
         const progressionApplied = applyMatchRewardsToProgression({
             ...progressionBaseline,
@@ -1424,10 +1900,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const rankLabel = formatRankLabel(playerRank);
         const rankNumber = String(playerRank);
-        const splashPresentation = getRankSplashPresentation(playerRank);
+        const splashPresentation = getRankSplashPresentation(playerRank, playerWon);
 
+        hudRefs.resultKickerEl.textContent = modeDefinition.settlement.title;
         hudRefs.resultTitleEl.textContent = splashPresentation.title;
-        hudRefs.resultSubEl.textContent = resultSubtitle;
+        hudRefs.resultSubEl.textContent = `${modeDefinition.settlement.subtitle} · ${resultSubtitle}`;
         hudRefs.resultRankMainEl.textContent = rankNumber;
         hudRefs.resultPlayerRankHeadEl.textContent = rankLabel;
         hudRefs.resultPlayerRankEl.textContent = rankLabel;
@@ -1446,6 +1923,19 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultMassEl.textContent = '0 kg';
         hudRefs.resultBestEl.textContent = '0 kg';
         hudRefs.resultRewardRecordEl.textContent = isNewRecord ? '+0 XP / +0 金币' : '未触发';
+        settlementModeStats = buildModeSettlementStats(playerRank, playerMass, teamATotalForResult, teamBTotalForResult);
+        hudRefs.resultModeStatLabelEls.forEach((el, index) => {
+            const stat = settlementModeStats[index];
+            el.textContent = stat ? stat.label : '--';
+        });
+        hudRefs.resultModeStatValueEls.forEach((el, index) => {
+            const stat = settlementModeStats[index];
+            el.textContent = stat ? stat.value : '--';
+        });
+        hudRefs.resultModeStatIconEls.forEach((el, index) => {
+            const stat = settlementModeStats[index];
+            el.innerHTML = renderLobbyIcon(stat ? stat.icon : 'record', 'match-result-reward-icon');
+        });
         hudRefs.resultGrowthLevelEl.textContent = settlementProgressionAfter
             ? `Lv.${settlementProgressionAfter.level}`
             : 'Lv.1';
@@ -1455,6 +1945,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultGrowthFillEl.style.width = '0%';
         hudRefs.resultRecordBannerEl.style.display = isNewRecord ? 'inline-flex' : 'none';
         hudRefs.resultRecordBannerEl.classList.toggle('is-level-up', settlementLeveledUp);
+        hudRefs.resultActions.replay.textContent = modeDefinition.settlement.cta.replay;
+        hudRefs.resultActions.lobby.textContent = modeDefinition.settlement.cta.lobby;
 
         hudRefs.resultPlayerRankCardEl.classList.remove('is-gold', 'is-silver', 'is-bronze', 'is-normal');
         hudRefs.resultPlayerRankCardEl.classList.add(`is-${playerRankTheme}`);
@@ -1479,6 +1971,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultOverlay.classList.toggle('is-record', isNewRecord);
         hudRefs.resultOverlay.classList.toggle('is-win', playerWon);
         hudRefs.resultOverlay.classList.toggle('is-team-mode', modeConfig.teamMode);
+        hudRefs.resultOverlay.dataset.modeTheme = modeDefinition.theme;
+        hudRefs.resultOverlay.dataset.settlementStyle = modeDefinition.settlement.style;
         hudRefs.resultOverlay.classList.remove('rank-theme-gold', 'rank-theme-silver', 'rank-theme-bronze', 'rank-theme-normal');
         hudRefs.resultOverlay.classList.add(`rank-theme-${playerRankTheme}`);
         hudRefs.resultOverlay.classList.toggle('is-level-up', settlementLeveledUp);
@@ -1498,6 +1992,24 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         finalizeTimedMatch(performance.now(), options);
     }
 
+    function debugSetBattleZone(stage: number) {
+        const zone = modeDefinition.gameplay.battleRoyale;
+        if (!zone.enabled) {
+            return;
+        }
+
+        const normalizedStage = Math.max(0, Math.min(2, Math.floor(stage)));
+        battleZoneStage = normalizedStage;
+        if (normalizedStage === 0) {
+            battleZoneRadius = zone.initialRadius;
+        } else if (normalizedStage === 1) {
+            battleZoneRadius = (zone.initialRadius + zone.finalRadius) / 2;
+        } else {
+            battleZoneRadius = zone.finalRadius;
+        }
+        syncHud();
+    }
+
     function syncHud() {
         if (!hudRefs || !player) {
             return;
@@ -1510,12 +2022,17 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const now = performance.now();
         const elapsedSeconds = getElapsedSeconds(now);
+        updateBattleZoneState(elapsedSeconds);
         if (modeConfig.timed) {
             const remainingSeconds = getRemainingSeconds(now);
             const minutes = Math.floor(remainingSeconds / 60);
             const seconds = remainingSeconds % 60;
             hudRefs.gameTimerEl.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            hudRefs.modeBadgeEl.innerText = `${modeConfig.name} · 限时模式`;
+            if (modeDefinition.hud.showZoneWarning && modeDefinition.gameplay.battleRoyale.enabled) {
+                hudRefs.modeBadgeEl.innerText = `${modeConfig.name} · 安全圈 ${Math.floor(battleZoneRadius)}m`;
+            } else {
+                hudRefs.modeBadgeEl.innerText = `${modeConfig.name} · 限时模式`;
+            }
         } else {
             const minutes = Math.floor(elapsedSeconds / 60);
             const seconds = elapsedSeconds % 60;
@@ -1523,10 +2040,42 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             hudRefs.modeBadgeEl.innerText = modeConfig.name;
         }
 
+        if (modeDefinition.hud.showTeamPanel && modeConfig.teamMode) {
+            const controllers = [player, ...bots];
+            let alliedMass = 0;
+            let enemyMass = 0;
+            let allies = 0;
+            controllers.forEach((controller, index) => {
+                const mass = Math.floor(controller.cells.reduce((sum, cell) => sum + cell.mass, 0));
+                const isAllied = index === 0 || index % 2 === 0;
+                if (isAllied) {
+                    alliedMass += mass;
+                    allies += 1;
+                } else {
+                    enemyMass += mass;
+                }
+            });
+            const delta = alliedMass - enemyMass;
+            hudRefs.teamMassEl.innerText = `我方 ${alliedMass}kg / 敌方 ${enemyMass}kg`;
+            hudRefs.teamDeltaEl.innerText = `质量差 ${delta >= 0 ? '+' : ''}${delta}kg`;
+            hudRefs.teamMembersEl.innerText = `我方成员 ${allies} / 敌方成员 ${Math.max(0, controllers.length - allies)}`;
+        }
+
+        if (modeDefinition.hud.showZoneWarning && modeDefinition.gameplay.battleRoyale.enabled) {
+            const zone = modeDefinition.gameplay.battleRoyale;
+            const zoneLabel = battleZoneStage === 0
+                ? '准备收缩'
+                : (battleZoneStage === 1 ? '收缩中' : '终圈阶段');
+            hudRefs.zoneStatusEl.innerText = `${zoneLabel} · 半径 ${Math.floor(battleZoneRadius)}m`;
+            hudRefs.zoneDamageEl.innerText = `圈外伤害 ${zone.outOfZoneDamagePerSecond}/秒`;
+        }
+
         hudRefs.leaderboardContainer.style.display = settings.showLeaderboard ? 'block' : 'none';
         hudRefs.minimapContainer.style.display = settings.showMinimap ? 'block' : 'none';
         hudRefs.fpsEl.style.display = settings.showFps ? 'block' : 'none';
         hudRefs.debugContainer.style.display = settings.developerMode ? 'block' : 'none';
+        hudRefs.teamSummaryEl.style.display = modeDefinition.hud.showTeamPanel ? 'block' : 'none';
+        hudRefs.zoneAlertEl.style.display = modeDefinition.hud.showZoneWarning ? 'block' : 'none';
     }
 
     function syncLeaderboard() {
@@ -1658,6 +2207,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             const newCell = new Blob(spawnX, spawnY, startRadius, player.color);
             newCell.mass = startMass;
             player.addCell(newCell);
+            player.setModeMultipliers(modeDefinition.gameplay.speedMultiplier, modeDefinition.gameplay.decayMultiplier);
             player.score = 0;
         }
 
@@ -1673,6 +2223,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             const newCell = new Blob(spawnX, spawnY, startRadius, bot.color);
             newCell.mass = startMass;
             bot.addCell(newCell);
+            bot.setModeMultipliers(modeDefinition.gameplay.speedMultiplier, modeDefinition.gameplay.decayMultiplier);
         });
     }
 
@@ -1711,6 +2262,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         frameCount += 1;
         const currentTime = performance.now();
+        const elapsedSeconds = getElapsedSeconds(currentTime);
+        updateBattleZoneState(elapsedSeconds);
         if (currentTime - lastFrameTime >= 1000) {
             fps = frameCount;
             frameCount = 0;
@@ -1723,6 +2276,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         if (modeConfig.timed && getRemainingSeconds(currentTime) <= 0) {
             finalizeTimedMatch(currentTime);
             return;
+        }
+
+        if (modeDefinition.gameplay.battleRoyale.enabled) {
+            applyBattleZoneDamage(player, dt);
+            bots.forEach((bot) => applyBattleZoneDamage(bot, dt));
         }
 
         aiSystem.update(bots, player, quadTree, dt, WORLD_SIZE, WORLD_SIZE, abilitySystem);
@@ -1858,6 +2416,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         mountRoot = root;
         sessionRoot = document.createElement('div');
         sessionRoot.className = 'game-session';
+        sessionRoot.dataset.modeId = modeDefinition.id;
+        sessionRoot.dataset.hudProfile = modeDefinition.hud.emphasis;
+        sessionRoot.dataset.settlementProfile = modeDefinition.settlement.style;
 
         worldRoot = document.createElement('div');
         worldRoot.className = 'game-world';
@@ -2080,7 +2641,43 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                 rewardBreakdown: settlementRewardBreakdown ? { ...settlementRewardBreakdown } : null,
                 progressionBefore: settlementProgressionBefore ? { ...settlementProgressionBefore } : null,
                 progressionAfter: settlementProgressionAfter ? { ...settlementProgressionAfter } : null,
-                leveledUp: settlementLeveledUp
+                leveledUp: settlementLeveledUp,
+                modeStats: settlementModeStats.map((item) => ({ ...item })),
+                modeRulesSnapshot: {
+                    foodTarget: targetFoodCount,
+                    virusTarget: targetVirusCount,
+                    decayMultiplier: modeDefinition.gameplay.decayMultiplier,
+                    speedMultiplier: modeDefinition.gameplay.speedMultiplier,
+                    scoreMultiplier: modeDefinition.gameplay.scoreMultiplier,
+                    rankPointMultiplier: modeDefinition.gameplay.rankPointMultiplier,
+                    battleZone: {
+                        enabled: modeDefinition.gameplay.battleRoyale.enabled,
+                        radius: Number(battleZoneRadius.toFixed(2)),
+                        stage: battleZoneStage,
+                        shrinkStartSeconds: modeDefinition.gameplay.battleRoyale.shrinkStartSeconds,
+                        shrinkDurationSeconds: modeDefinition.gameplay.battleRoyale.shrinkDurationSeconds
+                    }
+                },
+                hudProfile: {
+                    emphasis: modeDefinition.hud.emphasis,
+                    showCombo: modeDefinition.hud.showCombo,
+                    showTeamPanel: modeDefinition.hud.showTeamPanel,
+                    showZoneWarning: modeDefinition.hud.showZoneWarning
+                },
+                settlementProfile: {
+                    style: modeDefinition.settlement.style,
+                    title: modeDefinition.settlement.title,
+                    subtitle: modeDefinition.settlement.subtitle,
+                    revealPace: modeDefinition.settlement.revealPace,
+                    replayLabel: modeDefinition.settlement.cta.replay,
+                    lobbyLabel: modeDefinition.settlement.cta.lobby
+                },
+                roomSimulation: {
+                    supportsRoom: modeDefinition.social.supportsRoom,
+                    roomSize: modeDefinition.social.roomSize,
+                    supportsSpectate: modeDefinition.social.supportsSpectate,
+                    supportsReplay: modeDefinition.social.supportsReplay
+                }
             }
         };
     }
@@ -2102,6 +2699,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         getSnapshot,
         advanceTime,
         debugFinishMatch,
-        debugSetBestMassRecord
+        debugSetBestMassRecord,
+        debugSetBattleZone
     };
 }
