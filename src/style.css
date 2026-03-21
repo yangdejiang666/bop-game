@@ -7964,11 +7964,13 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 .lobby-overlay.lobby-stitch-exact .stitch-root {
     position: absolute;
     inset: 0;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
-    gap: 14px;
-    padding: 16px 18px 14px;
+    grid-template-rows: auto auto auto auto;
+    align-content: start;
+    gap: 12px;
+    padding: 14px 16px 12px;
     background:
         radial-gradient(circle at 18% 20%, rgba(129, 236, 255, 0.08) 0%, transparent 40%),
         radial-gradient(circle at 79% 72%, rgba(195, 127, 255, 0.08) 0%, transparent 40%),
@@ -8245,22 +8247,23 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
     min-height: 0;
     display: grid;
     grid-template-columns: 330px minmax(0, 1fr);
-    gap: 16px;
+    align-items: start;
+    gap: 14px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-left-col {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-profile-card {
     min-height: 0;
-    padding: 14px;
+    padding: 12px;
     display: grid;
     grid-template-rows: auto auto auto auto auto minmax(0, auto);
-    gap: 10px;
+    gap: 8px;
     border-radius: 24px;
 }
 
@@ -8303,7 +8306,7 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 .lobby-overlay.lobby-stitch-exact .stitch-profile-name {
     margin: 0;
     font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
-    font-size: clamp(34px, 2.4vw, 58px);
+    font-size: clamp(30px, 2vw, 52px);
     line-height: 1;
     color: #f2f8ff;
     font-weight: 900;
@@ -8347,7 +8350,7 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 
 .lobby-overlay.lobby-stitch-exact .stitch-ball-stage {
     position: relative;
-    min-height: 210px;
+    min-height: 176px;
     border-radius: 22px;
     border: 1px solid rgba(129, 236, 255, 0.14);
     background: radial-gradient(circle at 48% 35%, rgba(129, 236, 255, 0.22), rgba(7, 18, 36, 0.9) 65%);
@@ -8400,8 +8403,8 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 
 .lobby-overlay.lobby-stitch-exact .stitch-ball-core {
     position: relative;
-    width: 150px;
-    height: 150px;
+    width: 130px;
+    height: 130px;
     border-radius: 999px;
     padding: 16px;
     background: linear-gradient(150deg, var(--stitch-skin-a), var(--stitch-skin-b));
@@ -8420,11 +8423,11 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 
 .lobby-overlay.lobby-stitch-exact .stitch-stage-bolt {
     position: absolute;
-    right: 20px;
+    right: 18px;
     top: 50%;
-    margin-top: -20px;
-    width: 38px;
-    height: 38px;
+    margin-top: -17px;
+    width: 34px;
+    height: 34px;
     border-radius: 12px;
     border: 1px solid rgba(129, 236, 255, 0.38);
     background: rgba(129, 236, 255, 0.15);
@@ -8434,21 +8437,21 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 .lobby-overlay.lobby-stitch-exact .stitch-stat-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 8px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-stat-tile {
     border-radius: 16px;
     border: 1px solid rgba(129, 236, 255, 0.16);
     background: rgba(11, 21, 40, 0.7);
-    padding: 10px;
+    padding: 8px;
     display: grid;
-    gap: 4px;
+    gap: 3px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-stat-tile small {
     color: rgba(171, 190, 216, 0.85);
-    font-size: 11px;
+    font-size: 10px;
     letter-spacing: 0.09em;
     font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
     font-weight: 700;
@@ -8457,7 +8460,7 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 .lobby-overlay.lobby-stitch-exact .stitch-stat-tile strong {
     font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
     font-weight: 900;
-    font-size: clamp(24px, 1.4vw, 34px);
+    font-size: clamp(20px, 1.15vw, 30px);
     color: var(--stitch-primary);
     line-height: 1;
 }
@@ -8540,12 +8543,12 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 
 .lobby-overlay.lobby-stitch-exact .stitch-season-card {
     width: 100%;
-    min-height: 72px;
+    min-height: 66px;
     border-radius: 16px;
     border: 1px solid rgba(129, 236, 255, 0.2);
     background: rgba(9, 20, 40, 0.78);
     color: #dbedff;
-    padding: 10px 12px;
+    padding: 8px 12px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -8583,7 +8586,7 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-mode-panel {
@@ -8630,7 +8633,7 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-mode-card {
-    min-height: 144px;
+    min-height: 132px;
     border-radius: 16px;
     padding: 12px;
     background: linear-gradient(160deg, rgba(25, 38, 67, 0.9), rgba(13, 24, 45, 0.92));
@@ -8715,17 +8718,17 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
     min-height: 0;
     display: grid;
     grid-template-columns: 1.6fr 1fr;
-    gap: 12px;
+    gap: 10px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-panel {
-    padding: 12px;
+    padding: 10px;
     min-height: 0;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-task-list {
     display: grid;
-    gap: 10px;
+    gap: 8px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-task-row {
@@ -8836,18 +8839,18 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 .lobby-overlay.lobby-stitch-exact .stitch-cta-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 12px;
+    gap: 10px;
     align-items: center;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-main-cta {
-    min-height: 66px;
+    min-height: 60px;
     border-radius: 18px;
     border: 1px solid rgba(129, 236, 255, 0.3);
     background: linear-gradient(90deg, #81ecff, #c37fff, #00d4ec);
     color: #062041;
     font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
-    font-size: 30px;
+    font-size: 26px;
     letter-spacing: 0.12em;
     font-weight: 900;
     display: inline-flex;
@@ -8863,7 +8866,7 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-main-cta-symbol {
-    font-size: 28px;
+    font-size: 24px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-main-cta--small {
@@ -8873,12 +8876,12 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-invite-strip {
-    min-height: 66px;
+    min-height: 60px;
     border-radius: 16px;
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 12px;
+    padding: 8px 10px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-invite-avatars {
@@ -8932,11 +8935,11 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
 .lobby-overlay.lobby-stitch-exact .stitch-activity-row {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    gap: 8px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-activity-card {
-    min-height: 72px;
+    min-height: 66px;
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(11, 21, 40, 0.74);
