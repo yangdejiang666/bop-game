@@ -7930,3 +7930,1362 @@ html[data-reduced-motion='true'] .lobby-overlay .lobby-dashboard-cta::before,
 html[data-reduced-motion='true'] .lobby-overlay .lobby-status-dot::before {
     animation: none;
 }
+
+/* ===== Stitch Exact Lobby (zip 同构替换) ===== */
+.lobby-overlay.lobby-stitch-exact {
+    --stitch-bg: #060e20;
+    --stitch-surface-low: rgba(9, 19, 40, 0.84);
+    --stitch-surface-mid: rgba(15, 25, 48, 0.82);
+    --stitch-surface-high: rgba(25, 37, 64, 0.74);
+    --stitch-primary: #81ecff;
+    --stitch-secondary: #c37fff;
+    --stitch-tertiary: #ffe483;
+    --stitch-primary-dim: #00d4ec;
+    --stitch-outline: rgba(109, 117, 140, 0.48);
+    --stitch-border-soft: rgba(255, 255, 255, 0.1);
+    --stitch-border-strong: rgba(129, 236, 255, 0.36);
+    --stitch-shadow-soft: 0 18px 42px rgba(0, 0, 0, 0.38);
+    --stitch-shadow-glow: 0 0 26px rgba(129, 236, 255, 0.2);
+    --stitch-skin-a: #81ecff;
+    --stitch-skin-b: #4f7dff;
+    position: absolute;
+    inset: 0;
+    z-index: 80;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 220ms ease;
+}
+
+.lobby-overlay.lobby-stitch-exact.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-root {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    gap: 14px;
+    padding: 16px 18px 14px;
+    background:
+        radial-gradient(circle at 18% 20%, rgba(129, 236, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 79% 72%, rgba(195, 127, 255, 0.08) 0%, transparent 40%),
+        linear-gradient(140deg, #050d1c 0%, #081226 54%, #0a1630 100%);
+    font-family: 'Be Vietnam Pro', 'Segoe UI', 'PingFang SC', sans-serif;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-bg-streaks {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    opacity: 0.3;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-streak {
+    position: absolute;
+    height: 1px;
+    width: 120vw;
+    left: -10vw;
+    background: linear-gradient(90deg, transparent, rgba(129, 236, 255, 0.6), transparent);
+    transform: rotate(-38deg);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-streak--one {
+    top: 18vh;
+    animation: stitchExactStreakOne 7s ease-in-out infinite;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-streak--two {
+    top: 62vh;
+    background: linear-gradient(90deg, transparent, rgba(195, 127, 255, 0.6), transparent);
+    animation: stitchExactStreakTwo 9s ease-in-out infinite;
+}
+
+.lobby-overlay.lobby-stitch-exact .glass-panel {
+    background: linear-gradient(180deg, rgba(24, 35, 62, 0.64), rgba(10, 20, 40, 0.72));
+    border: 1px solid var(--stitch-border-soft);
+    border-radius: 22px;
+    box-shadow: var(--stitch-shadow-soft);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.lobby-overlay.lobby-stitch-exact .shimmer {
+    position: relative;
+    overflow: hidden;
+}
+
+.lobby-overlay.lobby-stitch-exact .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-120%);
+    background: linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.14) 50%, transparent 80%);
+    animation: stitchExactShimmer 4.8s linear infinite;
+    pointer-events: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .flowing-border {
+    position: relative;
+    isolation: isolate;
+}
+
+.lobby-overlay.lobby-stitch-exact .flowing-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: conic-gradient(from 0deg, transparent, var(--flow-color, #81ecff), transparent 40%);
+    opacity: 0.45;
+    animation: stitchExactRotate 5.2s linear infinite;
+    z-index: -1;
+}
+
+.lobby-overlay.lobby-stitch-exact .btn-sweep {
+    position: relative;
+    overflow: hidden;
+}
+
+.lobby-overlay.lobby-stitch-exact .btn-sweep::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 150%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.45), transparent 70%);
+    transform: skewX(-20deg);
+    animation: stitchExactButtonSweep 4.2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .btn-neon-glow {
+    animation: stitchExactButtonGlow 2.3s ease-in-out infinite;
+}
+
+.lobby-overlay.lobby-stitch-exact .ball-glow {
+    filter: drop-shadow(0 0 28px rgba(129, 236, 255, 0.5));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 16px;
+    align-items: center;
+    padding: 12px 14px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-brand-title {
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-weight: 900;
+    font-size: clamp(30px, 2vw, 44px);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #81ecff, #c37fff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-resource-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 18px;
+    padding: 8px 14px;
+    border: 1px solid rgba(129, 236, 255, 0.26);
+    background: rgba(11, 20, 39, 0.78);
+    box-shadow: var(--stitch-shadow-glow);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-resource-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 190px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-resource-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-resource-symbol {
+    font-size: 18px;
+    color: var(--stitch-primary);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-resource-copy {
+    display: grid;
+    gap: 2px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-resource-copy small {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: rgba(190, 208, 235, 0.7);
+    font-weight: 700;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-resource-copy strong {
+    color: #f3f8ff;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-size: 30px;
+    line-height: 1;
+    font-weight: 800;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-resource-add {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: 1px solid rgba(129, 236, 255, 0.36);
+    background: rgba(129, 236, 255, 0.16);
+    color: var(--stitch-primary);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-top-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-icon-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    color: rgba(198, 212, 234, 0.84);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(11, 20, 39, 0.68);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-avatar-btn {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    padding: 3px;
+    border: 2px solid rgba(129, 236, 255, 0.68);
+    background: rgba(16, 28, 52, 0.8);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-avatar-slot {
+    width: 100%;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+    overflow: hidden;
+    background: linear-gradient(140deg, #ffb15e, #ff8b44);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-avatar-img.is-visible {
+    display: block;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-avatar-fallback {
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-size: 30px;
+    color: #101a33;
+    font-weight: 900;
+    display: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-avatar-fallback.is-visible {
+    display: inline-flex;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-avatar-online {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 13px;
+    height: 13px;
+    border-radius: 999px;
+    background: #22c55e;
+    border: 2px solid #081125;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-main {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 330px minmax(0, 1fr);
+    gap: 16px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-left-col {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-profile-card {
+    min-height: 0;
+    padding: 14px;
+    display: grid;
+    grid-template-rows: auto auto auto auto auto minmax(0, auto);
+    gap: 10px;
+    border-radius: 24px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-profile-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-profile-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(160, 183, 214, 0.86);
+    font-size: 11px;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 800;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-profile-kicker-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--stitch-primary);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-level-chip {
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(129, 236, 255, 0.34);
+    color: var(--stitch-primary);
+    background: rgba(129, 236, 255, 0.12);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-profile-name {
+    margin: 0;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-size: clamp(34px, 2.4vw, 58px);
+    line-height: 1;
+    color: #f2f8ff;
+    font-weight: 900;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-profile-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgba(189, 207, 235, 0.9);
+    font-weight: 700;
+    font-size: 11px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-online-state {
+    color: #57f6b1;
+    position: relative;
+    padding-left: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-online-state::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    margin-top: -3.5px;
+    border-radius: 999px;
+    background: #57f6b1;
+    box-shadow: 0 0 9px rgba(87, 246, 177, 0.8);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-current-mode {
+    border: 1px solid rgba(129, 236, 255, 0.25);
+    border-radius: 999px;
+    padding: 4px 10px;
+    color: #d4f4ff;
+    background: rgba(129, 236, 255, 0.08);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-ball-stage {
+    position: relative;
+    min-height: 210px;
+    border-radius: 22px;
+    border: 1px solid rgba(129, 236, 255, 0.14);
+    background: radial-gradient(circle at 48% 35%, rgba(129, 236, 255, 0.22), rgba(7, 18, 36, 0.9) 65%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-ring {
+    position: absolute;
+    border-radius: 999px;
+    border: 1px solid rgba(129, 236, 255, 0.24);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-ring--outer {
+    width: 82%;
+    height: 82%;
+    animation: stitchExactRotate 16s linear infinite;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-ring--mid {
+    width: 68%;
+    height: 68%;
+    border-color: rgba(195, 127, 255, 0.24);
+    border-style: dashed;
+    animation: stitchExactRotateReverse 18s linear infinite;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-ring--inner {
+    width: 54%;
+    height: 54%;
+    border-color: rgba(129, 236, 255, 0.34);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-crosshair {
+    position: absolute;
+    background: rgba(129, 236, 255, 0.34);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-crosshair--h {
+    width: 100%;
+    height: 1px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-crosshair--v {
+    width: 1px;
+    height: 100%;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-ball-core {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    border-radius: 999px;
+    padding: 16px;
+    background: linear-gradient(150deg, var(--stitch-skin-a), var(--stitch-skin-b));
+    box-shadow:
+        inset 0 0 0 2px rgba(255, 255, 255, 0.14),
+        0 0 48px color-mix(in srgb, var(--stitch-skin-a) 58%, transparent);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-ball-core img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-stage-bolt {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    margin-top: -20px;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    border: 1px solid rgba(129, 236, 255, 0.38);
+    background: rgba(129, 236, 255, 0.15);
+    color: var(--stitch-primary);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-stat-tile {
+    border-radius: 16px;
+    border: 1px solid rgba(129, 236, 255, 0.16);
+    background: rgba(11, 21, 40, 0.7);
+    padding: 10px;
+    display: grid;
+    gap: 4px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-stat-tile small {
+    color: rgba(171, 190, 216, 0.85);
+    font-size: 11px;
+    letter-spacing: 0.09em;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-weight: 700;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-stat-tile strong {
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-weight: 900;
+    font-size: clamp(32px, 2vw, 52px);
+    color: var(--stitch-primary);
+    line-height: 1;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-stat-tile.is-secondary strong {
+    color: var(--stitch-secondary);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skins-btn {
+    width: 100%;
+    border-radius: 999px;
+    min-height: 48px;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #0d1e3a;
+    background: linear-gradient(90deg, #81ecff, #00d4ec);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 220ms ease, margin-top 220ms ease;
+}
+
+.lobby-overlay.lobby-stitch-exact.is-skin-drawer-open .stitch-skin-drawer {
+    margin-top: 8px;
+    max-height: 180px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer-head {
+    display: grid;
+    gap: 2px;
+    margin-bottom: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer-head strong {
+    color: #ecf5ff;
+    font-size: 13px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer-head small {
+    color: rgba(170, 191, 220, 0.82);
+    font-size: 11px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-chip {
+    min-height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(13, 24, 44, 0.82);
+    color: #d6ebff;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-chip-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(140deg, var(--skin-a), var(--skin-b));
+    box-shadow: 0 0 8px color-mix(in srgb, var(--skin-a) 55%, transparent);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-chip.is-active {
+    border-color: rgba(129, 236, 255, 0.56);
+    box-shadow: 0 0 12px rgba(129, 236, 255, 0.24);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-season-card {
+    width: 100%;
+    min-height: 72px;
+    border-radius: 16px;
+    border: 1px solid rgba(129, 236, 255, 0.2);
+    background: rgba(9, 20, 40, 0.78);
+    color: #dbedff;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-season-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: rgba(129, 236, 255, 0.12);
+    border: 1px solid rgba(129, 236, 255, 0.24);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-season-copy {
+    display: grid;
+    gap: 2px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-season-copy strong {
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    letter-spacing: 0.08em;
+    font-size: 13px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-season-copy small {
+    color: rgba(170, 191, 220, 0.82);
+    font-size: 11px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-right-col {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-panel {
+    padding: 12px;
+    border-radius: 22px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-panel-head strong {
+    display: block;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    color: #eef6ff;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-panel-head small {
+    color: rgba(169, 191, 223, 0.82);
+    font-size: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-status,
+.lobby-overlay.lobby-stitch-exact .stitch-mini-chip {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(129, 236, 255, 0.3);
+    background: rgba(129, 236, 255, 0.12);
+    color: #bcf5ff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card {
+    min-height: 144px;
+    border-radius: 16px;
+    padding: 12px;
+    background: linear-gradient(160deg, rgba(25, 38, 67, 0.9), rgba(13, 24, 45, 0.92));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    display: grid;
+    grid-template-rows: auto auto auto 1fr;
+    align-content: start;
+    gap: 6px;
+    transition: transform 160ms ease, filter 160ms ease, box-shadow 180ms ease;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-cyan { --flow-color: #81ecff; }
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-violet { --flow-color: #c37fff; }
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-gold { --flow-color: #ffe483; }
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-neutral { --flow-color: #8ca4c6; }
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.07);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active {
+    border-color: rgba(129, 236, 255, 0.45);
+    box-shadow: 0 0 24px rgba(129, 236, 255, 0.28);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-icon {
+    justify-self: end;
+    color: rgba(200, 219, 244, 0.38);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-icon-symbol {
+    font-size: 38px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card-status {
+    justify-self: end;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(225, 235, 248, 0.86);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card-status.is-open {
+    color: #9dffe0;
+    border-color: rgba(87, 246, 177, 0.35);
+    background: rgba(87, 246, 177, 0.12);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card-status.is-testing {
+    color: #ffe5ab;
+    border-color: rgba(255, 228, 131, 0.35);
+    background: rgba(255, 228, 131, 0.12);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card-kicker {
+    color: color-mix(in srgb, var(--flow-color) 70%, #ffffff 30%);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card strong {
+    color: #f2f8ff;
+    font-size: clamp(20px, 1.8vw, 48px);
+    line-height: 1;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-weight: 900;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card p {
+    margin: 0;
+    color: rgba(172, 193, 224, 0.9);
+    font-size: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-info-grid {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-panel {
+    padding: 12px;
+    min-height: 0;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-list {
+    display: grid;
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: rgba(129, 236, 255, 0.12);
+    border: 1px solid rgba(129, 236, 255, 0.3);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-icon.is-theme-violet {
+    background: rgba(195, 127, 255, 0.12);
+    border-color: rgba(195, 127, 255, 0.32);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-copy strong {
+    display: block;
+    font-size: 13px;
+    color: #edf6ff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-bar {
+    margin-top: 5px;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(129, 153, 185, 0.22);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #81ecff, #00d4ec);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-fill.is-theme-violet {
+    background: linear-gradient(90deg, #d79cff, #a267ff);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-progress {
+    color: rgba(186, 205, 232, 0.92);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-link-btn {
+    color: var(--stitch-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    background: transparent;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-friend-list {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-friend-item {
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(10, 19, 38, 0.6);
+    padding: 8px 6px;
+    text-align: center;
+    display: grid;
+    gap: 4px;
+    justify-items: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-friend-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 2px solid var(--friend-accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--friend-accent) 42%, transparent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ebf6ff;
+    font-weight: 800;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-friend-item strong {
+    font-size: 12px;
+    color: #ecf5ff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-friend-item small {
+    color: rgba(166, 187, 217, 0.86);
+    font-size: 11px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-friend-add {
+    cursor: pointer;
+    color: var(--stitch-primary);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-cta-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-main-cta {
+    min-height: 66px;
+    border-radius: 18px;
+    border: 1px solid rgba(129, 236, 255, 0.3);
+    background: linear-gradient(90deg, #81ecff, #c37fff, #00d4ec);
+    color: #062041;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-size: 30px;
+    letter-spacing: 0.12em;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-main-cta-symbol {
+    font-size: 28px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-main-cta--small {
+    min-height: 44px;
+    font-size: 18px;
+    border-radius: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-invite-strip {
+    min-height: 66px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-invite-avatars {
+    display: inline-flex;
+    align-items: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-invite-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    margin-right: -9px;
+    border: 2px solid var(--friend-accent);
+    background: rgba(8, 18, 35, 0.92);
+    color: #f0f8ff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-invite-btn {
+    border-radius: 999px;
+    min-height: 38px;
+    padding: 0 12px;
+    border: 1px solid rgba(129, 236, 255, 0.36);
+    background: rgba(129, 236, 255, 0.14);
+    color: #b8f7ff;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-cta-note {
+    grid-column: 1 / -1;
+    color: rgba(180, 201, 230, 0.86);
+    font-size: 12px;
+    display: inline-flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-cta-note strong {
+    color: #eef7ff;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+    font-size: 15px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-card {
+    min-height: 72px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(11, 21, 40, 0.74);
+    color: #eff7ff;
+    text-align: left;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-card.is-violet {
+    background: linear-gradient(135deg, rgba(195, 127, 255, 0.2), rgba(11, 21, 40, 0.86));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-card.is-gold {
+    background: linear-gradient(135deg, rgba(255, 228, 131, 0.2), rgba(11, 21, 40, 0.86));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-card.is-cyan {
+    background: linear-gradient(135deg, rgba(129, 236, 255, 0.2), rgba(11, 21, 40, 0.86));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-copy {
+    display: grid;
+    gap: 2px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-copy small {
+    font-size: 11px;
+    color: rgba(184, 205, 234, 0.84);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-copy strong {
+    font-size: 16px;
+    font-weight: 800;
+    color: #edf6ff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-activity-copy em {
+    font-size: 11px;
+    font-style: normal;
+    color: rgba(157, 255, 224, 0.95);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 8px;
+    border-radius: 18px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock-item {
+    min-height: 58px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(9, 18, 37, 0.72);
+    color: rgba(184, 205, 234, 0.88);
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock-item.is-active,
+.lobby-overlay.lobby-stitch-exact .stitch-dock-item:hover {
+    color: #bff7ff;
+    border-color: rgba(129, 236, 255, 0.35);
+    box-shadow: 0 0 18px rgba(129, 236, 255, 0.24);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-inline-tip {
+    justify-self: center;
+    font-size: 12px;
+    color: rgba(170, 191, 220, 0.78);
+    opacity: 0.75;
+}
+
+.lobby-overlay.lobby-stitch-exact.is-inline-tip-active .stitch-inline-tip {
+    color: #d5f8ff;
+    opacity: 1;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hidden-file-input {
+    display: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(3, 9, 19, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 6;
+    padding: 18px;
+}
+
+.lobby-overlay.lobby-stitch-exact.is-settings-open .stitch-settings-overlay {
+    display: flex;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-panel {
+    width: min(560px, 100%);
+    border-radius: 24px;
+    border: 1px solid rgba(129, 236, 255, 0.24);
+    background: linear-gradient(165deg, rgba(15, 25, 48, 0.95), rgba(8, 17, 34, 0.96));
+    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.46);
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-head small {
+    color: rgba(170, 191, 220, 0.82);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-head h2 {
+    margin: 4px 0 0;
+    font-size: 24px;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', 'PingFang SC', sans-serif;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-close {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #d9ebff;
+    font-size: 22px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-avatar-slot--settings {
+    width: 72px;
+    height: 72px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-avatar-actions {
+    display: grid;
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-ghost-btn {
+    min-height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(129, 236, 255, 0.32);
+    background: rgba(129, 236, 255, 0.1);
+    color: #bdf6ff;
+    padding: 0 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-field {
+    display: grid;
+    gap: 6px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-field span,
+.lobby-overlay.lobby-stitch-exact .stitch-settings-title {
+    color: rgba(181, 202, 231, 0.88);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-field input[type='text'] {
+    min-height: 38px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(8, 17, 34, 0.9);
+    color: #edf7ff;
+    padding: 0 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-toggle {
+    min-height: 36px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(10, 20, 39, 0.8);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    color: #d7ebff;
+    font-size: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-toggle--wide {
+    grid-column: 1 / -1;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-settings-foot small {
+    color: rgba(168, 191, 223, 0.82);
+}
+
+.lobby-overlay.lobby-stitch-exact.is-modal-only .stitch-root {
+    opacity: 0.08;
+    pointer-events: none;
+    filter: blur(2px);
+}
+
+@media (max-width: 1280px) {
+    .lobby-overlay.lobby-stitch-exact .stitch-main {
+        grid-template-columns: 280px minmax(0, 1fr);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1024px) {
+    .lobby-overlay.lobby-stitch-exact .stitch-root {
+        display: block;
+        overflow: auto;
+        padding-bottom: 88px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main {
+        display: block;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-left-col,
+    .lobby-overlay.lobby-stitch-exact .stitch-right-col {
+        display: block;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-profile-card,
+    .lobby-overlay.lobby-stitch-exact .stitch-season-card,
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-panel,
+    .lobby-overlay.lobby-stitch-exact .stitch-info-grid,
+    .lobby-overlay.lobby-stitch-exact .stitch-cta-row,
+    .lobby-overlay.lobby-stitch-exact .stitch-activity-row {
+        margin-top: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-info-grid,
+    .lobby-overlay.lobby-stitch-exact .stitch-cta-row,
+    .lobby-overlay.lobby-stitch-exact .stitch-activity-row {
+        display: block;
+    }
+}
+
+@media (max-width: 720px) {
+    .lobby-overlay.lobby-stitch-exact .stitch-topbar {
+        grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-resource-bar {
+        width: 100%;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-resource-chip {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-right-col,
+    .lobby-overlay.lobby-stitch-exact .stitch-info-grid,
+    .lobby-overlay.lobby-stitch-exact .stitch-activity-row {
+        grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-profile-name {
+        font-size: 42px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main-cta {
+        font-size: 34px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-dock {
+        position: sticky;
+        bottom: 0;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@keyframes stitchExactRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes stitchExactRotateReverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+}
+
+@keyframes stitchExactShimmer {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(120%); }
+}
+
+@keyframes stitchExactButtonSweep {
+    0% { left: -150%; }
+    55% { left: 150%; }
+    100% { left: 150%; }
+}
+
+@keyframes stitchExactButtonGlow {
+    0%, 100% { box-shadow: 0 0 10px rgba(0, 227, 253, 0.38); }
+    50% { box-shadow: 0 0 24px rgba(0, 227, 253, 0.7), 0 0 42px rgba(195, 127, 255, 0.34); }
+}
+
+@keyframes stitchExactStreakOne {
+    0%, 100% { transform: rotate(-38deg) translateY(0); opacity: 0.16; }
+    50% { transform: rotate(-38deg) translateY(16px); opacity: 0.38; }
+}
+
+@keyframes stitchExactStreakTwo {
+    0%, 100% { transform: rotate(-38deg) translateY(0); opacity: 0.16; }
+    50% { transform: rotate(-38deg) translateY(-16px); opacity: 0.35; }
+}
+
+[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .shimmer::after,
+[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .flowing-border::before,
+[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .btn-sweep::before,
+[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .btn-neon-glow,
+[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-ring--outer,
+[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-ring--mid,
+html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .shimmer::after,
+html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .flowing-border::before,
+html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .btn-sweep::before,
+html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .btn-neon-glow,
+html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-ring--outer,
+html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-ring--mid {
+    animation: none !important;
+}
