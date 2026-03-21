@@ -349,6 +349,12 @@ function sanitizeGameplayTuning(raw: GameplayTuningPatch | GameplayTuning | unde
     const safeAnchorMasses = anchorMasses.slice(0, Math.max(2, anchorLength));
     const safeAnchorLosses = anchorLosses.slice(0, Math.max(2, anchorLength));
 
+    const ejectCostMass = toFiniteNumber(ejectSource.cost_mass, defaults.eject.cost_mass, 1, 200);
+    const ejectSpawnMass = Math.min(
+        toFiniteNumber(ejectSource.spawn_mass, defaults.eject.spawn_mass, 0.1, 200),
+        ejectCostMass
+    );
+
     return {
         presetVersion: typeof source.presetVersion === 'string' && source.presetVersion.trim().length > 0
             ? source.presetVersion.trim()
@@ -375,8 +381,8 @@ function sanitizeGameplayTuning(raw: GameplayTuningPatch | GameplayTuning | unde
             self_push_factor: toFiniteNumber(splitSource.self_push_factor, defaults.split.self_push_factor, 0.01, 1.5)
         },
         eject: {
-            cost_mass: toFiniteNumber(ejectSource.cost_mass, defaults.eject.cost_mass, 1, 200),
-            spawn_mass: toFiniteNumber(ejectSource.spawn_mass, defaults.eject.spawn_mass, 0.1, 200),
+            cost_mass: ejectCostMass,
+            spawn_mass: ejectSpawnMass,
             spawn_distance: toFiniteNumber(ejectSource.spawn_distance, defaults.eject.spawn_distance, 0, 240),
             launch_speed: toFiniteNumber(ejectSource.launch_speed, defaults.eject.launch_speed, 0.5, 120),
             cooldown: toFiniteNumber(ejectSource.cooldown, defaults.eject.cooldown, 0.01, 1),

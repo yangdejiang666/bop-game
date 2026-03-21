@@ -364,11 +364,14 @@ export class AbilitySystem {
             if (cell.mass - costMass < minMassFloor) continue;
             if (cell.ejectTimer > 0) continue;
 
-            cell.mass -= costMass;
-            if (!Number.isFinite(cell.mass) || cell.mass < minMassFloor) {
-                cell.mass = minMassFloor;
-            }
+            const previousMass = cell.mass;
+            const nextMass = Math.max(minMassFloor, previousMass - costMass);
+            const actualCostMass = Math.max(0, previousMass - nextMass);
+            if (actualCostMass <= 0) continue;
+
+            cell.mass = nextMass;
             cell.updateRadiusFromMass();
+            const actualSpawnMass = Math.min(spawnMass, actualCostMass);
 
             let dir = targetPos.sub(cell.position).normalize();
             if (dir.mag() === 0 || !Number.isFinite(dir.x) || !Number.isFinite(dir.y)) {
@@ -381,7 +384,7 @@ export class AbilitySystem {
                 spawnPos.y,
                 controller.color,
                 dir.mult(launchSpeed),
-                spawnMass
+                actualSpawnMass
             );
             eject.ownerRef = controller;
             eject.reabsorbLockTimer = gameplayTuning.eject.reabsorb_lock;
@@ -396,7 +399,7 @@ export class AbilitySystem {
         if (ejectedCount > 0) {
             this.ejectMetricsByController.set(controller, {
                 lastCost: costMass,
-                lastSpawnMass: spawnMass,
+                lastSpawnMass: Math.min(spawnMass, costMass),
                 lastCooldownMs: cooldown * 1000
             });
         }

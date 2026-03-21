@@ -162,3 +162,6 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-20: Fixed the root cause of settlement clipping by switching the result panel from flex-centered layout flow to absolute center positioning (`left/top 50% + translate(-50%, -50%)`) so the scaled panel is centered by its transformed size, not its pre-scale layout box.
 - 2026-03-20: Tightened fit sizing further by subtracting actual overlay padding plus a safe inset from the available width/height in `fitSettlementPanelToViewport`, creating a guaranteed visual margin around the scaled settlement stage.
 - 2026-03-20: Validation: `npm run build` passed after the production-verified settlement centering fix; next step is redeploy and re-run the same live Playwright settlement check.
+- 2026-03-21: Hardened eject mass conservation against toolbox/runtime misconfiguration: tuning sanitization now clamps `eject.spawn_mass <= eject.cost_mass`, and `AbilitySystem.eject()` now clamps each emitted pellet to the actual mass removed from its source cell before spawning.
+- 2026-03-21: Updated eject diagnostics so `lastSpawnMass` reflects the safe emitted mass instead of a potentially invalid raw tuning value.
+- 2026-03-21: Validation: `npm run build` passed after eject anti-growth fix; next step is live verification by forcing an illegal `spawn_mass > cost_mass` patch and confirming it is auto-clamped.
