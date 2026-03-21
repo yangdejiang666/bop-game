@@ -4,6 +4,7 @@ import {
     MODE_DEFINITIONS,
     getModeDefinition,
     type ModeDefinition,
+    type ModeHallLayoutId,
     type ModeHallRoomSnapshot,
     type ModeHallState,
     type ModeHallTabId
@@ -64,6 +65,7 @@ export class ModeHallUI {
     private heroStageSetup: Promise<void> | null = null;
     private heroState: ModeHallState['heroState'] = 'idle';
     private readonly keydownHandler: (event: KeyboardEvent) => void;
+    private readonly resizeHandler: () => void;
 
     constructor(options: ModeHallUIOptions) {
         this.options = options;
@@ -87,6 +89,12 @@ export class ModeHallUI {
                 this.options.onBackLobby();
             }
         };
+        this.resizeHandler = () => {
+            if (!this.visible) {
+                return;
+            }
+            this.syncBreakpointState();
+        };
 
         this.bindEvents();
     }
@@ -94,10 +102,12 @@ export class ModeHallUI {
     mount(parent: HTMLElement) {
         parent.appendChild(this.root);
         window.addEventListener('keydown', this.keydownHandler);
+        window.addEventListener('resize', this.resizeHandler);
     }
 
     destroy() {
         window.removeEventListener('keydown', this.keydownHandler);
+        window.removeEventListener('resize', this.resizeHandler);
         this.heroStage?.destroy();
         this.heroStage = null;
         this.heroStageSetup = null;
@@ -118,6 +128,7 @@ export class ModeHallUI {
         this.roomState = this.createEmptyRoomState();
         this.root.classList.add('is-visible');
         this.root.dataset.ctaState = this.computeCtaState();
+        this.syncBreakpointState();
         void this.refreshView(true);
     }
 
@@ -126,6 +137,8 @@ export class ModeHallUI {
         this.modeId = null;
         this.root.classList.remove('is-visible');
         this.root.dataset.ctaState = this.computeCtaState();
+        delete this.root.dataset.modeLayout;
+        delete this.root.dataset.breakpointBucket;
     }
 
     getSnapshot(): ModeHallSnapshot {
@@ -155,7 +168,9 @@ export class ModeHallUI {
                 },
                 socialTab: this.activeSocialTab,
                 heroState: this.heroState,
-                ctaState
+                ctaState,
+                layoutId: this.getCurrentLayoutId(),
+                breakpointBucket: this.getBreakpointBucket()
             }
         } satisfies ModeHallSnapshot;
     }
@@ -187,7 +202,10 @@ export class ModeHallUI {
                             <strong data-modehall-hero-title>模式主视觉</strong>
                             <small data-modehall-hero-subtitle>模式介绍</small>
                         </div>
-                        <canvas class="mode-hall-hero-canvas" data-modehall-hero-canvas></canvas>
+                        <div class="mode-hall-hero-stage">
+                            <canvas class="mode-hall-hero-canvas" data-modehall-hero-canvas></canvas>
+                        </div>
+                        <div class="mode-hall-hero-footnote" data-modehall-hero-footnote>实时投影预览</div>
                     </section>
 
                     <section class="mode-hall-operation">
@@ -195,7 +213,7 @@ export class ModeHallUI {
                             <strong data-modehall-operation-title>核心操作</strong>
                             <small data-modehall-operation-desc>操作说明</small>
                         </div>
-                        <div class="mode-hall-room-box" data-modehall-room-box>
+                        <div class="mode-hall-room-strip">
                             <div class="mode-hall-room-line">
                                 <span>房间状态</span>
                                 <strong data-room-status>未创建</strong>
@@ -204,6 +222,8 @@ export class ModeHallUI {
                                 <span>房间码</span>
                                 <strong data-room-code>----</strong>
                             </div>
+                        </div>
+                        <div class="mode-hall-room-box" data-modehall-room-box>
                             <div class="mode-hall-room-actions">
                                 <button type="button" data-room-action="create">创建房间</button>
                                 <button type="button" data-room-action="invite">邀请占位</button>
@@ -213,8 +233,8 @@ export class ModeHallUI {
                                 <button type="button" data-room-action="disband">解散房间</button>
                             </div>
                             <div class="mode-hall-room-members" data-room-members></div>
-                            <div class="mode-hall-room-tip" data-room-tip>本地房间模拟已启用。</div>
                         </div>
+                        <div class="mode-hall-room-tip" data-room-tip>本地房间模拟已启用。</div>
                     </section>
 
                     <section class="mode-hall-intel">
@@ -222,14 +242,12 @@ export class ModeHallUI {
                             <strong data-modehall-intel-title>模式情报</strong>
                         </div>
                         <ul class="mode-hall-intel-list" data-modehall-intel-list></ul>
-                        <div class="mode-hall-social">
-                            <div class="mode-hall-social-tabs">
-                                <button type="button" data-social-tab="friends">好友</button>
-                                <button type="button" data-social-tab="leaderboard">排行榜</button>
-                                <button type="button" data-social-tab="spectate">观战</button>
-                            </div>
-                            <div class="mode-hall-social-list" data-modehall-social-list></div>
+                        <div class="mode-hall-social-tabs">
+                            <button type="button" data-social-tab="friends">好友</button>
+                            <button type="button" data-social-tab="leaderboard">排行榜</button>
+                            <button type="button" data-social-tab="spectate">观战</button>
                         </div>
+                        <div class="mode-hall-social-list" data-modehall-social-list></div>
                     </section>
                 </main>
 
@@ -305,11 +323,19 @@ export class ModeHallUI {
 
         const mode = getModeDefinition(this.modeId);
         this.root.dataset.modeTheme = mode.theme;
+        this.root.dataset.modeLayout = mode.layout.id;
+        this.syncBreakpointState();
         this.root.dataset.ctaState = this.computeCtaState();
+        this.root.style.setProperty('--mode-main-columns', mode.layout.columnsDesktop);
+        this.root.style.setProperty('--mode-left-rows', mode.layout.leftRows);
+        this.root.style.setProperty('--mode-center-rows', mode.layout.centerRows);
+        this.root.style.setProperty('--mode-right-rows', mode.layout.rightRows);
+        this.root.style.setProperty('--mode-footer-columns', mode.layout.footerColumns);
 
         this.setText('[data-modehall-title]', `${mode.name}分厅`);
         this.setText('[data-modehall-hero-title]', mode.hall.heroTitle);
         this.setText('[data-modehall-hero-subtitle]', mode.hall.heroSubtitle);
+        this.setText('[data-modehall-hero-footnote]', `${mode.name} · 实时投影预览`);
         this.setText('[data-modehall-operation-title]', mode.hall.operationTitle);
         this.setText('[data-modehall-operation-desc]', mode.hall.operationDescription);
         this.setText('[data-modehall-intel-title]', mode.hall.intelTitle);
@@ -470,7 +496,18 @@ export class ModeHallUI {
         const shell = this.root.querySelector<HTMLElement>('.mode-hall-shell');
         const cards = Array.from(this.root.querySelectorAll<HTMLElement>('.mode-hall-tab-card'));
         if (shell) {
-            animate(shell, { opacity: [0.6, 1], transform: ['translateY(14px)', 'translateY(0px)'] }, { duration: 0.28, easing: 'ease-out' });
+            const shellAnimation = animate(
+                shell,
+                { opacity: [0.6, 1], transform: ['translateY(14px)', 'translateY(0px)'] },
+                { duration: 0.28, easing: 'ease-out' }
+            );
+            void shellAnimation.finished
+                .catch(() => undefined)
+                .then(() => {
+                    // Clear inline transform left by animation so fixed CTA can stay viewport-fixed on mobile.
+                    shell.style.removeProperty('transform');
+                    shell.style.removeProperty('opacity');
+                });
         }
         if (cards.length > 0) {
             cards.forEach((card, index) => {
@@ -615,6 +652,31 @@ export class ModeHallUI {
             code += alphabet[idx];
         }
         return code;
+    }
+
+    private syncBreakpointState() {
+        this.root.dataset.breakpointBucket = this.getBreakpointBucket();
+    }
+
+    private getCurrentLayoutId(): ModeHallLayoutId | null {
+        if (!this.modeId) {
+            return null;
+        }
+        return getModeDefinition(this.modeId).layout.id;
+    }
+
+    private getBreakpointBucket(): ModeHallState['breakpointBucket'] {
+        const width = window.innerWidth;
+        if (width >= 1440) {
+            return 'desktop';
+        }
+        if (width >= 1280) {
+            return 'laptop';
+        }
+        if (width >= 1024) {
+            return 'tablet';
+        }
+        return 'mobile';
     }
 
     private createEmptyRoomState(): RoomState {

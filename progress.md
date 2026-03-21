@@ -201,3 +201,21 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-21: Consolidated matchmaking config into mode definitions by adding `ModeDefinition.matching` (`targetPlayers/minStartPlayers/expectedSeconds`) and removing duplicated hardcoded match meta in `MatchmakingUI`.
 - 2026-03-21: `MatchmakingUI` now derives mode name/icon/theme/人数节奏 from `getModeDefinition(modeId)`, keeping lobby/modeHall/matching driven by a single mode source of truth.
 - 2026-03-21: Validation: `npm run build` passed after matchmaking metadata unification.
+- 2026-03-21: Implemented the six-hall layout skeleton unification plan end-to-end:
+  - added `ModeHallLayoutProfile`-driven desktop column templates for all six modes and wired runtime CSS vars in `ModeHallUI` (`--mode-main-columns/--mode-left-rows/--mode-center-rows/--mode-right-rows/--mode-footer-columns`);
+  - enforced `data-mode-layout` + `data-breakpoint-bucket` state updates in UI lifecycle (show/refresh/resize/getSnapshot);
+  - upgraded shell sizing to shared `--ui-shell-*` tokens with breakpoint token shifts (`>=1440`, `1280~1439`, `1024~1279`, `<1024`) and adaptive `--ui-shell-main-min`.
+- 2026-03-21: Reworked mode hall responsive structure to match target behavior:
+  - desktop/laptop keep per-mode 3-column templates;
+  - `1024~1279` uses two-column top with right section dropped to second row;
+  - `<1024` switches to single-column stack (`hero -> operation -> intel -> footer`) with fixed bottom CTA bar.
+- 2026-03-21: Unified outer-shell sizing rhythm for lobby/mode hall/matching/settlement by applying the same shell token family to `lobby-shell--v2`, `mode-hall-shell`, `matchmaking-shell`, and `match-result-panel` (outer frame only, no business-layout rewrite inside matching/settlement).
+- 2026-03-21: Fixed mobile mode-hall CTA visibility regression caused by animated inline `transform` on shell (which broke fixed-position containing block): `playEntryAnimation()` now clears inline transform/opacity after animation completion.
+- 2026-03-21: Validation:
+  - `npm run build` passed after all layout updates.
+  - Playwright checks passed on key buckets:
+    - 1920x1080 desktop: all six modes reported expected layout IDs and per-mode column vars;
+    - 1366x768 laptop: shell compressed to `84 / main / 156`, spacing/padding reduced (`16`);
+    - 1024x768 tablet: mode hall rendered two-column top + intel full-width second row;
+    - 390x844 mobile: single-column mode hall with visible fixed CTA bar (`设置/开始匹配`) and tab row kept `nowrap + overflow-x:auto`;
+    - matching shell and settlement panel remained fully inside viewport bounds, with settlement bottom actions visible.

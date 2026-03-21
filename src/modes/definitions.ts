@@ -3,6 +3,7 @@ import type { LobbyModeId } from '../ui/LobbyUI';
 export type ModeHallTabId = 'rules' | 'rewards' | 'stats' | 'map';
 
 export type ModeTheme = 'gold' | 'violet' | 'cyan' | 'amber' | 'purple' | 'red';
+export type ModeHallLayoutId = LobbyModeId;
 
 export interface ModeGameplayRules {
     timed: boolean;
@@ -55,6 +56,15 @@ export interface ModeMatchmakingProfile {
     expectedSeconds: number;
 }
 
+export interface ModeHallLayoutProfile {
+    id: ModeHallLayoutId;
+    columnsDesktop: string;
+    leftRows: string;
+    centerRows: string;
+    rightRows: string;
+    footerColumns: string;
+}
+
 export interface ModeHallContent {
     heroTitle: string;
     heroSubtitle: string;
@@ -85,6 +95,8 @@ export interface ModeHallState {
     socialTab: 'friends' | 'leaderboard' | 'spectate';
     heroState: 'idle' | 'loading' | 'ready' | 'fallback';
     ctaState: 'idle' | 'ready' | 'locked';
+    layoutId: ModeHallLayoutId | null;
+    breakpointBucket: 'desktop' | 'laptop' | 'tablet' | 'mobile';
 }
 
 export interface ModeDefinition {
@@ -102,6 +114,7 @@ export interface ModeDefinition {
     hall: ModeHallContent;
     gameplay: ModeGameplayRules;
     matching: ModeMatchmakingProfile;
+    layout: ModeHallLayoutProfile;
     hud: ModeHudProfile;
     settlement: ModeSettlementProfile;
     social: ModeSocialProfile;
@@ -151,6 +164,14 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             targetPlayers: 50,
             minStartPlayers: 16,
             expectedSeconds: 7.2
+        },
+        layout: {
+            id: 'ranked',
+            columnsDesktop: '6fr 10fr 8fr',
+            leftRows: 'auto minmax(0, 1fr) auto',
+            centerRows: '112px 0px minmax(0, 1fr) 88px',
+            rightRows: '72px 72px 72px minmax(0, 1fr)',
+            footerColumns: '2fr 3fr'
         },
         hud: {
             emphasis: 'competitive',
@@ -219,6 +240,14 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             minStartPlayers: 18,
             expectedSeconds: 7.8
         },
+        layout: {
+            id: 'peak',
+            columnsDesktop: '5fr 11fr 8fr',
+            leftRows: 'auto minmax(0, 1fr) 92px',
+            centerRows: '96px 0px minmax(0, 1fr) 0px',
+            rightRows: 'minmax(88px, 0.4fr) minmax(0, 0.22fr) 44px minmax(0, 0.38fr)',
+            footerColumns: '1.2fr 1fr 1fr'
+        },
         hud: {
             emphasis: 'elite',
             showCombo: true,
@@ -285,6 +314,14 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             targetPlayers: 50,
             minStartPlayers: 14,
             expectedSeconds: 6.6
+        },
+        layout: {
+            id: 'classic',
+            columnsDesktop: '9fr 7fr 8fr',
+            leftRows: 'auto minmax(0, 1fr) auto',
+            centerRows: '88px 0px minmax(0, 1fr) 108px',
+            rightRows: '84px 0px 44px minmax(0, 1fr)',
+            footerColumns: 'repeat(3, minmax(0, 1fr))'
         },
         hud: {
             emphasis: 'casual',
@@ -353,6 +390,14 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             minStartPlayers: 12,
             expectedSeconds: 5.4
         },
+        layout: {
+            id: 'speed',
+            columnsDesktop: '4fr 12fr 8fr',
+            leftRows: 'auto minmax(0, 1fr) 72px',
+            centerRows: '72px 0px minmax(0, 1fr) 72px',
+            rightRows: '68px 68px 68px minmax(0, 1fr)',
+            footerColumns: 'repeat(4, minmax(0, 1fr))'
+        },
         hud: {
             emphasis: 'rush',
             showCombo: true,
@@ -420,6 +465,14 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             minStartPlayers: 12,
             expectedSeconds: 6
         },
+        layout: {
+            id: 'team',
+            columnsDesktop: '4fr 13fr 7fr',
+            leftRows: 'auto minmax(0, 0.62fr) minmax(56px, 0.38fr)',
+            centerRows: '72px 84px minmax(0, 1fr) 84px',
+            rightRows: '84px 0px 44px minmax(0, 1fr)',
+            footerColumns: '2fr 1fr 1fr'
+        },
         hud: {
             emphasis: 'team',
             showCombo: true,
@@ -486,6 +539,14 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             targetPlayers: 60,
             minStartPlayers: 20,
             expectedSeconds: 8.4
+        },
+        layout: {
+            id: 'battleRoyale',
+            columnsDesktop: '8fr 10fr 7fr',
+            leftRows: 'auto minmax(0, 1fr) auto',
+            centerRows: '76px 52px minmax(0, 1fr) 64px',
+            rightRows: '164px 44px 44px minmax(0, 1fr)',
+            footerColumns: 'repeat(3, minmax(0, 1fr))'
         },
         hud: {
             emphasis: 'survival',
