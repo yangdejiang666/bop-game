@@ -1,0 +1,48 @@
+export const PROTOCOL_ERROR = {
+  UNKNOWN: "UNKNOWN",
+  INVALID_REQUEST: "INVALID_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  RATE_LIMITED: "RATE_LIMITED",
+  SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
+  AUTH_INVALID_CREDENTIALS: "AUTH_INVALID_CREDENTIALS",
+  AUTH_TOKEN_EXPIRED: "AUTH_TOKEN_EXPIRED",
+  AUTH_REFRESH_TOKEN_INVALID: "AUTH_REFRESH_TOKEN_INVALID",
+  AUTH_ACCOUNT_BANNED: "AUTH_ACCOUNT_BANNED",
+  USER_NOT_FOUND: "USER_NOT_FOUND",
+  USER_INVALID_NAME: "USER_INVALID_NAME",
+  USER_INVALID_AVATAR: "USER_INVALID_AVATAR",
+  MATCH_ALREADY_IN_QUEUE: "MATCH_ALREADY_IN_QUEUE",
+  MATCH_NOT_IN_QUEUE: "MATCH_NOT_IN_QUEUE",
+  ROOM_NOT_FOUND: "ROOM_NOT_FOUND",
+  ROOM_FULL: "ROOM_FULL",
+  ROOM_NOT_MEMBER: "ROOM_NOT_MEMBER",
+  ROOM_INVALID_STATE: "ROOM_INVALID_STATE",
+};
+
+export const ACCOUNT_MIN = 3;
+export const ACCOUNT_MAX = 64;
+export const PASSWORD_MIN = 6;
+export const PASSWORD_MAX = 64;
+export const NICKNAME_MIN = 1;
+export const NICKNAME_MAX = 12;
+export const AVATAR_URL_MAX = 2_000_000;
+export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
+export const PASSWORD_HASH_ITERATIONS = 100_000;
+
+export const MODE_CONFIG = {
+  ranked: { targetPlayers: 50, minStartPlayers: 16, expectedSeconds: 7 },
+  peak: { targetPlayers: 50, minStartPlayers: 18, expectedSeconds: 8 },
+  classic: { targetPlayers: 50, minStartPlayers: 14, expectedSeconds: 6 },
+  speed: { targetPlayers: 50, minStartPlayers: 16, expectedSeconds: 5 },
+  team: { targetPlayers: 50, minStartPlayers: 20, expectedSeconds: 7 },
+  battleRoyale: { targetPlayers: 50, minStartPlayers: 20, expectedSeconds: 9 },
+};
+
+export const JSON_HEADERS = {
+  "content-type": "application/json; charset=utf-8",
+  "cache-control": "no-store",
+};

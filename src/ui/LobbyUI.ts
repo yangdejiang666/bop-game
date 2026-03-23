@@ -232,7 +232,7 @@ export class LobbyUI {
     this.clearAuthForms();
     this.root.classList.add("is-visible");
     this.root.classList.remove("is-modal-only", "is-settings-open");
-    this.openAuthModal("register", true);
+    this.openAuthModal("login", true);
     this.syncDocumentScrollLock();
     this.syncLobbyFit();
   }
@@ -277,7 +277,7 @@ export class LobbyUI {
       userLabel: "游客",
     };
     if (!status.loggedIn) {
-      this.openAuthModal("register", true);
+      this.openAuthModal("login", true);
       return;
     }
 
@@ -668,64 +668,231 @@ export class LobbyUI {
             </div>
 
             <div class="stitch-auth-overlay" data-auth-overlay>
-                <div class="stitch-auth-panel" role="dialog" aria-modal="true" aria-labelledby="stitch-auth-title">
-                    <div class="stitch-auth-head">
-                        <div>
-                            <small data-auth-head-kicker>账号中心</small>
-                            <h2 id="stitch-auth-title" data-auth-head-title>登录与云存档</h2>
+                <div class="stitch-auth-shell">
+                    <section class="stitch-auth-showcase" aria-hidden="true">
+                        <div class="stitch-auth-showcase-top">
+                            <span class="stitch-auth-scene-badge" data-auth-scene-badge>星港准入通道</span>
+                            <strong class="stitch-auth-showcase-brand">球球实验室</strong>
+                            <p class="stitch-auth-showcase-copy" data-auth-scene-copy>
+                                注册后开启云存档、战绩同步和私人房联机入口，先把你的作战身份接进来。
+                            </p>
                         </div>
-                        <button type="button" class="stitch-settings-close" data-auth-close aria-label="关闭账号面板">×</button>
-                    </div>
 
-                    <section class="stitch-auth-intro" data-auth-intro>
-                        <strong data-auth-intro-title>注册账号后才能开始游戏</strong>
-                        <p data-auth-intro-copy>先完成账号和密码注册，账号资料会保存下来，之后再进入大厅、私人模式和开发者工具箱。</p>
+                        <div class="stitch-auth-stage">
+                            <span class="stitch-auth-stage-glow"></span>
+                            <span class="stitch-auth-orbit stitch-auth-orbit--outer"></span>
+                            <span class="stitch-auth-orbit stitch-auth-orbit--mid"></span>
+                            <span class="stitch-auth-orbit stitch-auth-orbit--inner"></span>
+                            <span class="stitch-auth-spark stitch-auth-spark--one"></span>
+                            <span class="stitch-auth-spark stitch-auth-spark--two"></span>
+                            <span class="stitch-auth-spark stitch-auth-spark--three"></span>
+
+                            <div class="stitch-auth-core">
+                                <span class="stitch-auth-core-surface"></span>
+                                <span class="stitch-auth-core-highlight"></span>
+                                <span class="stitch-auth-core-grid"></span>
+                            </div>
+
+                            <article class="stitch-auth-signal-card">
+                                <small>银河指挥频道</small>
+                                <strong data-auth-scene-title>作战身份校验中</strong>
+                                <span data-auth-scene-subtitle>账号接入后即可进入大厅、匹配与私人模式</span>
+                            </article>
+                        </div>
+
+                        <div class="stitch-auth-feature-grid">
+                            <article class="stitch-auth-feature-card">
+                                <span class="stitch-auth-feature-icon">
+                                    ${renderMaterialSymbol("cloud_sync", "stitch-auth-feature-symbol")}
+                                </span>
+                                <small>云端资料</small>
+                                <strong>本地进度自动接管</strong>
+                            </article>
+                            <article class="stitch-auth-feature-card">
+                                <span class="stitch-auth-feature-icon">
+                                    ${renderMaterialSymbol("sports_esports", "stitch-auth-feature-symbol")}
+                                </span>
+                                <small>作战大厅</small>
+                                <strong>登录后直达模式分厅</strong>
+                            </article>
+                            <article class="stitch-auth-feature-card">
+                                <span class="stitch-auth-feature-icon">
+                                    ${renderMaterialSymbol("shield_lock", "stitch-auth-feature-symbol")}
+                                </span>
+                                <small>安全接入</small>
+                                <strong>账号密码链路先行</strong>
+                            </article>
+                        </div>
                     </section>
 
-                    <div class="stitch-auth-tabs" data-auth-tabs>
-                        <button type="button" class="stitch-auth-tab is-active" data-auth-tab="login">登录</button>
-                        <button type="button" class="stitch-auth-tab" data-auth-tab="register">注册</button>
+                    <div class="stitch-auth-panel" role="dialog" aria-modal="true" aria-labelledby="stitch-auth-title">
+                        <span class="stitch-auth-panel-topline" aria-hidden="true"></span>
+
+                        <div class="stitch-auth-head">
+                            <div class="stitch-auth-head-copy">
+                                <small data-auth-head-kicker>账号中心</small>
+                                <h2 id="stitch-auth-title" data-auth-head-title>登录与云存档</h2>
+                            </div>
+                            <button
+                                type="button"
+                                class="stitch-settings-close stitch-auth-close-btn"
+                                data-auth-close
+                                aria-label="关闭账号面板"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <section class="stitch-auth-intro" data-auth-intro>
+                            <div class="stitch-auth-intro-copy-wrap">
+                                <strong data-auth-intro-title>注册账号后才能开始游戏</strong>
+                                <p data-auth-intro-copy>先完成账号和密码注册，账号资料会保存下来，之后再进入大厅、私人模式和开发者工具箱。</p>
+                            </div>
+                            <div class="stitch-auth-intro-chips">
+                                <span>账号密码直连</span>
+                                <span>战绩自动同步</span>
+                                <span>大厅快速接入</span>
+                            </div>
+                        </section>
+
+                        <div class="stitch-auth-tabs" data-auth-tabs>
+                            <button type="button" class="stitch-auth-tab is-active" data-auth-tab="login">已有账号登录</button>
+                            <button type="button" class="stitch-auth-tab" data-auth-tab="register">创建新账号</button>
+                        </div>
+
+                        <div class="stitch-auth-error" data-auth-error aria-live="polite"></div>
+
+                        <section class="stitch-auth-account-view" data-auth-account-view>
+                            <span class="stitch-auth-account-chip">云端身份在线</span>
+                            <strong data-auth-account-name>未登录</strong>
+                            <small data-auth-account-label>登录后可同步资料与进度</small>
+                            <button
+                                type="button"
+                                class="stitch-main-cta stitch-main-cta--small stitch-auth-logout-btn"
+                                data-auth-logout
+                            >
+                                退出当前账号
+                            </button>
+                        </section>
+
+                        <form class="stitch-auth-form" data-auth-form="login">
+                            <div class="stitch-auth-form-grid">
+                                <label class="stitch-auth-field">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("person", "stitch-auth-field-symbol")}
+                                        <span>账号 ID</span>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        name="authLoginAccount"
+                                        minlength="${AUTH_ACCOUNT_MIN_LENGTH}"
+                                        maxlength="64"
+                                        autocomplete="username"
+                                        placeholder="输入已注册账号"
+                                    />
+                                </label>
+                                <label class="stitch-auth-field">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("lock", "stitch-auth-field-symbol")}
+                                        <span>安全密码</span>
+                                    </span>
+                                    <input
+                                        type="password"
+                                        name="authLoginPassword"
+                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                        maxlength="64"
+                                        autocomplete="current-password"
+                                        placeholder="输入登录密码"
+                                    />
+                                </label>
+                            </div>
+                            <div class="stitch-auth-form-foot">
+                                <p class="stitch-auth-form-note">登录成功后会自动接管当前本地进度，并同步昵称、战绩与后续开发者链路。</p>
+                                <button
+                                    type="submit"
+                                    class="stitch-main-cta stitch-main-cta--small stitch-auth-submit-btn"
+                                    data-auth-submit="login"
+                                >
+                                    进入作战大厅
+                                </button>
+                            </div>
+                        </form>
+
+                        <form class="stitch-auth-form" data-auth-form="register">
+                            <div class="stitch-auth-form-grid stitch-auth-form-grid--register">
+                                <label class="stitch-auth-field">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("badge", "stitch-auth-field-symbol")}
+                                        <span>昵称（可选）</span>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        name="authRegisterNickname"
+                                        maxlength="${MAX_PLAYER_NAME_LENGTH}"
+                                        autocomplete="nickname"
+                                        placeholder="例如：银河球长"
+                                    />
+                                </label>
+                                <label class="stitch-auth-field">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("alternate_email", "stitch-auth-field-symbol")}
+                                        <span>新账号</span>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        name="authRegisterAccount"
+                                        minlength="${AUTH_ACCOUNT_MIN_LENGTH}"
+                                        maxlength="64"
+                                        autocomplete="username"
+                                        placeholder="至少 3 位账号"
+                                    />
+                                </label>
+                                <label class="stitch-auth-field">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("vpn_key", "stitch-auth-field-symbol")}
+                                        <span>登录密码</span>
+                                    </span>
+                                    <input
+                                        type="password"
+                                        name="authRegisterPassword"
+                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                        maxlength="64"
+                                        autocomplete="new-password"
+                                        placeholder="至少 6 位密码"
+                                    />
+                                </label>
+                                <label class="stitch-auth-field">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("verified_user", "stitch-auth-field-symbol")}
+                                        <span>确认密码</span>
+                                    </span>
+                                    <input
+                                        type="password"
+                                        name="authRegisterConfirmPassword"
+                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                        maxlength="64"
+                                        autocomplete="new-password"
+                                        placeholder="再次输入密码"
+                                    />
+                                </label>
+                            </div>
+                            <div class="stitch-auth-form-foot">
+                                <p class="stitch-auth-form-note">建议先创建正式账号，后续大厅、匹配和私人模式都将沿用同一份云端身份。</p>
+                                <button
+                                    type="submit"
+                                    class="stitch-main-cta stitch-main-cta--small stitch-auth-submit-btn"
+                                    data-auth-submit="register"
+                                >
+                                    注册并开启云档案
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="stitch-auth-bottom-note">
+                            <span class="stitch-auth-bottom-note-dot"></span>
+                            <span data-auth-bottom-note>当前阶段先开放账号密码接入，后续可继续扩展更多登录方式。</span>
+                        </div>
                     </div>
-
-                    <div class="stitch-auth-error" data-auth-error aria-live="polite"></div>
-
-                    <section class="stitch-auth-account-view" data-auth-account-view>
-                        <strong data-auth-account-name>未登录</strong>
-                        <small data-auth-account-label>登录后可同步资料与进度</small>
-                        <button type="button" class="stitch-main-cta stitch-main-cta--small" data-auth-logout>退出登录</button>
-                    </section>
-
-                    <form class="stitch-auth-form" data-auth-form="login">
-                        <label class="stitch-settings-field">
-                            <span>账号</span>
-                            <input type="text" name="authLoginAccount" minlength="${AUTH_ACCOUNT_MIN_LENGTH}" maxlength="64" autocomplete="username" />
-                        </label>
-                        <label class="stitch-settings-field">
-                            <span>密码</span>
-                            <input type="password" name="authLoginPassword" minlength="${AUTH_PASSWORD_MIN_LENGTH}" maxlength="64" autocomplete="current-password" />
-                        </label>
-                        <button type="submit" class="stitch-main-cta stitch-main-cta--small" data-auth-submit="login">登录并同步</button>
-                    </form>
-
-                    <form class="stitch-auth-form" data-auth-form="register">
-                        <label class="stitch-settings-field">
-                            <span>昵称（可选）</span>
-                            <input type="text" name="authRegisterNickname" maxlength="${MAX_PLAYER_NAME_LENGTH}" autocomplete="nickname" />
-                        </label>
-                        <label class="stitch-settings-field">
-                            <span>账号</span>
-                            <input type="text" name="authRegisterAccount" minlength="${AUTH_ACCOUNT_MIN_LENGTH}" maxlength="64" autocomplete="username" />
-                        </label>
-                        <label class="stitch-settings-field">
-                            <span>密码</span>
-                            <input type="password" name="authRegisterPassword" minlength="${AUTH_PASSWORD_MIN_LENGTH}" maxlength="64" autocomplete="new-password" />
-                        </label>
-                        <label class="stitch-settings-field">
-                            <span>确认密码</span>
-                            <input type="password" name="authRegisterConfirmPassword" minlength="${AUTH_PASSWORD_MIN_LENGTH}" maxlength="64" autocomplete="new-password" />
-                        </label>
-                        <button type="submit" class="stitch-main-cta stitch-main-cta--small" data-auth-submit="register">注册并开始同步</button>
-                    </form>
                 </div>
             </div>
         `;
@@ -864,7 +1031,7 @@ export class LobbyUI {
       ?.addEventListener("click", () => {
         const status = this.options.getAuthStatus?.();
         const loggedIn = status?.loggedIn ?? false;
-        this.openAuthModal(loggedIn ? "login" : "register", !loggedIn);
+        this.openAuthModal("login", !loggedIn);
       });
 
     this.root
@@ -1035,8 +1202,8 @@ export class LobbyUI {
       ?.addEventListener("click", () => {
         const status = this.options.getAuthStatus?.();
         if (!status?.loggedIn) {
-          this.openAuthModal("register", true);
-          this.showFeatureTip("请先注册账号并登录，完成保存后再进入游戏。");
+          this.openAuthModal("login", true);
+          this.showFeatureTip("请先登录或注册账号，完成验证后再进入游戏。");
           return;
         }
         this.hideAll();
@@ -1225,7 +1392,7 @@ export class LobbyUI {
     this.authBusy = false;
     this.root.classList.add("is-auth-open");
     this.root.classList.toggle("is-auth-required", required);
-    this.setAuthMode(required ? "register" : mode);
+    this.setAuthMode(mode);
     this.syncDocumentScrollLock();
     this.focusAuthField();
   }
@@ -1253,6 +1420,56 @@ export class LobbyUI {
       userLabel: "游客",
     };
     const authLocked = this.isAuthGateLocked();
+    const usingRegisterMode = !status.loggedIn && this.authMode === "register";
+    const sceneBadge = authLocked
+      ? "星港准入校验"
+      : status.loggedIn
+        ? "云端身份已连接"
+        : usingRegisterMode
+          ? "新兵登记通道"
+          : "老兵回归通道";
+    const sceneTitle = authLocked
+      ? "完成验证后解锁作战大厅"
+      : status.loggedIn
+        ? `${status.userLabel} 已接入星港网络`
+        : usingRegisterMode
+          ? "创建你的球球作战身份"
+          : "使用已有账号返回战场";
+    const sceneSubtitle = authLocked
+      ? "账号是进入大厅、匹配和私人模式的前置条件"
+      : status.loggedIn
+        ? "当前账号正在托管你的资料、战绩与本地进度"
+        : usingRegisterMode
+          ? "注册成功后自动登录，并立即接管当前本地档案"
+          : "输入账号与密码，继续你的上一段作战记录";
+    const sceneCopy = authLocked
+      ? "先完成账号注册或登录，后面的大厅、匹配、私人模式和开发者链路才会全部点亮。"
+      : status.loggedIn
+        ? "账号已经在线，接下来可以直接进入模式大厅，也能继续查看当前账号的云端标签。"
+        : usingRegisterMode
+          ? "建议先注册一个稳定账号，后续昵称、战绩、私人房和功能联调都会挂在这份身份上。"
+          : "如果你已经有账号，直接输入账号和密码即可回到上一次的云端作战进度。";
+    const introTitleText = authLocked
+      ? "先完成账号准入，再解锁整个大厅"
+      : status.loggedIn
+        ? "当前账号已接入云端身份中心"
+        : usingRegisterMode
+          ? "先登记新身份，再正式进入战场"
+          : "已有账号可以直接快速登录";
+    const introCopyText = authLocked
+      ? "账号、密码和基础资料保存成功后，才能进入大厅、匹配和私人模式。"
+      : status.loggedIn
+        ? "你可以继续使用当前账号，也可以退出后重新切换别的测试账号。"
+        : usingRegisterMode
+          ? "注册完成后会自动登录，并把当前本地资料同步到你的新账号下面。"
+          : "登录后可继续同步昵称、战绩和开发者工具箱里的账号信息。";
+    const bottomNoteText = authLocked
+      ? "先做完账号接入，整个初始主界面才会完全解锁。"
+      : status.loggedIn
+        ? "当前账号已经接管本地资料，你可以随时进入模式大厅继续测试。"
+        : usingRegisterMode
+          ? "注册账号后会直接进入大厅，无需二次登录。"
+          : "如果没有账号，可以直接切到“创建新账号”完成首次接入。";
 
     this.root.dataset.authMode = this.authMode;
     this.root.classList.toggle("is-auth-busy", this.authBusy);
@@ -1260,30 +1477,48 @@ export class LobbyUI {
 
     const headKicker = this.root.querySelector<HTMLElement>("[data-auth-head-kicker]");
     if (headKicker) {
-      headKicker.textContent = authLocked ? "账号前置门禁" : "账号中心";
+      headKicker.textContent = sceneBadge;
     }
 
     const headTitle = this.root.querySelector<HTMLElement>("[data-auth-head-title]");
     if (headTitle) {
-      headTitle.textContent = authLocked ? "注册账号后才能开始游戏" : "登录与云存档";
+      headTitle.textContent = authLocked
+        ? "完成账号验证后才能开始游戏"
+        : status.loggedIn
+          ? "当前账号与云存档"
+          : usingRegisterMode
+            ? "创建新账号"
+            : "账号登录";
+    }
+
+    const sceneBadgeEl = this.root.querySelector<HTMLElement>("[data-auth-scene-badge]");
+    if (sceneBadgeEl) {
+      sceneBadgeEl.textContent = sceneBadge;
+    }
+
+    const sceneTitleEl = this.root.querySelector<HTMLElement>("[data-auth-scene-title]");
+    if (sceneTitleEl) {
+      sceneTitleEl.textContent = sceneTitle;
+    }
+
+    const sceneSubtitleEl = this.root.querySelector<HTMLElement>("[data-auth-scene-subtitle]");
+    if (sceneSubtitleEl) {
+      sceneSubtitleEl.textContent = sceneSubtitle;
+    }
+
+    const sceneCopyEl = this.root.querySelector<HTMLElement>("[data-auth-scene-copy]");
+    if (sceneCopyEl) {
+      sceneCopyEl.textContent = sceneCopy;
     }
 
     const introTitle = this.root.querySelector<HTMLElement>("[data-auth-intro-title]");
     if (introTitle) {
-      introTitle.textContent = authLocked
-        ? "请先完成账号注册或登录"
-        : status.loggedIn
-          ? "当前账号已连接到云端链路"
-          : "登录后可同步战绩与资料";
+      introTitle.textContent = introTitleText;
     }
 
     const introCopy = this.root.querySelector<HTMLElement>("[data-auth-intro-copy]");
     if (introCopy) {
-      introCopy.textContent = authLocked
-        ? "账号、密码和基础资料保存成功后，才能进入大厅、匹配和私人模式。"
-        : status.loggedIn
-          ? "你可以在设置里的开发者工具箱查看账号数量、当前账号和最近注册账号。"
-          : "你可以先注册一个新账号，也可以切换到登录页使用已有账号。";
+      introCopy.textContent = introCopyText;
     }
 
     this.root
@@ -1337,6 +1572,36 @@ export class LobbyUI {
           ? status.accountLabel ?? "云存档已连接"
           : "登录后可同步资料与进度";
       });
+
+    const bottomNote = this.root.querySelector<HTMLElement>("[data-auth-bottom-note]");
+    if (bottomNote) {
+      bottomNote.textContent = bottomNoteText;
+    }
+
+    const loginSubmitButton = this.root.querySelector<HTMLButtonElement>(
+      '[data-auth-submit="login"]',
+    );
+    if (loginSubmitButton) {
+      loginSubmitButton.textContent =
+        this.authBusy && !status.loggedIn && !usingRegisterMode
+          ? "正在接入账号..."
+          : "进入作战大厅";
+    }
+
+    const registerSubmitButton = this.root.querySelector<HTMLButtonElement>(
+      '[data-auth-submit="register"]',
+    );
+    if (registerSubmitButton) {
+      registerSubmitButton.textContent =
+        this.authBusy && !status.loggedIn && usingRegisterMode
+          ? "正在创建身份..."
+          : "注册并开启云档案";
+    }
+
+    const logoutButton = this.root.querySelector<HTMLButtonElement>("[data-auth-logout]");
+    if (logoutButton) {
+      logoutButton.textContent = this.authBusy ? "正在退出..." : "退出当前账号";
+    }
 
     this.root
       .querySelectorAll<HTMLButtonElement>("[data-auth-submit], [data-auth-logout]")

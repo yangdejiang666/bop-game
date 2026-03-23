@@ -39,6 +39,26 @@ function normalizeEnv(value: string | undefined): RuntimeEnv {
   return "development";
 }
 
+function isLocalHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized.endsWith(".localhost")
+  );
+}
+
+function inferBrowserHostedEnv(): RuntimeEnv | null {
+  if (typeof window === "undefined" || !window.location?.hostname) {
+    return null;
+  }
+
+  return isLocalHostname(window.location.hostname)
+    ? "development"
+    : "production";
+}
+
 function sanitizeUrl(value: string | undefined, fallback: string): string {
   const next = value?.trim();
   if (!next) return fallback;
@@ -74,20 +94,47 @@ function sanitizeBoolean(
   );
 }
 
+function deriveSameOriginDefaults():
+  | Pick<NetworkConfig, "apiBaseUrl" | "wsBaseUrl">
+  | null {
+  if (typeof window === "undefined" || !window.location?.origin) {
+    return null;
+  }
+
+  const origin = window.location.origin.replace(/\/+$/, "");
+
+  try {
+    const wsUrl = new URL(origin);
+    wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
+    return {
+      apiBaseUrl: `${origin}/api/v1`,
+      wsBaseUrl: `${wsUrl.toString().replace(/\/+$/, "")}/ws`,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function deriveDefaultsByEnv(
   env: RuntimeEnv,
 ): Pick<NetworkConfig, "apiBaseUrl" | "wsBaseUrl"> {
+  const sameOriginDefaults = deriveSameOriginDefaults();
+
   if (env === "production") {
     return {
-      apiBaseUrl: "https://api.bop-game.com/api/v1",
-      wsBaseUrl: "wss://ws.bop-game.com/ws",
+      apiBaseUrl:
+        sameOriginDefaults?.apiBaseUrl ?? "https://bop-game.pages.dev/api/v1",
+      wsBaseUrl: sameOriginDefaults?.wsBaseUrl ?? "wss://bop-game.pages.dev/ws",
     };
   }
 
   if (env === "staging") {
     return {
-      apiBaseUrl: "https://staging-api.bop-game.com/api/v1",
-      wsBaseUrl: "wss://staging-ws.bop-game.com/ws",
+      apiBaseUrl:
+        sameOriginDefaults?.apiBaseUrl ??
+        "https://staging.bop-game.pages.dev/api/v1",
+      wsBaseUrl:
+        sameOriginDefaults?.wsBaseUrl ?? "wss://staging.bop-game.pages.dev/ws",
     };
   }
 
@@ -112,7 +159,10 @@ function deriveDefaultsByEnv(
  * - VITE_WS_RECONNECT_JITTER_MS
  */
 export function loadNetworkConfig(): NetworkConfig {
-  const env = normalizeEnv(import.meta.env.VITE_APP_ENV);
+  const explicitEnv = String(import.meta.env.VITE_APP_ENV ?? "").trim();
+  const env = explicitEnv
+    ? normalizeEnv(explicitEnv)
+    : inferBrowserHostedEnv() ?? DEFAULTS.env;
   const envDefaults = deriveDefaultsByEnv(env);
 
   const reconnectEnabledRaw = String(

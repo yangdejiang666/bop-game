@@ -15,8 +15,9 @@ import type {
   UpdateProfileResponse,
 } from "../../shared-protocol/src/user";
 import type { ProtocolResponse } from "../../shared-protocol/src/errors";
+import { networkConfig } from "./config";
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:8788/api/v1";
+const DEFAULT_BASE_URL = networkConfig.apiBaseUrl;
 const DEVICE_STORAGE_KEY = "bop:device-id";
 
 export interface AuthServiceConfig {
