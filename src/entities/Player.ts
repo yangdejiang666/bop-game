@@ -9,7 +9,7 @@ export class Player extends Controller {
 
     constructor(x: number, y: number) {
         super();
-        this.color = '#3498db';
+        this.setVisualColors('#4f7dff', '#81ecff');
         const startMass = gameplayTuning.limits.min_cell_mass;
         const startRadius = Math.sqrt(startMass) * 3.5;
         this.addCell(new Blob(x, y, startRadius, this.color));

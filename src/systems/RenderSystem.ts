@@ -238,9 +238,9 @@ export class RenderSystem {
         } else {
             // Player / Bot Cell - keep a stable perfect circle (no jelly deformation)
             ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
-            ctx.fillStyle = blob.color;
+            ctx.fillStyle = this.getBlobFillStyle(ctx, blob, screenPos.x, screenPos.y, screenRadius);
             ctx.fill();
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.strokeStyle = this.getBlobStrokeStyle(blob);
             ctx.lineWidth = 2;
             ctx.stroke();
 
@@ -361,6 +361,42 @@ export class RenderSystem {
             ctx.fill();
         }
         ctx.restore();
+    }
+
+    private getBlobFillStyle(
+        ctx: CanvasRenderingContext2D,
+        blob: Blob,
+        x: number,
+        y: number,
+        radius: number
+    ): string | CanvasGradient {
+        const primary = blob.color;
+        const accent = blob.owner?.accentColor as string | undefined;
+
+        if (!accent || accent === primary) {
+            return primary;
+        }
+
+        const gradient = ctx.createRadialGradient(
+            x - radius * 0.36,
+            y - radius * 0.42,
+            Math.max(1, radius * 0.14),
+            x,
+            y,
+            radius * 1.05
+        );
+        gradient.addColorStop(0, accent);
+        gradient.addColorStop(0.5, primary);
+        gradient.addColorStop(1, primary);
+        return gradient;
+    }
+
+    private getBlobStrokeStyle(blob: Blob): string {
+        const accent = blob.owner?.accentColor as string | undefined;
+        if (accent && accent !== blob.color) {
+            return accent;
+        }
+        return 'rgba(0,0,0,0.1)';
     }
 
     private drawVirusShape(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number) {

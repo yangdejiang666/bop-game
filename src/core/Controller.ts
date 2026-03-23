@@ -5,6 +5,7 @@ import { gameplayTuning } from '../gameplay/tuning';
 export class Controller {
     public cells: Blob[] = [];
     public color: string = '#fff';
+    public accentColor: string = '#fff';
     public score: number = 0; // Pellets eaten count
     public displayName: string = 'Player';
     public movementSpeedMultiplier: number = 1;
@@ -16,6 +17,14 @@ export class Controller {
         blob.color = this.color;
         blob.owner = this;
         this.cells.push(blob);
+    }
+
+    setVisualColors(primaryColor: string, accentColor?: string) {
+        this.color = primaryColor;
+        this.accentColor = accentColor ?? primaryColor;
+        this.cells.forEach((cell) => {
+            cell.color = this.color;
+        });
     }
 
     setModeMultipliers(moveSpeedMultiplier: number, decayRateMultiplier: number) {

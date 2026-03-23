@@ -1,6 +1,6 @@
 import type { LobbyModeId } from '../ui/LobbyUI';
 
-export type ModeHallTabId = 'rules' | 'rewards' | 'stats' | 'map';
+export type ModeHallTabId = 'rules' | 'rewards' | 'map';
 
 export type ModeTheme = 'gold' | 'violet' | 'cyan' | 'amber' | 'purple' | 'red';
 export type ModeHallLayoutId = LobbyModeId;
@@ -92,7 +92,7 @@ export interface ModeHallState {
     modeId: LobbyModeId | null;
     tabId: ModeHallTabId;
     roomState: ModeHallRoomSnapshot;
-    socialTab: 'friends' | 'leaderboard' | 'spectate';
+    socialTab: 'friends' | 'spectate';
     heroState: 'idle' | 'loading' | 'ready' | 'fallback';
     ctaState: 'idle' | 'ready' | 'locked';
     layoutId: ModeHallLayoutId | null;
@@ -137,7 +137,6 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             tabContent: {
                 rules: ['6 分钟限时', '按个人质量排名', '结算排位积分与连胜修正'],
                 rewards: ['赛季徽章', '段位金币奖励', '连胜额外经验'],
-                stats: ['近 10 场胜率', '平均体重增长', '最高名次'],
                 map: ['标准竞技场轮换', '资源均衡刷新', '对局回放入口']
             }
         },
@@ -212,7 +211,6 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             tabContent: {
                 rules: ['8 分钟高压对局', '资源更稀，衰减更强', '榜位优先与积分波动加大'],
                 rewards: ['巅峰徽章', '排名额外金币', '高分段限时称号'],
-                stats: ['今日最高排名', '击败高分玩家次数', '巅峰积分曲线'],
                 map: ['精英地图池', '观战入口', '对局复盘']
             }
         },
@@ -287,7 +285,6 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             tabContent: {
                 rules: ['6 分钟轻竞技', '标准资源密度', '强调成长与记录'],
                 rewards: ['经验与金币基础奖励', '新纪录额外加成', '每周活跃奖励'],
-                stats: ['最高体重', '平均名次', '最近战绩'],
                 map: ['经典地图轮换', '教学与技巧指引', '热区提示']
             }
         },
@@ -362,7 +359,6 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             tabContent: {
                 rules: ['180 秒快局', '食物刷新倍率提升', '连击奖励结算'],
                 rewards: ['极速挑战积分', '连击额外经验', '快局首胜奖励'],
-                stats: ['最高连击', '峰值体重', '平均增长速度'],
                 map: ['速度地图池', '冲刺路线提示', '教学回放']
             }
         },
@@ -437,7 +433,6 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             tabContent: {
                 rules: ['6 分钟团队对抗', '按队伍总质量结算', '计入协作指标'],
                 rewards: ['队伍胜场奖励', '协作任务加成', '团队里程碑奖励'],
-                stats: ['队伍总胜率', '个人助攻与支援', '本周队伍排名'],
                 map: ['团队地图池', '战术标签', '观战入口']
             }
         },
@@ -512,7 +507,6 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
             tabContent: {
                 rules: ['360 秒生存局', '安全区持续收缩', '圈外每秒受到伤害'],
                 rewards: ['生存排名奖励', '反杀加成', '生存任务奖励'],
-                stats: ['最高存活时间', '反杀次数', '缩圈阶段成绩'],
                 map: ['危险热区轮换', '安全区预测', '教学回放']
             }
         },

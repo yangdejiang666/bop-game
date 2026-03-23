@@ -1,4 +1,7 @@
-export type GamePhase = 'lobby' | 'modeHall' | 'matching' | 'playing' | 'settings';
+import type { StorageScope } from "./storageScope";
+import { readScopedStorageValue, writeScopedStorageValue } from "./storageScope";
+
+export type GamePhase = 'auth' | 'lobby' | 'modeHall' | 'matching' | 'playing' | 'settings';
 
 export interface GameSettings {
     playerName: string;
@@ -58,9 +61,9 @@ export function mergeGameSettings(settings?: LegacyGameSettingsShape): GameSetti
     };
 }
 
-export function loadGameSettings(): GameSettings {
+export function loadGameSettings(scope?: StorageScope): GameSettings {
     try {
-        const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+        const raw = readScopedStorageValue(SETTINGS_STORAGE_KEY, { scope });
         if (!raw) {
             return { ...DEFAULT_GAME_SETTINGS };
         }
@@ -78,9 +81,12 @@ export function loadGameSettings(): GameSettings {
     }
 }
 
-export function saveGameSettings(settings: GameSettings) {
+export function saveGameSettings(
+    settings: GameSettings,
+    scope?: StorageScope
+) {
     try {
-        window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+        writeScopedStorageValue(SETTINGS_STORAGE_KEY, JSON.stringify(settings), scope);
     } catch (error) {
         console.error('Failed to save game settings:', error);
     }

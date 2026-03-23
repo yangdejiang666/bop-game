@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "local:start": "node ./scripts/start-local-stack.mjs",
+    "local:start:fast": "node ./scripts/start-local-stack.mjs --skip-build",
+    "local:stop": "node ./scripts/stop-local-stack.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.183.1",

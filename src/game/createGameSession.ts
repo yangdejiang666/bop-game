@@ -27,12 +27,15 @@ import {
     type MatchRewardBreakdown,
     type PlayerProgression
 } from '../app/progression';
+import { loadBestMassRecord, saveBestMassRecord } from '../app/bestMassRecord';
+import { getSkinOption } from '../app/skins';
 import { gameplayTuning } from '../gameplay/tuning';
 import { TuningToolbox } from '../ui/TuningToolbox';
 import type { LobbyModeId } from '../ui/LobbyUI';
 import { renderLobbyIcon, type LobbyIconId } from '../ui/icons';
 import { GameAudioManager, type GameAudioDebugState } from '../audio/GameAudioManager';
 import { getModeDefinition, type ModeDefinition } from '../modes/definitions';
+import type { CompleteMatchProgressionResponse } from '../../shared-protocol/src/progression';
 
 const WORLD_SIZE = 6000;
 const DEFAULT_FOOD_COUNT = 1200;
@@ -40,7 +43,6 @@ const DEFAULT_VIRUS_COUNT = 12;
 const MAX_VIRUS_COUNT = 64;
 const BOT_COUNT = 49;
 const LEADERBOARD_SIZE = 10;
-const BEST_MASS_RECORD_KEY = 'bop:best-mass-record';
 
 type MatchRankTheme = 'gold' | 'silver' | 'bronze' | 'normal';
 export type SettlementStage = 'hidden' | 'intro' | 'rank' | 'hero' | 'rewards' | 'actions';
@@ -132,6 +134,9 @@ export interface GameSessionSnapshot {
     massFloor: number;
     decayRateNow: number;
     playerName: string;
+    playerSkinId: string;
+    playerColor: string;
+    playerAccentColor: string;
     playerMass: number;
     playerCellCount: number;
     playerCellMasses: number[];
@@ -269,6 +274,14 @@ interface CreateGameSessionOptions {
     modeId: LobbyModeId;
     onReturnToLobby: () => void;
     onOpenSettings: () => void;
+    onCompleteMatch?: (payload: {
+        clientMatchId: string;
+        modeId: LobbyModeId;
+        playerRank: number;
+        playerMass: number;
+        playerWon: boolean;
+        finishedAt: string;
+    }) => Promise<CompleteMatchProgressionResponse>;
 }
 
 interface SessionHudRefs {
@@ -396,6 +409,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     let settlementProgressionBefore: PlayerProgression | null = null;
     let settlementProgressionAfter: PlayerProgression | null = null;
     let settlementLeveledUp = false;
+    let settlementCloudSyncMessage = '';
+    let settlementSubtitleBase = '';
     let settlementModeStats: ModeSettlementStat[] = [];
     let viewportResizeBound = false;
 
@@ -455,32 +470,6 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     function ensureMounted() {
         if (!sessionRoot || !worldRoot || !hudRefs) {
             throw new Error('Game session must be mounted before use.');
-        }
-    }
-
-    function loadBestMassRecord(): number {
-        try {
-            const raw = window.localStorage.getItem(BEST_MASS_RECORD_KEY);
-            const parsed = raw ? Number.parseInt(raw, 10) : 0;
-            const progressionBest = loadPlayerProgression().bestMass;
-            const localBest = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-            return Math.max(localBest, progressionBest);
-        } catch {
-            return 0;
-        }
-    }
-
-    function saveBestMassRecord(value: number) {
-        try {
-            const safeValue = Math.max(0, Math.floor(value));
-            window.localStorage.setItem(BEST_MASS_RECORD_KEY, String(safeValue));
-            const progression = loadPlayerProgression();
-            if (safeValue > progression.bestMass) {
-                progression.bestMass = safeValue;
-                savePlayerProgression(progression);
-            }
-        } catch (error) {
-            console.error('Failed to persist best mass record:', error);
         }
     }
 
@@ -571,6 +560,15 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     function resolvePlayerDisplayName(rawName: string): string {
         const trimmed = rawName.trim();
         return trimmed.length > 0 ? trimmed : '未命名玩家';
+    }
+
+    function applyPlayerVisualSkin() {
+        if (!player) {
+            return;
+        }
+
+        const skin = getSkinOption(settings.equippedSkinId);
+        player.setVisualColors(skin.colorB, skin.colorA);
     }
 
     function getControllerDisplayName(controller: Player | Bot): string {
@@ -1700,6 +1698,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         player = new Player(WORLD_SIZE / 2, WORLD_SIZE / 2);
         player.displayName = resolvePlayerDisplayName(settings.playerName);
+        applyPlayerVisualSkin();
         player.setModeMultipliers(modeDefinition.gameplay.speedMultiplier, modeDefinition.gameplay.decayMultiplier);
 
         bots = [];
@@ -1760,6 +1759,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         stopSettlementAnimation();
         settlementStage = 'hidden';
         settlementElapsedMs = 0;
+        settlementCloudSyncMessage = '';
+        settlementSubtitleBase = '';
         hudRefs.resultPanelEl.style.setProperty('--result-fit-scale', '1');
         hudRefs.resultPanelEl.classList.remove('is-fit-scaled');
         hudRefs.resultOverlay.classList.remove(
@@ -1777,6 +1778,83 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         delete hudRefs.resultOverlay.dataset.settlementStyle;
         hudRefs.resultOverlay.dataset.settlementStage = 'hidden';
         setSettlementActionsEnabled(false);
+    }
+
+    function toPlayerProgressionSnapshot(profile: {
+        level: number;
+        currentXp: number;
+        totalXp: number;
+        coins: number;
+        totalMatches: number;
+        totalWins: number;
+        bestMass: number;
+    }): PlayerProgression {
+        return {
+            level: profile.level,
+            currentXp: profile.currentXp,
+            totalXp: profile.totalXp,
+            coins: profile.coins,
+            totalMatches: profile.totalMatches,
+            totalWins: profile.totalWins,
+            bestMass: profile.bestMass
+        };
+    }
+
+    function applySettlementSyncCopy() {
+        if (!hudRefs) {
+            return;
+        }
+
+        const syncCopy = settlementCloudSyncMessage.trim();
+        hudRefs.resultSubEl.textContent = syncCopy.length > 0
+            ? `${settlementSubtitleBase} · ${syncCopy}`
+            : settlementSubtitleBase;
+    }
+
+    async function syncCloudMatchResult(payload: {
+        clientMatchId: string;
+        playerRank: number;
+        playerMass: number;
+        playerWon: boolean;
+    }) {
+        if (!options.onCompleteMatch) {
+            return;
+        }
+
+        settlementCloudSyncMessage = '云存档同步中';
+        applySettlementSyncCopy();
+
+        try {
+            const result = await options.onCompleteMatch({
+                clientMatchId: payload.clientMatchId,
+                modeId: options.modeId,
+                playerRank: payload.playerRank,
+                playerMass: payload.playerMass,
+                playerWon: payload.playerWon,
+                finishedAt: new Date().toISOString()
+            });
+
+            settlementCloudSyncMessage = result.duplicate ? '云存档已去重' : '云存档已同步';
+            settlementRewardBreakdown = result.rewardBreakdown;
+            settlementProgressionAfter = toPlayerProgressionSnapshot(result.summary.profile);
+            settlementLeveledUp = settlementProgressionBefore
+                ? result.summary.profile.level > settlementProgressionBefore.level
+                : settlementLeveledUp;
+            bestMassRecord = Math.max(bestMassRecord, result.summary.profile.bestMass);
+            savePlayerProgression(settlementProgressionAfter);
+            saveBestMassRecord(bestMassRecord);
+            if (hudRefs) {
+                hudRefs.resultRecordBannerEl.classList.toggle('is-level-up', settlementLeveledUp);
+            }
+            applySettlementSyncCopy();
+            applySettlementRewardProgress(1);
+        } catch (error) {
+            settlementCloudSyncMessage = '云存档未同步';
+            applySettlementSyncCopy();
+            if (error instanceof Error) {
+                console.error('Failed to sync match settlement:', error);
+            }
+        }
     }
 
     function finalizeTimedMatch(now = performance.now(), debugOptions: DebugMatchFinishOptions = {}) {
@@ -1893,10 +1971,15 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         settlementProgressionBefore = progressionApplied.before;
         settlementProgressionAfter = progressionApplied.after;
         settlementLeveledUp = progressionApplied.leveledUp;
-        savePlayerProgression(progressionApplied.after);
+        settlementCloudSyncMessage = options.onCompleteMatch ? '云存档同步中' : '';
 
-        bestMassRecord = Math.max(computedBestMass, progressionApplied.after.bestMass);
-        saveBestMassRecord(bestMassRecord);
+        if (!options.onCompleteMatch) {
+            savePlayerProgression(progressionApplied.after);
+            bestMassRecord = Math.max(computedBestMass, progressionApplied.after.bestMass);
+            saveBestMassRecord(bestMassRecord);
+        } else {
+            bestMassRecord = Math.max(computedBestMass, progressionApplied.after.bestMass);
+        }
 
         const rankLabel = formatRankLabel(playerRank);
         const rankNumber = String(playerRank);
@@ -1904,7 +1987,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         hudRefs.resultKickerEl.textContent = modeDefinition.settlement.title;
         hudRefs.resultTitleEl.textContent = splashPresentation.title;
-        hudRefs.resultSubEl.textContent = `${modeDefinition.settlement.subtitle} · ${resultSubtitle}`;
+        settlementSubtitleBase = `${modeDefinition.settlement.subtitle} · ${resultSubtitle}`;
+        applySettlementSyncCopy();
         hudRefs.resultRankMainEl.textContent = rankNumber;
         hudRefs.resultPlayerRankHeadEl.textContent = rankLabel;
         hudRefs.resultPlayerRankEl.textContent = rankLabel;
@@ -1986,6 +2070,14 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         gameStartTime = now - frozenElapsedSeconds * 1000;
 
         startSettlementTimeline();
+        if (options.onCompleteMatch) {
+            void syncCloudMatchResult({
+                clientMatchId: crypto.randomUUID(),
+                playerRank,
+                playerMass,
+                playerWon
+            });
+        }
     }
 
     function debugFinishMatch(options: DebugMatchFinishOptions = {}) {
@@ -2526,6 +2618,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         if (player) {
             player.displayName = resolvePlayerDisplayName(settings.playerName);
+            applyPlayerVisualSkin();
         }
 
         syncHud();
@@ -2568,6 +2661,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             massFloor: gameplayTuning.limits.min_cell_mass,
             decayRateNow: player ? Number(player.getCurrentDecayRate().toFixed(7)) : 0,
             playerName: resolvePlayerDisplayName(settings.playerName),
+            playerSkinId: settings.equippedSkinId,
+            playerColor: player?.color ?? getSkinOption(settings.equippedSkinId).colorB,
+            playerAccentColor: player?.accentColor ?? getSkinOption(settings.equippedSkinId).colorA,
             playerMass: totalMass,
             playerCellCount: player?.cells.length ?? 0,
             playerCellMasses,

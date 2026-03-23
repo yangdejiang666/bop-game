@@ -1,0 +1,12 @@
+/// Shared protocol package entry
+/// Use namespaced exports to avoid symbol collisions across modules.
+
+export * from "./errors.js";
+export * from "./auth.js";
+export * from "./user.js";
+export * from "./room.js";
+export * from "./progression.js";
+export * from "./matchmaking.js";
+
+export * as MatchmakingProtocol from "./matchmaking.js";
+export * as WsProtocol from "./ws.js";

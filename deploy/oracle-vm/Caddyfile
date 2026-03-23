@@ -1,0 +1,10 @@
+{$API_DOMAIN} {
+    encode gzip zstd
+    reverse_proxy api-server:8788
+}
+
+{$WS_DOMAIN} {
+    encode gzip zstd
+    reverse_proxy game-server:8899
+}
+

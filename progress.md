@@ -118,6 +118,32 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-18: Added containment-safe correction in same-owner collisions so if a small cell drifts into large-cell interior it is pushed back toward surface while merge transfer continues gradually (no instant snap merge).
 - 2026-03-18: Extended gradual merge with `strength` factor to accelerate only pathological containment cases while preserving multi-frame merge feel in normal contact.
 - 2026-03-18: Hardened WebAudio unlock flow for browser variance: asynchronous `resume()` tracking, retry guard, extra `click` unlock listener, and auto-resume attempt when SFX/BGM are requested while suspended.
+- 2026-03-23: Started account/cloud-save implementation pass. Added shared `progression` protocol contracts, switched `database/001_init.sql` to schema-only, added `user_match_results` + `bootstrapped_from_local_at`, and rewrote `database/002_seed_demo.sql` to match the real tables.
+- 2026-03-23: Replaced `api-server` in-memory auth/user path with Postgres + JWT scaffolding: added DB pool, password hashing, access/refresh token helpers, repository/service layers, real `/auth`, `/user`, `/progression/matches/complete`, and Bearer-auth-only matchmaking/room routes.
+- 2026-03-23: Finished frontend account/cloud-save integration: added scoped local storage (`anonymous` / `user:<id>`), replaced lobby auth CTA with real login/register modal, wired startup `getMe -> bootstrap`, logout-to-anonymous fallback, profile sync debounce, and cloud settlement submission through `main.ts` + `createGameSession`.
+- 2026-03-23: Hardened authenticated client requests by adding pre-request token refresh hooks to `HttpClient` / matchmaking service, removed legacy `x-user-id` room trust from frontend requests, and added local session nickname sync plus account-aware debug helpers.
+- 2026-03-23: Validation passed for `npx tsc --noEmit`, `shared-protocol npm run check`, `api-server npm run check`, and root `npm run build`.
+- 2026-03-23: UI smoke check on static `dist` server (`python -m http.server 4180`) confirmed lobby renders, auth modal opens, register tab switches correctly, and the modal shows request failures inline when API server is offline. Attempting the skill-mandated `web_game_playwright_client.js` run hit environment-level Playwright launch failure (`spawn EPERM`), so browser verification was completed with MCP Playwright instead.
+- 2026-03-23: Initialized local PostgreSQL dev database: created database `bop`, applied `database/001_init.sql`, applied `database/002_seed_demo.sql`, and verified demo account/profile rows exist. Important local env note: current machine's Postgres password differs from the repo default config, so `api-server` must be started with an explicit `DATABASE_URL` override that matches the local server credentials.
+- 2026-03-23: Additional verification note: local DB is healthy, but direct `node dist/index.js` startup for `api-server` currently fails before boot because the built server resolves `@bop/shared-protocol` to raw `shared-protocol/src/*.ts` ESM entries at runtime (`ERR_MODULE_NOT_FOUND` on `shared-protocol/src/errors`). This is a packaging/runtime issue, not a database initialization issue.
+- 2026-03-23: Fixed `shared-protocol` packaging for Node runtime: package entry now points to `dist`, the protocol package emits real JS + d.ts files, and relative ESM exports/imports now use `.js` specifiers so `api-server` can import `@bop/shared-protocol` outside of tsx/dev mode.
+- 2026-03-23: Fixed `/progression/matches/complete` insert bug in `api-server/src/repositories/progressionRepository.ts` where `user_match_results` listed 11 columns but only 10 VALUES expressions, causing PostgreSQL `42601`.
+- 2026-03-23: End-to-end backend smoke validation now passes against local PostgreSQL with explicit `DATABASE_URL=postgres://postgres:123456@127.0.0.1:5432/bop`:
+  - `GET /healthz` returns ok
+  - `POST /api/v1/auth/login` succeeds for `demo / demo123456`
+  - `GET /api/v1/user/me` returns demo profile
+  - `POST /api/v1/progression/matches/complete` updates coins/matches/bestMass and is idempotent on repeated `clientMatchId`
+  - `POST /api/v1/auth/register` + `POST /api/v1/user/bootstrap` succeeds for a new account, and the second bootstrap call returns `migrationApplied=false`
+- 2026-03-23: Frontend-to-backend browser validation on static build (`http://127.0.0.1:4180`) now passes for the primary auth/cloud-save loop:
+  - Login through the real lobby auth modal with `demo / demo123456` updates the lobby UI to cloud data (`coins=2300`, `XP=103/788`, `22 胜 / 49 局`)
+  - Logged-in play session + `debug_finish_match('record')` syncs through `/progression/matches/complete`
+  - Returning to the lobby shows updated cloud-backed values (`coins=2712`, `XP=666/788`, `23 胜 / 50 局`, `bestMass=5067`)
+  - Remaining browser console errors are missing static assets, not auth/data-link failures: `models/modes/classic/hero.gltf` and `audio/match-success-zh-female.mp3`
+- 2026-03-23: Resolved the remaining frontend static-asset noise:
+  - Added placeholder public hero model files under `public/models/modes/*/hero.gltf`
+  - Updated `ModeHeroStage` to treat non-renderable placeholder glTFs as a signal to use the procedural fallback hero, avoiding broken visuals
+  - Disabled the missing local matchmaking success MP3 path in favor of the existing speech-synthesis fallback, removing the `audio/match-success-zh-female.mp3` 404
+  - Revalidated on `http://127.0.0.1:4180/?v=assetsfix2`: opening classic mode hall and entering matchmaking now shows `0` browser console errors (only one harmless Three.js warning remains)
 - 2026-03-21: Reworked stitch-exact lobby shell to stop section collisions on short-height screens: mode-card flow effect is now edge-only (no interior radar wedge), root/main shell switched to stable flex flow, and short-screen compression rules were added for top bar, hero card, mode cards, CTA strip, activity row, and dock.
 - 2026-03-21: Validation: `npm run build` passed; Playwright browser checks confirmed the 4 mode cards now show border-only moving light and the bottom invite strip no longer overlaps the activity cards at large desktop sizes. Short-height `1280x720` still requires vertical scrolling to reach lower content, but sections no longer visually collide.
 - 2026-03-18: Added audio diagnostics to snapshot (`session.audio`) including context state/unlock/music loop status and SFX trigger counters (`splitSfxCount/ejectSfxCount/spikeSfxCount`) for remote bug triage.
@@ -272,3 +298,127 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-21: Validation after parity pass:
   - `npm run build` passed;
   - Playwright interaction smoke still passes (`mode select -> enter mode hall`) and snapshot semantics remain unchanged.
+- 2026-03-21: Reworked the Stitch lobby mode-card light effect from rotating/conic interior glow into true border-running light strips:
+  - removed the old `flowing-border` conic rotation layer from the exact Stitch lobby block;
+  - added four edge-specific animated light segments so the visible motion stays on the card border only, with no card-face radar/diagonal sweep.
+- 2026-03-21: Replaced the left hero preview image implementation with a pure skin-driven sphere:
+  - removed the remote/default hero image dependency from the Stitch lobby hero chamber;
+  - the hero ball now renders entirely from current skin colors (`equippedSkinId -> colorA/colorB`) and updates the visible skin label in real time.
+- 2026-03-21: Added a topbar “改名” entry that reuses the existing settings modal + `playerName` storage flow, and localized the left hero card labels/buttons to Chinese (`精英段位 / 胜率 / 历史体重 / 皮肤 / 定制 / 赛季 12：赛博霓虹`).
+- 2026-03-21: Implemented desktop-first lobby fit scaling for short browser heights:
+  - added a `stitch-scale-frame` wrapper plus runtime `--stitch-fit-scale` calculation so `1707x866` and `1280x720` stay on one screen without visible scrollbars or block overlap;
+  - scale calculation now accounts for the dashboard's real top-left offset and safe bottom/right inset, preventing the dock from clipping on short desktop heights.
+- 2026-03-21: Adjusted mobile Stitch behavior to avoid dock overlap regression:
+  - kept root scrolling available on narrow screens;
+  - removed the old sticky mobile dock from the exact Stitch lobby block so content flows naturally and no longer covers the hero stats or mode list.
+- 2026-03-21: Validation for the latest Stitch lobby pass:
+  - `npm run build` passed after each chunk;
+  - browser validation on preview build (`http://127.0.0.1:4174`) checked `1707x866`, `1280x720`, and `390x844`;
+  - `1707x866`: no scrollbars, left hero uses pure skin sphere, top rename button visible, left labels localized;
+  - `1280x720`: adaptive fit scale engaged (`~0.8157`), CTA/activity/dock no longer overlap, dock bottom stays inside viewport;
+  - `390x844`: dock no longer overlays content, scroll remains natural;
+  - interaction checks passed: clicking `改名` opens existing settings modal and focuses `playerName`, skin switch updates hero colors/name immediately, `render_game_to_text()` still reports unchanged lobby semantics.
+- 2026-03-21: Tooling note:
+  - attempted to run the required `develop-web-game` Playwright client, but this environment still throws a local browser launch permission error (`spawn EPERM`);
+  - continued validation with the Playwright browser MCP on the built preview site, with screenshots + DOM/state measurements recorded above.
+- 2026-03-21: Stitch lobby polish pass completed for the latest UI-fidelity request:
+  - top rename action text upgraded to `修改名字` and continues to reuse the existing settings modal + focused nickname input;
+  - left hero card copy fully localized (`精英评级 / 胜率 / 历史体重 / 更换皮肤 / 赛季 12：赛博霓虹`) with tighter Chinese letter spacing for cleaner fit;
+  - left hero preview remains pure skin-driven sphere only (no center image), and visible skin label now reads `当前皮肤 · <皮肤名>`;
+  - mode-card lighting was tightened to true perimeter light strips only: card pseudo-layers are explicitly disabled, surface brightening removed, and four animated edge segments now provide the only motion.
+- 2026-03-21: Additional fit/overflow hardening for the exact Stitch lobby:
+  - desktop root now enforces hidden overflow + no overscroll with the `stitch-scale-frame` still handling short-height desktop fit;
+  - task/friend panels and mode cards were given stronger overflow containment to prevent content bleed while keeping desktop scrollbars invisible;
+  - 1707x866 and 1280x720 visual re-check confirmed no overlap between tasks, friends, CTA, activity row, and dock.
+- 2026-03-21: Validation refresh after the polish pass:
+  - `npm run build` passed;
+  - Playwright screenshots captured: `lobby-edge-fix-1707x866.png`, `lobby-edge-fix-1280x720.png`, `lobby-edge-fix-390x844.png`;
+  - computed-style checks confirmed mode cards no longer render any `::before/::after` light layer (`content: none`), only the edge strip animation remains active;
+  - `修改名字` button still opens the settings dialog and focuses `玩家昵称`.
+- 2026-03-21: Final re-check for the latest Lobby-only plan:
+  - `npm run build` passed again on the current local state;
+  - browser verification at `1707x866` confirmed no desktop vertical scrollbar (`scrollHeight === clientHeight`), top `修改名字` still opens the existing settings modal and auto-focuses `玩家昵称`, and the left hero stage now renders as a pure skin sphere with no center image;
+  - latest reference check screenshot: `current-lobby-1707x866.png`;
+  - deployment is still blocked in this environment for two separate reasons:
+    1. local git writes fail with `Unable to create .git/index.lock: Permission denied`;
+    2. GitHub MCP write path is currently rate-limited (`API rate limit exceeded`), so online sync could not be completed from this session.
+- 2026-03-21: Fixed the “lobby skin does not carry into gameplay” bug.
+  - Extracted shared skin definitions to `src/app/skins.ts` so Lobby and gameplay now read the same skin source of truth.
+  - Added controller-level visual color syncing (`Controller.setVisualColors`) and applied player skin colors from `settings.equippedSkinId` during session world initialization and live `applySettings()` updates.
+  - Gameplay snapshot now exposes `session.playerSkinId`, `session.playerColor`, and `session.playerAccentColor` for deterministic verification through `render_game_to_text()`.
+  - Updated player blob rendering to use a radial skin gradient (accent + primary) instead of only the old flat default color, so the selected skin is visible in-match.
+  - Validation: `npm run build` passed; browser flow verified `Lobby -> choose 霓虹紫电 -> 进入分厅 -> 开始匹配 -> 对局`, and `render_game_to_text()` reported `playerSkinId=neon_violet`, `playerColor=#7657ff`, `playerAccentColor=#d18bff`.
+- 2026-03-22: Continued the Stitch lobby polish pass requested after the latest visual QA.
+  - Reworked the 4 mode cards to use true perimeter-only moving light strips by removing the internal edge-span layer from the DOM and replacing it with a masked conic border orbit in `src/lobby-stitch-hotfix.css`.
+  - Left hero preview now stays as a pure local skin sphere only; the center image path is no longer used and the top action bar keeps a dedicated `修改名字` entry that opens the existing settings modal and focuses the nickname field.
+  - Added document scroll locking while the Lobby is visible so desktop browser scrollbars are suppressed at the page level instead of leaking through the underlying app shell.
+  - Desktop fit logic in `src/ui/LobbyUI.ts` now measures actual content bounds (including `root.scrollHeight`) and applies a stronger safety scale for <=1366px wide desktops.
+  - Added a <=1366 desktop compression bucket in `src/lobby-stitch-hotfix.css` and hides the decorative activity strip in that bucket to preserve the critical layout without overlap.
+  - Validation:
+    - `npx tsc --pretty false` passed.
+    - `npm run build` is currently blocked again by the local Vite environment with `[commonjs--resolver] spawn EPERM` during `vite build`; this is environmental and separate from the Lobby code changes.
+    - Browser preview checks:
+      - `1832x983`: `documentElement.scrollHeight === clientHeight`, no page scrollbar, Chinese left-side copy visible, `修改名字` opens settings and focuses `玩家昵称`, and skin switching updates the left hero sphere.
+      - `1280x720`: verified via injected equivalent CSS/fit logic that the intended small-desktop fallback is “hide decorative activity row + keep main info/CTA/dock stable”; latest artifact used for comparison: `lobby-fix-1280x720-hide-activity.png`.
+- 2026-03-23: Added local stack tooling for the new auth/cloud-save flow so the game can be started as a reusable frontend + API pair instead of relying on ad-hoc manual commands.
+  - Added root npm scripts `local:start`, `local:start:fast`, and `local:stop` in `package.json`.
+  - Added `scripts/start-local-stack.mjs`, `scripts/stop-local-stack.mjs`, and `scripts/serve-static.mjs` to build shared/api/web, boot the compiled API, serve the built frontend, write runtime metadata, and stop both processes cleanly.
+  - Added `.env.local.example`, `api-server/.env.local.example`, and `LOCAL_DEV.md`; updated `.gitignore` to ignore real env files plus `.tmp_local-stack/`.
+  - Hardened the start script for this Windows environment by routing build commands through `cmd.exe /c` and falling back to the last successful `dist/` when Vite hits the known local `[commonjs--resolver] spawn EPERM` issue.
+  - Added an ignored local `api-server/.env.local` so the default `npm run local:start` command uses the working local Postgres connection without checking secrets into git.
+  - Validation:
+    - `npx tsc --noEmit` passed.
+    - `node scripts/start-local-stack.mjs --api-port 8789 --web-port 4181 --database-url <local bop db>` started successfully; `http://127.0.0.1:8789/healthz` returned `ok` and `http://127.0.0.1:4181` returned `200`; `node scripts/stop-local-stack.mjs` then stopped both processes cleanly.
+    - `npm run local:start` now works on the default ports with the local env file in place; verified `http://127.0.0.1:8788/healthz`, `http://127.0.0.1:4180`, and `POST /api/v1/auth/login` for `demo / demo123456` using the password-login payload shape.
+- 2026-03-23: Reworked the frontend entry to be account-first: opening the game now shows a required register/login gate before the lobby can be used, and logout returns to the same gate.
+  - Added `GamePhase = "auth"` and main-flow guards so lobby/mode hall/matchmaking/settings/game launch all bounce to the auth gate when there is no active account session.
+  - Updated `LobbyUI` auth flow to default guests into the register tab, block dismissing the gate while logged out, and keep the CTA/auth label aligned with the new requirement (`注册后开始`).
+  - Fixed a nickname migration regression in `buildAnonymousBootstrapPayload()`: the anonymous default name `勇者球球` no longer overwrites the nickname chosen during first-time registration.
+- 2026-03-23: Added a development-only account overview chain from API -> frontend settings so the platform can confirm registration/save/read is wired up end-to-end.
+  - Extended `shared-protocol/src/user.ts` with developer account overview contracts and added `UserService.getDeveloperAccountsOverview()` on the frontend.
+  - Added API route `GET /api/v1/user/dev/accounts-overview` (disabled in production) plus repository/service queries for total account count, active/password account counts, 24h login count, current account digest, and recent account summaries.
+  - Added a new settings-panel “开发者工具箱” section that shows metric cards, current account info, and recent accounts, with a refresh action and login-aware empty/error states.
+- 2026-03-23: Renamed the room copy in the mode hall to “私人房间 / 私人模式链路” so the private-mode path is visible in the current hall flow without inventing a separate screen.
+  - Validation:
+    - `npm run check` passed in `shared-protocol/`.
+    - `npm run build` passed in `shared-protocol/`, `api-server/`, and the frontend root project.
+    - `npm run local:start:fast` successfully restarted the local stack on `http://127.0.0.1:4180` + `http://127.0.0.1:8788`.
+    - Browser verification passed:
+      - Fresh load shows the required auth gate with register form focused.
+      - Registering `codexdev0323b / demo123456` with nickname `链路测试` logs in immediately and preserves the chosen nickname in the lobby.
+      - Settings now show developer metrics (`账号总数 / 可用账号 / 密码账号 / 24h 登录`) plus current account/basic info and recent accounts from the backend.
+      - Logout returns to the required auth gate.
+      - Entering the mode hall shows `创建私人房间 / 加入私人房间` copy.
+      - `window.render_game_to_text()` now includes auth state and reflects `phase="modeHall"` with `lastCheck="私人模式链路待连接。"` during the verified hall run.
+    - Residual environment note: the required web-game Playwright client script was attempted, but this machine still hits Playwright browser launch `spawn EPERM`; fallback validation was completed through the built-in browser tooling instead.
+- 2026-03-23: Removed the remaining Three.js deprecation warning from the mode-hall 3D hero preview.
+  - Replaced `THREE.Clock` with `THREE.Timer` in `src/ui/ModeHeroStage.ts`, connected the timer to `document`, and updated the animation loop to consume the `requestAnimationFrame` timestamp before reading `getDelta()`.
+  - Validation:
+    - `npm run build` passed in the frontend root project.
+    - `npm run local:start:fast` restarted the local stack successfully.
+    - The required web-game Playwright client was attempted again and still failed with the known environment-level `browserType.launch: spawn EPERM`.
+    - Built-in browser verification on `http://127.0.0.1:4180/?threefix=1` -> 进入分厅 -> 排位赛分厅 showed `0` console warnings and `0` console errors; the previous `THREE.Clock` deprecation warning no longer appears.
+- 2026-03-23: Tightened the account-first flow after the latest registration QA and removed the remaining score/rank selection entry points from the lobby + mode hall UI.
+  - `LobbyUI` now clears auth form inputs when the gate reopens or auth succeeds, maps duplicate-account failures to a clear Chinese message, removes the settings toggle `显示排行榜`, and replaces the old leaderboard-themed season button with a non-clickable private-mode progress card.
+  - `ModeHallUI`, `src/modes/definitions.ts`, and `src/main.ts` now remove the `战绩` tab and `排行榜` social tab at both template and type-guard level so there is no clickable score/rank option left in the hall flow.
+  - Validation:
+    - `npm run build` passed in the frontend root project.
+    - `npm run local:start:fast` restarted the local stack on `http://127.0.0.1:4180` + `http://127.0.0.1:8788`.
+    - The skill-directed Playwright client script is not present in the current repo root (`web_game_playwright_client.js` missing), so browser validation continued with the built-in browser tooling.
+    - Browser verification on `http://127.0.0.1:4180/?registerfix=2` confirmed:
+      - after logout, the forced register gate opens with all register fields empty;
+      - attempting to register the existing account `codexdev0323b` shows `这个账号已经注册过了，请直接登录或换一个新账号。`;
+      - registering a fresh account `codexfresh323e / demo123456 / 注册通路` succeeds and auto-logs in;
+      - settings no longer show `显示排行榜`, and the developer toolbox account count increased from `4` to `5`;
+      - mode hall no longer shows the `战绩` tab or `排行榜` button, while `创建私人房间 / 加入私人房间` remains available.
+- 2026-03-23: Added deployment-ready production assets for the chosen split architecture: Cloudflare Pages frontend + Oracle Free VM backend/database.
+  - Added production env templates for frontend, `api-server`, and `game-server`.
+  - Added `deploy/oracle-vm/` with Dockerfiles, `docker-compose.yml`, Caddy reverse-proxy config, Ubuntu bootstrap script, and a redeploy script so a single Oracle VM can host PostgreSQL + API + websocket gateway behind HTTPS.
+  - Added `DEPLOY_CLOUDFLARE_PAGES_ORACLE_VM.md` with the exact cutover flow: DNS (`api` / `ws` subdomains), backend env, Cloudflare Pages env vars, and smoke-test steps.
+  - Updated frontend production defaults to `https://api.bop-game.com/api/v1` and `wss://ws.bop-game.com/ws`, and updated the matchmaking API to emit `PUBLIC_GAME_WS_URL` instead of the old placeholder `wss://game.example.com/ws`.
+  - Validation:
+    - `npm run build` passed in the frontend root project.
+    - `npm run build` passed in `api-server/`.
+    - `npm run build` passed in `game-server/`.
+    - `docker compose -f deploy/oracle-vm/docker-compose.yml config` passed using the example env file.
+  - Important deployment truth: the account/profile/room/matchmaking backend can now be deployed end-to-end with this stack, but `game-server/` is still a websocket gateway scaffold and not yet wired into authoritative real-time multiplayer gameplay.

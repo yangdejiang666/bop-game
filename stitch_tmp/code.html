@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RANKED MATCH HALL - 排位赛分厅</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Manrope:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#000000",
+              "primary": "#8ff5ff",
+              "surface-container": "#161a21",
+              "error-container": "#9f0519",
+              "inverse-primary": "#006a71",
+              "on-surface": "#ecedf6",
+              "on-tertiary": "#0d6100",
+              "inverse-surface": "#f9f9ff",
+              "secondary-fixed": "#ffd709",
+              "outline-variant": "#45484f",
+              "surface-bright": "#282c36",
+              "surface-container-high": "#1c2028",
+              "secondary-dim": "#efc900",
+              "on-tertiary-container": "#0b5800",
+              "on-primary": "#005d63",
+              "tertiary-fixed-dim": "#2be800",
+              "surface-container-low": "#10131a",
+              "on-error-container": "#ffa8a3",
+              "on-secondary": "#5b4b00",
+              "on-primary-container": "#005359",
+              "error-dim": "#d7383b",
+              "surface": "#0b0e14",
+              "on-error": "#490006",
+              "on-surface-variant": "#a9abb3",
+              "on-primary-fixed-variant": "#005e64",
+              "secondary-fixed-dim": "#efc900",
+              "on-secondary-fixed-variant": "#665500",
+              "surface-tint": "#8ff5ff",
+              "on-primary-fixed": "#003f43",
+              "inverse-on-surface": "#52555c",
+              "outline": "#73757d",
+              "surface-variant": "#22262f",
+              "primary-container": "#00eefc",
+              "tertiary-container": "#2ff801",
+              "tertiary-dim": "#2be800",
+              "surface-container-highest": "#22262f",
+              "on-tertiary-fixed": "#064200",
+              "on-secondary-container": "#fff7e6",
+              "background": "#0b0e14",
+              "primary-fixed": "#00eefc",
+              "secondary-container": "#705d00",
+              "tertiary": "#8eff71",
+              "on-background": "#ecedf6",
+              "tertiary-fixed": "#2ff801",
+              "on-secondary-fixed": "#453900",
+              "surface-dim": "#0b0e14",
+              "on-tertiary-fixed-variant": "#0d6200",
+              "secondary": "#ffd709",
+              "primary-fixed-dim": "#00deec",
+              "error": "#ff716c",
+              "primary-dim": "#00deec"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(22, 26, 33, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .hero-glow {
+            filter: drop-shadow(0 0 30px rgba(143, 245, 255, 0.3));
+        }
+        @keyframes sweep {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .animate-sweep {
+            animation: sweep 3s infinite linear;
+        }
+        .start-match-pulse {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(143, 245, 255, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(143, 245, 255, 0.8); }
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body overflow-hidden h-screen select-none">
+<!-- TopAppBar -->
+<header class="fixed top-0 z-50 w-full h-16 px-6 flex justify-between items-center bg-[#0b0e14]/70 backdrop-blur-xl bg-gradient-to-b from-[#8ff5ff]/10 to-transparent shadow-[0_4px_30px_rgba(143,245,255,0.05)]">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black italic text-[#8ff5ff] tracking-tighter">RANKED MATCH HALL</span>
+<nav class="flex gap-6 font-headline uppercase tracking-wider text-sm font-bold">
+<a class="text-[#ecedf6]/60 hover:text-[#8ff5ff] hover:bg-[#8ff5ff]/10 transition-all duration-300 px-3 py-1 rounded" href="#">返回大厅</a>
+<a class="text-[#8ff5ff] border-b-2 border-[#8ff5ff] pb-1" href="#">排位赛分厅</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-[#ecedf6]/60 hover:text-[#8ff5ff] transition-colors duration-300 scale-95 active:scale-90">settings</button>
+<button class="bg-primary hover:bg-primary-container text-on-primary font-headline font-bold px-6 py-2 rounded-full uppercase tracking-widest transition-all duration-300 scale-95 active:scale-90 shadow-[0_0_15px_rgba(143,245,255,0.4)]">开始匹配</button>
+</div>
+</header>
+<main class="pt-16 pb-20 px-8 grid grid-cols-12 gap-8 h-full relative">
+<!-- Left Section: Season Hero -->
+<section class="col-span-3 flex flex-col justify-center items-center py-12 relative">
+<div class="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent blur-3xl rounded-full"></div>
+<div class="relative group cursor-pointer transition-transform duration-700 hover:rotate-3">
+<div class="w-80 h-96 flex items-center justify-center hero-glow">
+<!-- Placeholder for Season Hero Character/Icon -->
+<img alt="Season Vanguard Character" class="w-full h-full object-contain" data-alt="Futuristic vanguard hero character with neon accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDDzJ0lVr8MPYr2Jd9efFVmJIbrK0TtTQiWbo8KX4nKrtrrPA2otg4rdoEoANOTsigVakTLFSLrpyaqeW9iAOijZQ0YeE_WoKohEnU_nN6_0zMhg7957w4ZFWoiWu0RdtdQCEbypwMb2xX70A-do36HOE2ewDKCIKT0gvA9AQ6iwwbnNqV3y5gftoCHBOmbXgcjy8t_vT652aEDnD7ZP5V3vA6Y2eRKvuyQ8q0hCAleZl4xK8zrYhRmZg5hknq39LiFvDPpF8B25p-a"/>
+</div>
+</div>
+<div class="mt-8 text-center space-y-2">
+<h2 class="font-headline text-3xl font-black uppercase tracking-tighter text-primary">SEASON VANGUARD</h2>
+<p class="font-headline text-lg italic text-secondary tracking-widest">赛季先锋</p>
+<div class="h-px w-24 bg-gradient-to-r from-transparent via-primary/50 to-transparent mx-auto mt-4"></div>
+<p class="text-xs uppercase tracking-[0.3em] text-on-surface-variant font-medium mt-2">VANGUARD ASCENSION</p>
+</div>
+</section>
+<!-- Center Section: Ranked Hub -->
+<section class="col-span-6 flex flex-col gap-6 py-8 justify-center">
+<!-- Row 1: Mode Switcher -->
+<div class="flex justify-center">
+<div class="bg-surface-container-low p-1.5 rounded-full flex gap-2 border border-outline-variant/10 shadow-inner">
+<button class="px-8 py-2 rounded-full font-headline font-bold text-sm tracking-widest transition-all duration-300 bg-primary/20 text-primary ring-1 ring-primary/50 shadow-[0_0_15px_rgba(143,245,255,0.2)]">SOLO 单排</button>
+<button class="px-8 py-2 rounded-full font-headline font-bold text-sm tracking-widest transition-all duration-300 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant">DUO 双排</button>
+<button class="px-8 py-2 rounded-full font-headline font-bold text-sm tracking-widest transition-all duration-300 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant">TRIO 三排</button>
+</div>
+</div>
+<!-- Row 2: Rank Progress Card -->
+<div class="glass-panel rounded-3xl p-8 border border-white/5 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+<div class="flex items-center gap-8">
+<div class="w-24 h-24 flex items-center justify-center bg-surface-container-highest rounded-2xl relative shadow-2xl group">
+<img alt="Gold II Rank Icon" class="w-16 h-16 group-hover:scale-110 transition-transform duration-500" data-alt="Gold rank military style insignia badge" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBus_VGINzx1f5pvpSnW22C9oj23NKF3evLB2Gdh1qa8RUknxTtXsXo7KqtwQmMnN_slHVZoe70QpFVFFroZV9vRsesMNMAYWVIXreJHXAuopoo8MTZ-tMKmwwyPoNazIFdg9gBj-lkLKaW5wWFpRDoM9tJIlXqErQAzudp8uOLiyl-hbUXb5DBy56HoWWyi_FEDPAL4nc_m1pr5vIGKho6txCqmF1BoQEcl4cPDRFmXFW6MsdxnkAAjb9PcxX9FolaRLet-BPLxuDM"/>
+<div class="absolute -bottom-2 bg-secondary text-on-secondary font-headline font-black px-3 py-0.5 rounded text-xs">GOLD II</div>
+</div>
+<div class="flex-1 space-y-4">
+<div class="flex justify-between items-end">
+<span class="font-headline font-bold text-primary tracking-widest text-sm uppercase">Rank Progression</span>
+<span class="font-headline font-black text-2xl">80 <span class="text-on-surface-variant text-sm font-normal">/ 100</span></span>
+</div>
+<div class="h-4 bg-surface-container-lowest rounded-full overflow-hidden p-0.5 border border-outline-variant/10">
+<div class="h-full bg-gradient-to-r from-primary-dim to-primary rounded-full relative w-[80%] overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-sweep w-1/2"></div>
+</div>
+</div>
+</div>
+<div class="text-right pl-8 border-l border-outline-variant/15">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Est. Wait</p>
+<p class="font-headline text-3xl font-black text-primary tracking-tighter">1:35</p>
+</div>
+</div>
+</div>
+<!-- Row 3: Action Cluster -->
+<div class="grid grid-cols-12 gap-4 items-center">
+<div class="col-span-3">
+<button class="w-full glass-panel hover:bg-surface-variant border border-white/5 py-4 rounded-2xl flex flex-col items-center gap-1 group transition-all duration-300">
+<span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">person_add</span>
+<span class="text-[10px] font-bold tracking-widest text-on-surface-variant group-hover:text-primary transition-colors">INVITE FRIENDS</span>
+</button>
+</div>
+<div class="col-span-6 px-4">
+<button class="w-full h-20 rounded-full bg-gradient-to-br from-primary to-primary-container text-on-primary-container font-headline font-black text-2xl tracking-[0.2em] relative overflow-hidden group start-match-pulse transition-transform active:scale-95">
+<div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none"></div>
+<span class="relative z-10">START MATCH</span>
+<div class="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] opacity-60 tracking-[0.5em] whitespace-nowrap font-bold">开始排位匹配</div>
+</button>
+</div>
+<div class="col-span-3">
+<div class="w-full glass-panel border border-white/5 py-4 rounded-2xl flex flex-col items-center gap-1 group">
+<div class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</div>
+<span class="text-[10px] font-bold tracking-widest text-on-surface-variant mt-1">AUTO-FILL</span>
+</div>
+</div>
+</div>
+<!-- Row 4: Footer strip -->
+<div class="flex justify-center gap-6 mt-4">
+<div class="flex items-center gap-2 px-4 py-2 bg-tertiary/10 rounded-lg border border-tertiary/20">
+<span class="material-symbols-outlined text-tertiary text-lg">military_tech</span>
+<span class="text-[10px] font-bold tracking-widest text-tertiary uppercase">Daily First Win+</span>
+</div>
+<div class="flex items-center gap-2 px-4 py-2 bg-secondary/10 rounded-lg border border-secondary/20">
+<span class="material-symbols-outlined text-secondary text-lg">local_fire_department</span>
+<span class="text-[10px] font-bold tracking-widest text-secondary uppercase">3-Game Streak</span>
+</div>
+<div class="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-lg border border-primary/20">
+<span class="material-symbols-outlined text-primary text-lg">shield</span>
+<span class="text-[10px] font-bold tracking-widest text-primary uppercase">Rank Protection ACTIVE</span>
+</div>
+</div>
+</section>
+<!-- Right Section: Season Intelligence -->
+<aside class="col-span-3 fixed right-0 top-16 bottom-0 w-80 bg-[#0b0e14]/80 backdrop-blur-2xl border-l border-[#45484f]/15 shadow-[-10px_0_30px_rgba(0,0,0,0.5)] flex flex-col pt-8">
+<!-- Season Overview -->
+<div class="px-6 mb-8">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-headline text-xs font-semibold uppercase tracking-widest text-on-surface-variant">Season Info</h3>
+<span class="text-[10px] bg-error-container/20 text-error px-2 py-0.5 rounded font-bold">12 DAYS LEFT</span>
+</div>
+<div class="bg-surface-container-low p-4 rounded-2xl border border-white/5">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">Points</span>
+<span class="font-headline font-black text-secondary">2,450 RP</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">To Next Tier</span>
+<span class="font-headline font-black text-primary">150 RP</span>
+</div>
+</div>
+</div>
+<!-- Segmented Switch -->
+<div class="px-6 mb-6">
+<div class="flex bg-surface-container-highest p-1 rounded-xl">
+<button class="flex-1 py-2 text-[10px] font-bold tracking-widest bg-primary/10 text-primary rounded-lg border-r-4 border-primary">FRIENDS</button>
+<button class="flex-1 py-2 text-[10px] font-bold tracking-widest text-on-surface-variant hover:text-on-surface transition-colors">LEADERBOARD</button>
+<button class="flex-1 py-2 text-[10px] font-bold tracking-widest text-on-surface-variant hover:text-on-surface transition-colors">SPECTATE</button>
+</div>
+</div>
+<!-- Friends List -->
+<div class="flex-1 overflow-y-auto px-6 space-y-3 custom-scrollbar">
+<!-- Friend 1 -->
+<div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-low hover:bg-surface-bright transition-all group border-l-2 border-transparent hover:border-primary">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img alt="Doge Avatar" class="w-10 h-10 rounded-full border border-primary/20" data-alt="Stylized character avatar for friend Doge" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAteYLQLsDxOYDXRi5mve4FZSDk-qAZg8GEe-G9B1GdwUUnlDzChOUVysEc_ml8MWmA0IxxMA8T5hiC2oQ51V8_XOX8U6OAHI3jzB2ObKayamwjfKleVzXk7r1XSXF-UYqymfmF_T0qjVeASD3HHX_2Rf0Yg6gCaULmcSRoGm8e6Cwq5cJGKTDYwrzoJcsYZXo0KBxdo-5b98nMFRQg3kdtUhd6khGPQ7vVf7D0pV_cfnJhnw4FOU6Uc5pISODmoYZ8hIYry7jhCRcR"/>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-tertiary rounded-full border-2 border-surface"></span>
+</div>
+<div>
+<p class="text-xs font-bold text-on-surface">Doge_Legend</p>
+<p class="text-[10px] text-on-surface-variant">In Menu</p>
+</div>
+</div>
+<button class="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-sm">person_add</span>
+</button>
+</div>
+<!-- Friend 2 -->
+<div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-low hover:bg-surface-bright transition-all group border-l-2 border-transparent hover:border-primary">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img alt="Circle Avatar" class="w-10 h-10 rounded-full border border-primary/20" data-alt="Stylized character avatar for friend Circle" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPk21DeMeJYbjZA_5ZmGiABSDBeCdkAR_0hhIfJ4vRonbiUZqLAMjyZOQ32CyiPEEn_Lf2Sv2LIv7EIVDZpXBLYuei6l0XQnB7nq1ZmLZQjDQHWBbsqWdcCy2DGgWbNVvIAVB-QSwgzL6ajYnPC8tuxcwiC-kIWCixnwf6gXsUl0Fmah8oFgmedf5ddh2UthIPiLLU9VwuOUXbB-T3XdXUWpCvj5M6g4TE_HhkFt09w_OmauMtRJfI3QhNn9Rq9QF2wkP7Dr8r2tNR"/>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-tertiary rounded-full border-2 border-surface"></span>
+</div>
+<div>
+<p class="text-xs font-bold text-on-surface">Circle_Vibe</p>
+<p class="text-[10px] text-on-surface-variant">Online</p>
+</div>
+</div>
+<button class="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-sm">person_add</span>
+</button>
+</div>
+<!-- Friend 3 -->
+<div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-low hover:bg-surface-bright transition-all group border-l-2 border-transparent hover:border-primary">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img alt="Wojak Avatar" class="w-10 h-10 rounded-full border border-primary/20" data-alt="Stylized character avatar for friend Wojak" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtrvZwuoy98274gCwu_YuQY6QhU_K4ZCmz5OrghvfWG_IuU40mjP_Wrq9oIW5cDmb5ZXvprkvkYiFM7J9uXJTwAreeb151ibTac-vtg4CQJjoa8ic-9XD__AOw4WnZAaEz5WwqONCU8EkohUcBt2_0CsFJ51TQ5bnNGXJs_FMDP5PPFtQOkKQ2f8Wt5fhy69u1WhJo0ryIl-BofSIixFEPFvSmZI1rtciUgOX64LeH1wRXiGa5xesnOBuG2A4ff-yIbTIwQQ4ciN7U"/>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-error rounded-full border-2 border-surface"></span>
+</div>
+<div>
+<p class="text-xs font-bold text-on-surface">Wojak_Elite</p>
+<p class="text-[10px] text-on-surface-variant">In Match (12:40)</p>
+</div>
+</div>
+<button class="p-2 rounded-lg bg-surface-container-highest text-on-surface-variant cursor-not-allowed">
+<span class="material-symbols-outlined text-sm">visibility</span>
+</button>
+</div>
+</div>
+<!-- CTA -->
+<div class="p-6">
+<button class="w-full py-4 bg-primary text-on-primary font-headline font-black text-xs tracking-widest uppercase rounded-xl transition-all active:scale-95 shadow-[0_10px_20px_rgba(143,245,255,0.2)]">INVITE FRIEND</button>
+</div>
+</aside>
+</main>
+<!-- BottomNavBar: Secondary Actions -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-center items-center gap-8 pb-6 pt-3 bg-[#0b0e14]/90 backdrop-blur-md border-t border-[#45484f]/20 shadow-[0_-10px_40px_rgba(0,0,0,0.8)]">
+<button class="flex flex-col items-center justify-center text-[#ecedf6]/50 px-6 py-1 hover:text-[#8ff5ff] hover:drop-shadow-[0_0_8px_rgba(143,245,255,0.6)] transition-all">
+<span class="material-symbols-outlined mb-1">gavel</span>
+<span class="font-headline text-[10px] font-bold tracking-widest uppercase">RULES</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#ecedf6]/50 px-6 py-1 hover:text-[#8ff5ff] hover:drop-shadow-[0_0_8px_rgba(143,245,255,0.6)] transition-all">
+<span class="material-symbols-outlined mb-1">military_tech</span>
+<span class="font-headline text-[10px] font-bold tracking-widest uppercase">REWARDS</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-[#8ff5ff]/20 text-[#8ff5ff] rounded-xl px-6 py-1 ring-1 ring-[#8ff5ff]/50">
+<span class="material-symbols-outlined mb-1">monitoring</span>
+<span class="font-headline text-[10px] font-bold tracking-widest uppercase">STATS</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#ecedf6]/50 px-6 py-1 hover:text-[#8ff5ff] hover:drop-shadow-[0_0_8px_rgba(143,245,255,0.6)] transition-all">
+<span class="material-symbols-outlined mb-1">map</span>
+<span class="font-headline text-[10px] font-bold tracking-widest uppercase">MAP</span>
+</button>
+</nav>
+<!-- Visual Accents -->
+<div class="fixed top-1/4 -left-32 w-96 h-96 bg-primary/5 rounded-full blur-[120px] pointer-events-none"></div>
+<div class="fixed bottom-1/4 -right-32 w-96 h-96 bg-secondary/5 rounded-full blur-[120px] pointer-events-none"></div>
+</body></html>

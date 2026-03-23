@@ -3,10 +3,21 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { gsap } from 'gsap';
 import type { ModeDefinition } from '../modes/definitions';
+import { checkAssetAvailability } from '../utils/assetAvailability';
 
 interface ActiveModelState {
     root: THREE.Object3D;
     mixer: THREE.AnimationMixer | null;
+}
+
+function hasRenderableMesh(root: THREE.Object3D): boolean {
+    let found = false;
+    root.traverse((obj: THREE.Object3D) => {
+        if (obj instanceof THREE.Mesh) {
+            found = true;
+        }
+    });
+    return found;
 }
 
 export class ModeHeroStage {
@@ -14,7 +25,7 @@ export class ModeHeroStage {
     private renderer: THREE.WebGLRenderer;
     private scene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
-    private clock: THREE.Clock;
+    private timer: THREE.Timer;
     private ambientLight: THREE.AmbientLight;
     private keyLight: THREE.DirectionalLight;
     private rimLight: THREE.PointLight;
@@ -44,7 +55,8 @@ export class ModeHeroStage {
         this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
         this.camera.position.set(0, 1.45, 4.3);
 
-        this.clock = new THREE.Clock();
+        this.timer = new THREE.Timer();
+        this.timer.connect(document);
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.78);
         this.keyLight = new THREE.DirectionalLight(0x9ad7ff, 1.08);
         this.keyLight.position.set(2.3, 3.6, 2.1);
@@ -103,6 +115,7 @@ export class ModeHeroStage {
         this.floorMesh.geometry.dispose();
         this.floorMesh.material.dispose();
         this.renderer.dispose();
+        this.timer.dispose();
         this.dracoLoader.dispose();
     }
 
@@ -110,9 +123,11 @@ export class ModeHeroStage {
         if (this.frameId !== null || this.destroyed) {
             return;
         }
-        const loop = () => {
+        this.timer.reset();
+        const loop = (timestamp?: number) => {
             this.frameId = window.requestAnimationFrame(loop);
-            const dt = this.clock.getDelta();
+            this.timer.update(timestamp);
+            const dt = this.timer.getDelta();
 
             if (this.modelState?.mixer) {
                 this.modelState.mixer.update(dt);
@@ -160,9 +175,20 @@ export class ModeHeroStage {
         this.clearFallbackGroup();
 
         try {
+            const assetAvailable = await checkAssetAvailability(url);
+            if (!assetAvailable) {
+                this.createFallbackGroup();
+                return;
+            }
+
             const gltf = await this.loader.loadAsync(url);
             const root = gltf.scene;
             root.position.set(0, -0.18, 0);
+
+            if (!hasRenderableMesh(root)) {
+                this.createFallbackGroup();
+                return;
+            }
 
             root.traverse((obj: THREE.Object3D) => {
                 if (!(obj instanceof THREE.Mesh)) {
