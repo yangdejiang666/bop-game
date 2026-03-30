@@ -20,6 +20,19 @@ Stop both processes:
 npm run local:stop
 ```
 
+## Local Git fallback
+
+If this workspace's built-in `.git/` directory is blocked by a local ACL rule and normal
+`git commit` fails, use the writable fallback wrapper from the repo root:
+
+```powershell
+.\git-local.cmd status
+.\git-local.cmd commit -m "your message"
+.\git-local.cmd push origin main
+```
+
+It uses the repo-local `gitdata/` metadata store instead of the locked `.git/` directory.
+
 ## What it starts
 
 - Frontend static site: `http://127.0.0.1:4180`

@@ -9,6 +9,8 @@ lerna-debug.log*
 
 node_modules
 dist
+.tmp_git_acl_backup.txt
+gitdata/
 dist-ssr
 output
 .tmp_*
