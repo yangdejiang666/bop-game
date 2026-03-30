@@ -54,38 +54,18 @@ const rootEnv = {
   ...process.env,
 };
 
+const viteEnv = Object.fromEntries(
+  Object.entries(rootEnv).filter(([key]) => key.startsWith("VITE_")),
+);
+
 const defineEnv = {
-  "import.meta.env.VITE_APP_ENV": JSON.stringify(rootEnv.VITE_APP_ENV ?? ""),
-  "import.meta.env.VITE_API_BASE_URL": JSON.stringify(
-    rootEnv.VITE_API_BASE_URL ?? "",
-  ),
-  "import.meta.env.VITE_WS_BASE_URL": JSON.stringify(
-    rootEnv.VITE_WS_BASE_URL ?? "",
-  ),
-  "import.meta.env.VITE_REQUEST_TIMEOUT_MS": JSON.stringify(
-    rootEnv.VITE_REQUEST_TIMEOUT_MS ?? "",
-  ),
-  "import.meta.env.VITE_WS_HEARTBEAT_MS": JSON.stringify(
-    rootEnv.VITE_WS_HEARTBEAT_MS ?? "",
-  ),
-  "import.meta.env.VITE_USE_BACKEND_MATCHING": JSON.stringify(
-    rootEnv.VITE_USE_BACKEND_MATCHING ?? "",
-  ),
-  "import.meta.env.VITE_WS_RECONNECT_ENABLED": JSON.stringify(
-    rootEnv.VITE_WS_RECONNECT_ENABLED ?? "",
-  ),
-  "import.meta.env.VITE_WS_RECONNECT_MAX_ATTEMPTS": JSON.stringify(
-    rootEnv.VITE_WS_RECONNECT_MAX_ATTEMPTS ?? "",
-  ),
-  "import.meta.env.VITE_WS_RECONNECT_BASE_DELAY_MS": JSON.stringify(
-    rootEnv.VITE_WS_RECONNECT_BASE_DELAY_MS ?? "",
-  ),
-  "import.meta.env.VITE_WS_RECONNECT_MAX_DELAY_MS": JSON.stringify(
-    rootEnv.VITE_WS_RECONNECT_MAX_DELAY_MS ?? "",
-  ),
-  "import.meta.env.VITE_WS_RECONNECT_JITTER_MS": JSON.stringify(
-    rootEnv.VITE_WS_RECONNECT_JITTER_MS ?? "",
-  ),
+  "import.meta.env": JSON.stringify({
+    BASE_URL: "/",
+    DEV: false,
+    PROD: true,
+    MODE: "production",
+    ...viteEnv,
+  }),
 };
 
 rmSync(stagingDir, { recursive: true, force: true });
