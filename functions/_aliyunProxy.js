@@ -15,7 +15,7 @@ function isTruthy(value) {
 function isProxyEnabled(env) {
   const raw = String(env?.ALIYUN_PROXY_ENABLED ?? "").trim();
   if (!raw) {
-    return true;
+    return false;
   }
 
   return isTruthy(raw);

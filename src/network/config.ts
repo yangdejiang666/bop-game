@@ -164,8 +164,6 @@ export function loadNetworkConfig(): NetworkConfig {
     ? normalizeEnv(explicitEnv)
     : inferBrowserHostedEnv() ?? DEFAULTS.env;
   const envDefaults = deriveDefaultsByEnv(env);
-  const sameOriginDefaults =
-    env === "development" ? null : deriveSameOriginDefaults();
 
   const reconnectEnabledRaw = String(
     import.meta.env.VITE_WS_RECONNECT_ENABLED ?? "",
@@ -180,12 +178,14 @@ export function loadNetworkConfig(): NetworkConfig {
 
   return {
     env,
-    apiBaseUrl:
-      sameOriginDefaults?.apiBaseUrl ??
-      sanitizeUrl(import.meta.env.VITE_API_BASE_URL, envDefaults.apiBaseUrl),
-    wsBaseUrl:
-      sameOriginDefaults?.wsBaseUrl ??
-      sanitizeUrl(import.meta.env.VITE_WS_BASE_URL, envDefaults.wsBaseUrl),
+    apiBaseUrl: sanitizeUrl(
+      import.meta.env.VITE_API_BASE_URL,
+      envDefaults.apiBaseUrl,
+    ),
+    wsBaseUrl: sanitizeUrl(
+      import.meta.env.VITE_WS_BASE_URL,
+      envDefaults.wsBaseUrl,
+    ),
     requestTimeoutMs: sanitizePositiveInt(
       import.meta.env.VITE_REQUEST_TIMEOUT_MS,
       DEFAULTS.requestTimeoutMs,

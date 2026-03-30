@@ -7,6 +7,10 @@ This repo is ready for the following split deployment:
 - WebSocket/game gateway scaffold: same Oracle VM
 - Database: PostgreSQL on the same Oracle VM
 
+The folder name `deploy/oracle-vm/` is historical. The same split-stack files also apply to
+Alibaba Cloud, Tencent Cloud, Huawei Cloud, or another domestic Linux VM as long as the machine
+can run Docker.
+
 This is the deployment path to use when you want the project to behave like a real product instead of only a Pages demo.  
 Right now it is also the only path that can carry the current `Stripe / Supabase / Resend / Clerk / PostHog / Sentry / Upstash / Pinecone` integration layer.
 
@@ -53,6 +57,16 @@ Point these records to the Oracle VM public IP:
 - `ws.bop-game.com`
 
 If you use another domain, replace these names everywhere below.
+
+Recommended production topology for a domestic cloud server:
+
+- Browser frontend stays on Cloudflare Pages
+- API requests go to `https://api.bop-game.com/api/v1`
+- WebSocket traffic goes to `wss://ws.bop-game.com/ws`
+- `api.*` and `ws.*` resolve to your domestic cloud server public IP
+
+Cloudflare Pages same-origin proxying to the backend is optional only. Keep it disabled unless you
+explicitly want `bop-game.pages.dev/api/v1` and `bop-game.pages.dev/ws` to forward traffic.
 
 ## 3. Backend env
 
@@ -109,6 +123,20 @@ PUBLIC_GAME_WS_URL=wss://ws.bop-game.com/ws
 PUBLIC_SITE_URL=https://bop-game.pages.dev
 ```
 
+If you are temporarily testing a fresh domestic server before DNS cutover, you can probe it with:
+
+```bash
+curl http://<server-ip>/healthz
+curl http://<server-ip>/api/v1
+curl http://<server-ip>/ws
+```
+
+But before opening production traffic, set `PUBLIC_GAME_WS_URL` back to the final domain form:
+
+```env
+PUBLIC_GAME_WS_URL=wss://ws.bop-game.com/ws
+```
+
 The full template now lives in:
 
 - [deploy/oracle-vm/.env.example](/d:/all/bop/deploy/oracle-vm/.env.example)
@@ -149,6 +177,10 @@ VITE_WS_BASE_URL=wss://ws.bop-game.com/ws
 VITE_USE_BACKEND_MATCHING=true
 VITE_ENABLE_LOCAL_AUTH_BYPASS=false
 ```
+
+This is the default and recommended split-stack configuration. It makes the browser call the
+domestic backend directly through the dedicated backend subdomains instead of routing API traffic
+through Pages Functions.
 
 If you want the frontend to expose the full platform layer, also mirror the browser-facing provider flags from:
 
