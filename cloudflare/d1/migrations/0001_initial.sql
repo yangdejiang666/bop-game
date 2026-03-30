@@ -1,10 +1,13 @@
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
+  game_id TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   last_login_at TEXT
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_game_id ON users(game_id);
 
 CREATE TABLE IF NOT EXISTS user_identities (
   id TEXT PRIMARY KEY,
@@ -145,3 +148,69 @@ CREATE TABLE IF NOT EXISTS matchmaking_tickets (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_matchmaking_active_ticket_per_user
 ON matchmaking_tickets(user_id)
 WHERE stage IN ('searching', 'confirming', 'matched');
+
+CREATE TABLE IF NOT EXISTS social_friend_requests (
+  id TEXT PRIMARY KEY,
+  requester_user_id TEXT NOT NULL,
+  target_user_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  responded_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_friend_requests_requester
+ON social_friend_requests(requester_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_social_friend_requests_target
+ON social_friend_requests(target_user_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_social_friend_requests_pending_pair
+ON social_friend_requests(requester_user_id, target_user_id)
+WHERE status = 'pending';
+
+CREATE TABLE IF NOT EXISTS social_friendships (
+  id TEXT PRIMARY KEY,
+  user_low TEXT NOT NULL,
+  user_high TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  created_by_user_id TEXT,
+  UNIQUE(user_low, user_high)
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_friendships_low
+ON social_friendships(user_low);
+
+CREATE INDEX IF NOT EXISTS idx_social_friendships_high
+ON social_friendships(user_high);
+
+CREATE TABLE IF NOT EXISTS social_blocks (
+  id TEXT PRIMARY KEY,
+  blocker_user_id TEXT NOT NULL,
+  blocked_user_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(blocker_user_id, blocked_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_blocks_blocker
+ON social_blocks(blocker_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_social_blocks_blocked
+ON social_blocks(blocked_user_id);
+
+CREATE TABLE IF NOT EXISTS room_live_sessions (
+  room_id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  mode_id TEXT NOT NULL,
+  phase TEXT NOT NULL DEFAULT 'running',
+  version INTEGER NOT NULL DEFAULT 1,
+  state_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  last_simulated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_room_live_sessions_session_id
+ON room_live_sessions(session_id);

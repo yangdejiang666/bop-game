@@ -594,48 +594,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         return `NO.${Math.max(1, rank)}`;
     }
 
-    function getRankSplashPresentation(rank: number, playerWonInSettlement: boolean): {
+    function getRankSplashPresentation(rank: number): {
         title: string;
         caption: string;
         icon: LobbyIconId;
     } {
-        if (modeConfig.id === 'speed') {
-            if (rank === 1) {
-                return {
-                    title: 'BLITZ WIN',
-                    caption: 'MAX PACE LOCKED',
-                    icon: 'crown'
-                };
-            }
-            if (rank <= 3) {
-                return {
-                    title: 'RUSH FINISH',
-                    caption: 'KEEP THE STREAK',
-                    icon: rank === 2 ? 'rank_silver' : 'rank_bronze'
-                };
-            }
-            return {
-                title: 'NEXT SPRINT',
-                caption: 'ONE MORE SPEED RUN',
-                icon: 'mode_speed'
-            };
-        }
-
-        if (modeConfig.id === 'team') {
-            if (playerWonInSettlement) {
-                return {
-                    title: 'TEAM VICTORY',
-                    caption: 'FORMATION SECURED',
-                    icon: 'crown'
-                };
-            }
-            return {
-                title: 'TEAM RETRY',
-                caption: 'REGROUP AND PUSH',
-                icon: 'mode_team'
-            };
-        }
-
         if (modeConfig.id === 'battleRoyale') {
             if (rank === 1) {
                 return {
@@ -756,9 +719,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
     function buildModeSettlementStats(
         playerRankValue: number,
-        playerMassValue: number,
-        teamMassA: number,
-        teamMassB: number
+        playerMassValue: number
     ): ModeSettlementStat[] {
         const safeRank = formatRankLabel(playerRankValue);
 
@@ -798,47 +759,6 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                     label: '冲榜名次',
                     value: safeRank,
                     icon: 'rank_silver'
-                }
-            ];
-        }
-
-        if (modeConfig.id === 'speed') {
-            return [
-                {
-                    label: '快局时长',
-                    value: `${modeDefinition.gameplay.durationSeconds}s`,
-                    icon: 'mode_speed'
-                },
-                {
-                    label: '节奏倍率',
-                    value: `${modeDefinition.gameplay.speedMultiplier.toFixed(2)}x`,
-                    icon: 'xp'
-                },
-                {
-                    label: '冲刺名次',
-                    value: safeRank,
-                    icon: 'crown'
-                }
-            ];
-        }
-
-        if (modeConfig.id === 'team') {
-            const delta = teamMassA - teamMassB;
-            return [
-                {
-                    label: '队伍总质量',
-                    value: `A:${teamMassA} / B:${teamMassB}`,
-                    icon: 'mode_team'
-                },
-                {
-                    label: '团队质量差',
-                    value: `${delta >= 0 ? '+' : ''}${delta}kg`,
-                    icon: 'record'
-                },
-                {
-                    label: '个人名次',
-                    value: safeRank,
-                    icon: 'crown'
                 }
             ];
         }
@@ -1983,7 +1903,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const rankLabel = formatRankLabel(playerRank);
         const rankNumber = String(playerRank);
-        const splashPresentation = getRankSplashPresentation(playerRank, playerWon);
+        const splashPresentation = getRankSplashPresentation(playerRank);
 
         hudRefs.resultKickerEl.textContent = modeDefinition.settlement.title;
         hudRefs.resultTitleEl.textContent = splashPresentation.title;
@@ -2007,7 +1927,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultMassEl.textContent = '0 kg';
         hudRefs.resultBestEl.textContent = '0 kg';
         hudRefs.resultRewardRecordEl.textContent = isNewRecord ? '+0 XP / +0 金币' : '未触发';
-        settlementModeStats = buildModeSettlementStats(playerRank, playerMass, teamATotalForResult, teamBTotalForResult);
+        settlementModeStats = buildModeSettlementStats(playerRank, playerMass);
         hudRefs.resultModeStatLabelEls.forEach((el, index) => {
             const stat = settlementModeStats[index];
             el.textContent = stat ? stat.label : '--';

@@ -1,10 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&display=swap');
+
 .lobby-overlay.lobby-stitch-exact .stitch-root {
-    display: flex;
+    position: relative;
+    isolation: isolate;
     flex-direction: column;
     height: 100%;
     max-height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    align-items: stretch;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-root::before,
+.lobby-overlay.lobby-stitch-exact .stitch-root::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-root::before {
+    background:
+        linear-gradient(90deg, transparent 0 11.5%, rgba(72, 235, 255, 0.08) 11.7%, transparent 11.95% 87%, rgba(87, 110, 255, 0.08) 87.2%, transparent 87.45%),
+        linear-gradient(142deg, transparent 0 48.5%, rgba(94, 110, 255, 0.075) 49%, transparent 49.4%),
+        linear-gradient(142deg, transparent 0 67%, rgba(80, 238, 255, 0.055) 67.4%, transparent 67.8%),
+        repeating-linear-gradient(
+            90deg,
+            transparent 0 134px,
+            rgba(104, 128, 255, 0.05) 134px 136px,
+            transparent 136px 268px
+        ),
+        repeating-linear-gradient(
+            0deg,
+            transparent 0 96px,
+            rgba(86, 234, 255, 0.028) 96px 98px,
+            transparent 98px 196px
+        );
+    opacity: 0.72;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-root::after {
+    inset: 12% 0 0;
+    background:
+        linear-gradient(180deg, transparent 0 62%, rgba(76, 95, 255, 0.055) 62.3%, transparent 62.7%),
+        linear-gradient(90deg, transparent 0 24%, rgba(69, 240, 255, 0.05) 24.1%, transparent 24.35% 73%, rgba(76, 95, 255, 0.05) 73.15%, transparent 73.4%),
+        radial-gradient(circle at 50% 34%, rgba(74, 96, 255, 0.16), transparent 34%),
+        radial-gradient(circle at 78% 76%, rgba(0, 230, 255, 0.08), transparent 22%),
+        radial-gradient(circle at 22% 78%, rgba(84, 255, 200, 0.055), transparent 18%);
+    opacity: 0.82;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-root::-webkit-scrollbar {
@@ -17,11 +62,16 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    height: 100%;
-    min-height: 0;
+    height: auto;
+    min-height: 100%;
     width: calc(100% / var(--stitch-fit-scale, 1));
     transform: scale(var(--stitch-fit-scale, 1));
     transform-origin: top left;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-main {
+    flex: 0 0 auto;
+    min-height: auto;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-rename-btn {
@@ -127,7 +177,40 @@
     overflow: hidden;
     isolation: isolate;
     background: linear-gradient(180deg, rgba(21, 34, 61, 0.96), rgba(14, 24, 45, 0.98));
+    --flow-primary: var(--flow-color, #8ca4c6);
+    --flow-secondary: color-mix(in srgb, var(--flow-primary) 68%, #ffffff 32%);
+    --flow-tertiary: color-mix(in srgb, var(--flow-primary) 72%, #ffcb7a 28%);
     transition: transform 160ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-cyan {
+    --flow-primary: #76f0ff;
+    --flow-secondary: #9dfdff;
+    --flow-tertiary: #52b7ff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-violet {
+    --flow-primary: #c290ff;
+    --flow-secondary: #e2b6ff;
+    --flow-tertiary: #7f8eff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-gold {
+    --flow-primary: #ffd27f;
+    --flow-secondary: #ffe8a9;
+    --flow-tertiary: #ffb35f;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-red {
+    --flow-primary: #ff8664;
+    --flow-secondary: #ffb267;
+    --flow-tertiary: #ff5d5d;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-neutral {
+    --flow-primary: #8ca4c6;
+    --flow-secondary: #bdd1ef;
+    --flow-tertiary: #6f86ad;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-mode-card::before {
@@ -139,11 +222,13 @@
     background:
         conic-gradient(
             from 0deg,
-            transparent 0deg 300deg,
-            color-mix(in srgb, var(--flow-color) 100%, white 18%) 324deg,
-            rgba(255, 255, 255, 0.92) 334deg,
-            color-mix(in srgb, var(--flow-color) 100%, white 18%) 344deg,
-            transparent 360deg
+            transparent 0deg 248deg,
+            color-mix(in srgb, var(--flow-tertiary) 100%, white 8%) 266deg,
+            color-mix(in srgb, var(--flow-secondary) 100%, white 16%) 281deg,
+            rgba(255, 255, 255, 0.92) 291deg,
+            color-mix(in srgb, var(--flow-primary) 100%, white 10%) 304deg,
+            color-mix(in srgb, var(--flow-secondary) 100%, white 16%) 320deg,
+            transparent 344deg 360deg
         );
     -webkit-mask:
         linear-gradient(#000 0 0) content-box,
@@ -154,8 +239,8 @@
         linear-gradient(#000 0 0);
     mask-composite: exclude;
     transform-origin: center;
-    animation: stitchBorderOrbit 4.8s linear infinite;
-    opacity: 0.96;
+    animation: stitchBorderOrbit 3.9s linear infinite;
+    opacity: 0.95;
     pointer-events: none;
     z-index: 0;
 }
@@ -163,10 +248,17 @@
 .lobby-overlay.lobby-stitch-exact .stitch-mode-card::after {
     content: '';
     position: absolute;
-    inset: 0;
+    inset: 1px;
     border-radius: inherit;
-    border: 1px solid color-mix(in srgb, var(--flow-color) 22%, rgba(255, 255, 255, 0.08));
+    border: 1px solid color-mix(in srgb, var(--flow-primary) 24%, rgba(255, 255, 255, 0.1));
+    background:
+        radial-gradient(circle at 10% 4%, color-mix(in srgb, var(--flow-secondary) 48%, transparent), transparent 44%),
+        radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--flow-tertiary) 44%, transparent), transparent 48%);
+    box-shadow:
+        inset 0 0 22px color-mix(in srgb, var(--flow-primary) 20%, transparent),
+        0 0 14px color-mix(in srgb, var(--flow-secondary) 16%, transparent);
     opacity: 0.72;
+    animation: stitchGlowBreath 2.8s ease-in-out infinite;
     pointer-events: none;
     z-index: 0;
 }
@@ -174,8 +266,10 @@
 .lobby-overlay.lobby-stitch-exact .stitch-mode-card:hover {
     transform: translateY(-2px);
     filter: none;
-    border-color: color-mix(in srgb, var(--flow-color) 48%, rgba(255, 255, 255, 0.12));
-    box-shadow: 0 12px 28px rgba(4, 10, 22, 0.28);
+    border-color: color-mix(in srgb, var(--flow-primary) 54%, rgba(255, 255, 255, 0.16));
+    box-shadow:
+        0 14px 30px rgba(4, 10, 22, 0.3),
+        0 0 22px color-mix(in srgb, var(--flow-secondary) 24%, transparent);
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-mode-card > *:not(.stitch-mode-edge) {
@@ -184,7 +278,50 @@
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-mode-edge {
-    display: none !important;
+    display: block !important;
+    opacity: 0.28;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        color-mix(in srgb, var(--flow-secondary) 100%, white 8%),
+        color-mix(in srgb, var(--flow-primary) 100%, white 8%),
+        transparent
+    );
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--flow-primary) 70%, transparent));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card:hover .stitch-mode-edge,
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active .stitch-mode-edge {
+    opacity: 0.95;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active {
+    border-color: color-mix(in srgb, var(--flow-secondary) 66%, rgba(255, 255, 255, 0.18));
+    box-shadow:
+        0 0 28px color-mix(in srgb, var(--flow-primary) 28%, transparent),
+        0 12px 28px rgba(4, 10, 22, 0.3);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-edge--top,
+.lobby-overlay.lobby-stitch-exact .stitch-mode-edge--bottom {
+    background: linear-gradient(
+        90deg,
+        transparent,
+        color-mix(in srgb, var(--flow-secondary) 100%, white 12%),
+        color-mix(in srgb, var(--flow-primary) 100%, white 8%),
+        transparent
+    );
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-edge--left,
+.lobby-overlay.lobby-stitch-exact .stitch-mode-edge--right {
+    background: linear-gradient(
+        180deg,
+        transparent,
+        color-mix(in srgb, var(--flow-secondary) 100%, white 12%),
+        color-mix(in srgb, var(--flow-primary) 100%, white 8%),
+        transparent
+    );
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-panel,
@@ -504,9 +641,47 @@
     }
 }
 
+@keyframes stitchGlowBreath {
+    0%, 100% {
+        opacity: 0.62;
+        filter: brightness(0.96);
+    }
+    50% {
+        opacity: 0.9;
+        filter: brightness(1.08);
+    }
+}
+
 [data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-mode-card::before,
 html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-mode-card::before {
     animation: none !important;
+}
+
+[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-mode-card::after,
+html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-mode-card::after {
+    animation: none !important;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-amber {
+    --card-glow: rgba(255, 159, 77, 0.42);
+    --card-edge: rgba(255, 194, 133, 0.86);
+    --card-fill: linear-gradient(180deg, rgba(58, 36, 18, 0.94), rgba(28, 19, 11, 0.98));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-purple {
+    --card-glow: rgba(159, 138, 255, 0.42);
+    --card-edge: rgba(203, 193, 255, 0.86);
+    --card-fill: linear-gradient(180deg, rgba(31, 26, 61, 0.94), rgba(18, 14, 39, 0.98));
+}
+
+@media (max-width: 1280px) {
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 [data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-mode-edge,
@@ -589,4 +764,2228 @@ html[data-reduced-motion='true'] .lobby-overlay.lobby-stitch-exact .stitch-mode-
     background: rgba(0, 0, 0, 0.3) !important;
     border: 1px solid rgba(135, 175, 255, 0.1) !important;
     box-shadow: inset 0 1px 2px rgba(255,255,255,0.05);
+}
+
+/* 6. 社交中心（UID/好友/黑名单） */
+.lobby-overlay.lobby-stitch-exact .stitch-settings-section--social {
+    display: grid;
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-social-summary {
+    margin-bottom: 0;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-social-search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: end;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-social-search-field {
+    margin: 0;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-social-actions-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-social-actions-inline .stitch-ghost-btn {
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 11px;
+}
+
+/* 7. 一屏大厅重排：固定舞台 + 桌面端视口适配 */
+@media (min-width: 1025px) {
+    .lobby-overlay.lobby-stitch-exact .stitch-root {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        overscroll-behavior: none;
+        padding: 12px 14px 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-scale-frame {
+        flex: 1 1 auto;
+        min-height: 0;
+        gap: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-topbar {
+        grid-template-columns: minmax(180px, 1fr) auto auto;
+        gap: 10px;
+        padding: 10px 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-resource-chip {
+        min-width: 148px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-rename-btn span,
+    .lobby-overlay.lobby-stitch-exact .stitch-auth-btn-label {
+        max-width: 132px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 292px minmax(0, 1fr);
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-left-col {
+        min-height: 0;
+        min-width: 0;
+        gap: 0;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-profile-card {
+        height: 100%;
+        grid-template-rows: auto auto auto minmax(138px, 1fr) auto auto;
+        gap: 8px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-ball-stage {
+        min-height: 170px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-right-col {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 272px;
+        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "mode rail"
+            "cta rail";
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-panel {
+        grid-area: mode;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-panel .stitch-panel-head {
+        margin-bottom: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+        flex: 1 1 auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(132px, 1fr);
+        gap: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card {
+        min-height: 132px;
+        padding: 14px;
+        border-radius: 22px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card strong {
+        font-size: clamp(22px, 1.8vw, 34px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card p {
+        max-width: 18ch;
+        font-size: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-info-grid {
+        grid-area: rail;
+        min-height: 0;
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-content: stretch;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-panel {
+        min-height: 0;
+        padding: 11px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-panel-head {
+        margin-bottom: 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-task-list {
+        gap: 8px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-task-row {
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        gap: 8px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-task-icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-task-copy strong,
+    .lobby-overlay.lobby-stitch-exact .stitch-task-progress,
+    .lobby-overlay.lobby-stitch-exact .stitch-friend-item strong,
+    .lobby-overlay.lobby-stitch-exact .stitch-friend-item small {
+        font-size: 11px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-friend-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-friend-item {
+        padding: 8px 6px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-friend-avatar {
+        width: 32px;
+        height: 32px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-cta-row {
+        grid-area: cta;
+        display: block;
+        margin: 0;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main-cta {
+        width: 100%;
+        min-height: 62px;
+        border-radius: 24px !important;
+        font-size: 26px;
+        letter-spacing: 0.08em;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-season-card,
+    .lobby-overlay.lobby-stitch-exact .stitch-invite-strip,
+    .lobby-overlay.lobby-stitch-exact .stitch-activity-row,
+    .lobby-overlay.lobby-stitch-exact .stitch-dock {
+        display: none !important;
+    }
+}
+
+@media (min-width: 1025px) and (max-height: 860px) {
+    .lobby-overlay.lobby-stitch-exact .stitch-root {
+        padding: 10px 12px 8px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-scale-frame,
+    .lobby-overlay.lobby-stitch-exact .stitch-main,
+    .lobby-overlay.lobby-stitch-exact .stitch-right-col,
+    .lobby-overlay.lobby-stitch-exact .stitch-info-grid {
+        gap: 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main {
+        grid-template-columns: 274px minmax(0, 1fr);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-right-col {
+        grid-template-columns: minmax(0, 1fr) 252px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-profile-card,
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-panel,
+    .lobby-overlay.lobby-stitch-exact .stitch-panel {
+        padding: 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-ball-stage {
+        min-height: 154px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-ball-core {
+        width: 108px;
+        height: 108px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+        grid-auto-rows: minmax(118px, 1fr);
+        gap: 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card {
+        min-height: 118px;
+        padding: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main-cta {
+        min-height: 56px;
+        font-size: 23px;
+    }
+}
+
+@media (min-width: 1025px) and (max-height: 740px) {
+    .lobby-overlay.lobby-stitch-exact .stitch-root {
+        padding: 8px 10px 6px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-topbar {
+        gap: 8px;
+        padding: 8px 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-brand-title {
+        font-size: clamp(24px, 1.7vw, 34px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main {
+        grid-template-columns: 252px minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-right-col {
+        grid-template-columns: minmax(0, 1fr) 236px;
+        gap: 8px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-profile-card,
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-panel,
+    .lobby-overlay.lobby-stitch-exact .stitch-panel {
+        padding: 9px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-profile-name {
+        font-size: clamp(24px, 1.8vw, 32px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-ball-stage {
+        min-height: 136px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-ball-core {
+        width: 96px;
+        height: 96px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+        gap: 8px;
+        grid-auto-rows: minmax(102px, 1fr);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card {
+        min-height: 102px;
+        padding: 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card strong {
+        font-size: clamp(19px, 1.45vw, 28px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card p,
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card-kicker,
+    .lobby-overlay.lobby-stitch-exact .stitch-panel-head small {
+        font-size: 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-task-list {
+        gap: 6px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-task-row {
+        gap: 6px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-task-icon {
+        width: 24px;
+        height: 24px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main-cta {
+        min-height: 52px;
+        font-size: 21px;
+    }
+}
+
+/* ==========================================================
+   [抽屉 & 悬浮 Dock 交互扩展]
+   ========================================================== */
+
+/* --- 遮罩层 --- */
+.lobby-overlay.lobby-stitch-exact .stitch-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    background: rgba(4, 9, 20, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+
+.lobby-overlay.lobby-stitch-exact[data-active-drawer="tasks"] .stitch-drawer-backdrop,
+.lobby-overlay.lobby-stitch-exact[data-active-drawer="friends"] .stitch-drawer-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* --- 侧边抽屉 (通用) --- */
+.lobby-overlay.lobby-stitch-exact .stitch-side-drawer {
+    position: absolute;
+    top: 76px;
+    bottom: 96px;
+    width: 320px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px;
+    gap: 12px;
+    background: linear-gradient(180deg, rgba(14, 21, 38, 0.85), rgba(7, 11, 22, 0.95)) !important;
+    border: 1px solid rgba(82, 115, 255, 0.25) !important;
+    box-shadow: 0 12px 60px rgba(0, 0, 0, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(36px) saturate(140%) !important;
+    -webkit-backdrop-filter: blur(36px) saturate(140%) !important;
+    border-radius: 20px;
+    transition: transform 0.45s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.4s ease;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-drawer-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
+}
+.lobby-overlay.lobby-stitch-exact .stitch-drawer-content::-webkit-scrollbar {
+    display: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-side-drawer.is-left {
+    left: 20px;
+    transform: translateX(-120%) scale(0.95);
+    transform-origin: left center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-side-drawer.is-right {
+    right: 20px;
+    transform: translateX(120%) scale(0.95);
+    transform-origin: right center;
+}
+
+/* 抽屉激活状态 */
+.lobby-overlay.lobby-stitch-exact[data-active-drawer="tasks"] .stitch-side-drawer.is-left[data-drawer-name="tasks"] {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.lobby-overlay.lobby-stitch-exact[data-active-drawer="friends"] .stitch-side-drawer.is-right[data-drawer-name="friends"] {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 优化抽屉内部标题线 */
+.lobby-overlay.lobby-stitch-exact .stitch-side-drawer .stitch-panel-head {
+    border-bottom: 1px solid color-mix(in srgb, var(--stitch-skin-a, rgba(255,255,255,0.1)) 40%, transparent);
+    padding-bottom: 12px;
+}
+
+/* --- 底部悬浮 Dock --- */
+.lobby-overlay.lobby-stitch-exact .stitch-floating-dock {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: rgba(14, 22, 42, 0.55) !important;
+    border-radius: 99px;
+    border: 1px solid rgba(135, 175, 255, 0.15) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(28px) saturate(120%);
+    -webkit-backdrop-filter: blur(28px) saturate(120%);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 64px;
+    height: 56px;
+    border-radius: 16px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    border: none;
+    transition: all 0.25s cubic-bezier(0.18, 0.89, 0.32, 1);
+    cursor: pointer;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock-btn span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock-symbol {
+    font-size: 26px;
+    pointer-events: none;
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock-btn:hover .stitch-dock-symbol {
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-dock-btn:active {
+    transform: translateY(-1px) scale(0.95);
+}
+
+/* =======================================================
+   Lobby 3.0: 沉浸式顶部战术 HUD (Top HUD Bar)
+   ======================================================= */
+   
+.lobby-overlay.lobby-stitch-exact .stitch-topbar.stitch-hud-top {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    align-items: center;
+}
+
+/* 品牌与网络探针区域 */
+.lobby-overlay.lobby-stitch-exact .stitch-hud-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0px;
+    padding-left: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-server-ping {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 2px 8px;
+    border-radius: 4px 10px 4px 10px;
+    border: 1px solid rgba(0, 255, 128, 0.2);
+    box-shadow: 0 0 10px rgba(0, 255, 128, 0.1);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-server-ping .ping-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #00ff80;
+    box-shadow: 0 0 8px #00ff80;
+    animation: pingFlash 2s infinite ease-in-out;
+}
+
+@keyframes pingFlash {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.8); }
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-server-ping .ping-ms {
+    font-size: 10px;
+    font-weight: 700;
+    color: #4df0a9;
+    letter-spacing: 0.05em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-brand .stitch-brand-title {
+    font-size: 32px;
+    font-style: italic;
+    font-weight: 900;
+    background: linear-gradient(180deg, #ffffff, #a3bfff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 12px rgba(135, 175, 255, 0.4));
+    letter-spacing: -0.02em;
+    transform: skewX(-8deg); /* 速度感斜体 */
+}
+
+/* 顶部资源条（金币/经验）的高级倒角处理 */
+.lobby-overlay.lobby-stitch-exact .stitch-hud-resources {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-resources .stitch-resource-chip {
+    background: linear-gradient(90deg, rgba(8, 12, 28, 0.7), rgba(4, 8, 18, 0.9)) !important;
+    border-radius: 4px 16px 4px 16px;
+    border: 1px solid rgba(82, 115, 255, 0.2) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.8), 0 8px 20px rgba(0, 0, 0, 0.4) !important;
+    min-width: 160px;
+    position: relative;
+    overflow: hidden;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-resources .stitch-resource-chip::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    transform: skewX(-20deg);
+    animation: hudGlint 6s infinite;
+}
+
+@keyframes hudGlint {
+    0%, 80% { transform: skewX(-20deg) translateX(0); }
+    100% { transform: skewX(-20deg) translateX(400%); }
+}
+
+/* 顶部右侧系统控制阵列 */
+.lobby-overlay.lobby-stitch-exact .stitch-hud-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-btn,
+.lobby-overlay.lobby-stitch-exact .stitch-hud-btn-text {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #aebce6;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-btn-text {
+    padding: 6px 14px;
+    border-radius: 4px 14px 4px 14px;
+    border: 1px solid transparent;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-btn-text--accent {
+    color: #ffd874;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-btn:hover,
+.lobby-overlay.lobby-stitch-exact .stitch-hud-btn-text:hover {
+    color: #ffffff;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.6));
+    transform: translateY(-2px) scale(1.05);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-btn-text:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-hud-btn-symbol {
+    font-size: 24px;
+}
+
+/* =======================================================
+   大厂级：主页大厅(Lobby)废土科幻质感与结构重生
+   ======================================================= */
+
+/* 1. 将原来霸占在底部的紫色巨型按钮，改造为悬浮右下角的精确锚点药丸 */
+.lobby-overlay.lobby-stitch-exact .stitch-cta-row {
+    position: absolute;
+    right: 42px;
+    bottom: 32px;
+    z-index: 50; /* 在 dock 之上，不再互相遮挡 */
+    display: flex;
+    justify-content: flex-end;
+    pointer-events: none; /* 让空隙透贴 */
+}
+
+/* 让悬浮药丸按钮不再霸占全尺寸 */
+.lobby-overlay.lobby-stitch-exact .stitch-main-cta {
+    pointer-events: auto;
+    width: auto;
+    padding: 0 46px;
+    box-shadow: 0 20px 48px rgba(161, 107, 255, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.4) !important;
+    border-radius: 999px;
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-main-cta > span {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+/* 2. 卡片 (Mode Card) 水纹背景、水印图标悬挂与光感 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card {
+    border-radius: 18px;
+    background: linear-gradient(150deg, rgba(20, 26, 46, 0.5), rgba(12, 16, 28, 0.85));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* 这层是为了装水印和赛博波纹 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+/* 放大底图水印 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-bg-icon {
+    position: absolute;
+    right: -32px;
+    bottom: -46px;
+    font-size: 220px;
+    color: var(--flow-secondary);
+    opacity: 0.05;
+    transform: rotate(-10deg);
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease;
+    filter: drop-shadow(0 0 30px var(--flow-primary));
+}
+
+/* 对角线极光拉丝 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-bg-pattern {
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(255, 255, 255, 0.018) 0,
+        rgba(255, 255, 255, 0.018) 1px,
+        transparent 1px,
+        transparent 6px
+    );
+    opacity: 0.9;
+}
+
+/* 悬浮焦点全息散光球 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-glow-orb {
+    position: absolute;
+    bottom: -80px;
+    right: -80px;
+    width: 260px;
+    height: 260px;
+    background: radial-gradient(circle at center, color-mix(in srgb, var(--flow-primary) 100%, white) 0%, transparent 60%);
+    opacity: 0.12;
+    filter: blur(48px);
+    transition: opacity 0.5s ease, transform 0.6s ease;
+}
+
+/* 卡片选中态磁吸浮雕，悬浮！ */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active .stitch-mode-bg-icon {
+    opacity: 0.15;
+    transform: rotate(0deg) scale(1.1) translateY(-14px);
+}
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active .stitch-mode-glow-orb {
+    opacity: 0.45;
+    transform: scale(1.3) translate(-30px, -30px);
+}
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active {
+    background: linear-gradient(150deg, rgba(28, 44, 88, 0.7), rgba(16, 24, 48, 0.95));
+    box-shadow: 
+        inset 0 0 40px color-mix(in srgb, var(--flow-primary) 30%, transparent),
+        inset 0 2px 2px rgba(255, 255, 255, 0.1),
+        0 14px 44px rgba(0, 0, 0, 0.6);
+}
+
+/* =======================================================
+   Lobby 3.0: 动态折叠战术侧栏 (Tactical Left Drawer)
+   ======================================================= */
+
+.lobby-overlay.lobby-stitch-exact .stitch-main {
+    transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-right-col,
+.lobby-overlay.lobby-stitch-exact .stitch-stage-col {
+    transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+/* 主推拉结构 */
+.lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar {
+    position: relative;
+    width: 64px; /* 窄屏监测线 */
+    flex-shrink: 0;
+    transition: width 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    z-index: 10;
+    margin-right: 12px;
+    align-self: stretch;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar:hover {
+    width: 392px; /* 推开主视觉战术面板 */
+}
+
+/* 抽屉内舱 */
+.lobby-overlay.lobby-stitch-exact .stitch-tac-drawer {
+    position: absolute;
+    top: 0;
+    /* 取负宽位移或反序布局，由于是左侧我们默认固定左对齐向右伸开 */
+    left: 0;
+    width: 392px;
+    height: 100%;
+    /* 半透明机甲板质感，摒弃卡片粗厚描边 */
+    background: linear-gradient(90deg, rgba(10, 15, 30, 0.8) 0%, rgba(10, 15, 30, 0) 100%);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border-left: 2px solid rgba(82, 115, 255, 0.6);
+    display: flex;
+    overflow: hidden;
+    min-height: 100%;
+    /* 让内容紧跟右边界，初始只露左 60px */
+    transform: translateX(calc(-100% + 64px));
+    transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1), background 0.3s;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar:hover .stitch-tac-drawer {
+    transform: translateX(0);
+    background: linear-gradient(90deg, rgba(10, 15, 30, 0.95) 0%, rgba(15, 25, 45, 0.6) 100%);
+    box-shadow: 20px 0 40px rgba(0,0,0,0.5);
+}
+
+/* 右侧常驻窄条（折叠状态可见） */
+.lobby-overlay.lobby-stitch-exact .stitch-tac-collapsed {
+    width: 64px;
+    height: 100%;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    gap: 16px;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0,0,0,0.2);
+    box-shadow: inset -10px 0 20px rgba(0,0,0,0.4);
+    /* 把常驻块放在抽屉右端！因为抽屉左滑时会截断左侧，常驻放在最右不被截断 */
+    order: 2;
+}
+
+/* 里面的等级勋章与点子 */
+.lobby-overlay.lobby-stitch-exact .stitch-tac-badge {
+    background: var(--flow-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-online-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #00ff80;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00ff80, inset 0 0 4px #ffffff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-vert-name {
+    writing-mode: vertical-lr;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+}
+
+/* 展开隐藏面板区（内饰重构） */
+.lobby-overlay.lobby-stitch-exact .stitch-tac-expanded {
+    flex: 1;
+    order: 1; /* 放左侧 */
+    padding: 24px 22px 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 100%;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar:hover .stitch-tac-expanded {
+    opacity: 1;
+    transform: translateX(0);
+    transition-delay: 0.1s;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-kicker {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    color: var(--flow-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-kicker-dot {
+    display: inline-block;
+    width: 4px; height: 4px;
+    background: var(--flow-secondary);
+    border-radius: 50%;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-name {
+    font-size: 28px;
+    font-weight: 900;
+    color: #ffffff;
+    margin: 0;
+    line-height: 0.96;
+    letter-spacing: -0.04em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-model-stage {
+    position: relative;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-model-stage .stitch-ball-stage {
+    min-height: 198px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-model-stage .stitch-ball-core {
+    width: 146px;
+    height: 146px;
+    box-shadow:
+        inset 0 0 0 2px rgba(255, 255, 255, 0.16),
+        inset -18px -22px 34px rgba(14, 23, 43, 0.24),
+        0 0 56px color-mix(in srgb, var(--stitch-skin-glow, var(--stitch-skin-a)) 68%, transparent);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-model-stage .stitch-ball-skin-name {
+    bottom: 10px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-profile {
+    display: grid;
+    gap: 12px;
+    padding: 14px 14px 16px;
+    border: 1px solid rgba(129, 236, 255, 0.14);
+    border-radius: 18px;
+    background:
+        linear-gradient(180deg, rgba(13, 22, 40, 0.92), rgba(8, 15, 30, 0.82)),
+        radial-gradient(circle at top left, color-mix(in srgb, var(--stitch-skin-a) 24%, transparent), transparent 42%);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+        0 14px 28px rgba(0, 0, 0, 0.16);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-profile-head {
+    display: grid;
+    gap: 4px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-profile-head small {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--stitch-skin-a) 72%, white 20%);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-profile-head strong {
+    font-size: 20px;
+    line-height: 1;
+    color: #f5fbff;
+    letter-spacing: -0.03em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-profile-head span {
+    font-size: 11px;
+    line-height: 1.45;
+    color: rgba(224, 237, 255, 0.72);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-spectrum {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    box-shadow: 0 0 14px rgba(0, 0, 0, 0.16);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-swatch--a {
+    background: var(--stitch-skin-a);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-swatch--b {
+    background: var(--stitch-skin-b);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-spectrum-copy {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: rgba(237, 246, 255, 0.84);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-meta-card {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-meta-card small {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: rgba(198, 219, 244, 0.54);
+    text-transform: uppercase;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-meta-card strong {
+    font-size: 12px;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+/* 战术数据分割与栅格化 */
+.lobby-overlay.lobby-stitch-exact .stitch-tac-data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-radar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-radar small {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.05em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-radar strong {
+    font-size: 18px;
+    font-weight: 900;
+    font-family: 'Courier New', Courier, monospace;
+    color: #ffffff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-radar.is-accent strong {
+    color: #ffd874;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-radar span {
+    font-size: 11px;
+    color: #4df0a9;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-action-btn {
+    margin-top: 2px;
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--stitch-skin-a) 20%, rgba(255,255,255,0.03)), rgba(255,255,255,0.04));
+    border: 1px solid color-mix(in srgb, var(--stitch-skin-a) 34%, rgba(255,255,255,0.18));
+    color: #fff;
+    padding: 13px 14px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    border-radius: 14px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer {
+    margin-top: auto;
+    max-height: none;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer-head {
+    margin-bottom: 0;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer-head strong {
+    font-size: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer-head small {
+    font-size: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer .stitch-skin-list {
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-skin-drawer .stitch-skin-chip {
+    min-height: 38px;
+    justify-content: flex-start;
+    padding: 0 10px;
+    font-size: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-action-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* =======================================================
+   Lobby 3.0: 核心区舞台 3D 曲率重塑 (Main Stage 3D)
+   ======================================================= */
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-panel {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding-top: 2vh; /* 把模式选择略微往上提 */
+    padding-bottom: 120px; /* ！！关键防护：防止底部装甲托盘遮挡 3D 卡片！！ */
+}
+
+/* 舞台基座变为 3D 摄像机视口 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 20px;
+    perspective: 1400px; /* 大厂核心 3D 景深 */
+    min-height: 480px; 
+    margin-top: 20px;
+}
+
+/* 改造原本粗暴均分的网格卡片，转为被摄像机推远、变暗的背景配角 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card {
+    flex: 0 0 180px; /* 未选中状态窄卡片 */
+    height: 380px;
+    transform: rotateY(18deg) scale(0.85) translateZ(-80px); /* 强制倾斜后撤 */
+    transform-style: preserve-3d;
+    transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+    opacity: 0.5;
+    filter: grayscale(40%) brightness(0.7);
+    overflow: hidden;
+    cursor: pointer;
+}
+
+/* 非焦点卡片隐藏多余噪音细节，仅留图标与核心光点 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card:not(.is-active) strong,
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card:not(.is-active) p,
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card:not(.is-active) .stitch-mode-card-kicker,
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card:not(.is-active) .stitch-mode-card-status,
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card:not(.is-active) .stitch-mode-glow-orb {
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+/* 当前激活的核心焦点！绝对霸占、高光打亮并且回正平行！ */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active {
+    flex: 0 0 580px; /* 绝对核心宽幅比例 */
+    height: 450px;
+    transform: rotateY(0deg) scale(1) translateZ(0); /* 回正突前 */
+    opacity: 1;
+    filter: grayscale(0%) brightness(1);
+    z-index: 5;
+    outline: 1px solid rgba(82, 115, 255, 0.3);
+    outline-offset: 8px;
+    cursor: default;
+}
+
+/* 聚焦内层重排：把文字一直挤到底端！ */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active strong {
+    font-size: 40px;
+    letter-spacing: 0.05em;
+    margin-top: auto; 
+    opacity: 1;
+    transition: all 0.6s 0.1s; /* 回溯延迟产生进入感 */
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active p {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.8);
+    opacity: 1;
+    transition: all 0.6s 0.15s;
+}
+
+/* =======================================================
+   Lobby 3.0: 战术级全画幅边侧抽屉 (Z4 Drawer)
+   ======================================================= */
+.lobby-overlay.lobby-stitch-exact .stitch-z4-drawer {
+    position: absolute; /* 不要 fixed，跟大厅同寿命 */
+    top: 0;
+    bottom: 0;
+    width: 440px; /* 宽大的战术信息带 */
+    background: linear-gradient(180deg, rgba(8, 12, 28, 0.75), rgba(4, 6, 15, 0.95));
+    backdrop-filter: blur(48px) saturate(120%);
+    -webkit-backdrop-filter: blur(48px) saturate(120%);
+    z-index: 100; /* 高于底层其他 */
+    display: flex;
+    transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.4s;
+    opacity: 0;
+    pointer-events: none; /* 折叠不可点 */
+}
+
+/* 遮罩加深 (原 .stitch-drawer-backdrop 修改) */
+.lobby-overlay.lobby-stitch-exact .stitch-drawer-backdrop.is-active {
+    background: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: grayscale(80%) blur(4px) !important;
+}
+
+/* 左侧装配 */
+.lobby-overlay.lobby-stitch-exact .stitch-z4-drawer.is-left {
+    left: 0;
+    transform: translateX(-100%);
+}
+.lobby-overlay.lobby-stitch-exact .stitch-z4-drawer.is-left.is-open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 右侧装配 */
+.lobby-overlay.lobby-stitch-exact .stitch-z4-drawer.is-right {
+    right: 0;
+    transform: translateX(100%);
+    flex-direction: row; /* 左边线就是默认的 flex 先出 */
+}
+.lobby-overlay.lobby-stitch-exact .stitch-z4-drawer.is-right.is-open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 科幻光刃灯带 */
+.lobby-overlay.lobby-stitch-exact .stitch-z4-glow-edge {
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent, #5273ff, transparent);
+    box-shadow: 0 0 20px 2px rgba(82, 115, 255, 0.8);
+    flex-shrink: 0;
+}
+
+/* 内容核心排版 */
+.lobby-overlay.lobby-stitch-exact .stitch-z4-content {
+    flex: 1;
+    padding: 60px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    /* 解决内部滚动和出框 */
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-z4-headline strong {
+    font-size: 30px;
+    font-weight: 900;
+    color: #fff;
+    display: block;
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+    text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-z4-kicker {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    font-weight: 800;
+    color: var(--flow-secondary);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-z4-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 20px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-z4-counter {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 12px;
+    font-weight: 800;
+    font-family: monospace;
+    color: #ffd874;
+    border-radius: 4px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-z4-link {
+    background: none; border: none; outline: none;
+    color: #4df0a9;
+    font-size: 12px; cursor: pointer; font-weight: 700;
+}
+.lobby-overlay.lobby-stitch-exact .stitch-z4-link:hover {
+    color: #fff; text-shadow: 0 0 8px #4df0a9;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-z4-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* =======================================================
+   Lobby 3.0: 底部重工装甲托盘 (Bottom Tray)
+   ======================================================= */
+/* 隐藏旧版居中胶囊 Dock */
+.lobby-overlay.lobby-stitch-exact .stitch-floating-dock { display: none !important; }
+
+.lobby-overlay.lobby-stitch-exact .stitch-base-tray {
+    position: absolute;
+    bottom: 0; left: 0; width: 100%;
+    height: 160px; /* 增高底盘基础承重，避免和中侧舞台重叠逼仄 */
+    z-index: 40; /* 必须低于 Z4，但高于 Z2 舞台 */
+    display: flex;
+    justify-content: center;
+    align-items: center; /* 恢复中央对准，防止图标挤压底部边缘 */
+    padding-top: 40px; /* 适当把图标往下逼，但给光条留空间 */
+    overflow: hidden;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-base-tray::before,
+.lobby-overlay.lobby-stitch-exact .stitch-base-tray::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-base-tray::before {
+    left: 2.6%;
+    right: 2.6%;
+    top: 14px;
+    height: 1px;
+    background:
+        linear-gradient(
+            90deg,
+            rgba(65, 95, 255, 0.1) 0 4%,
+            transparent 4.2% 15%,
+            rgba(76, 236, 255, 0.26) 15.2% 30%,
+            transparent 30.2% 70%,
+            rgba(76, 236, 255, 0.26) 70.2% 85%,
+            transparent 85.2% 96%,
+            rgba(65, 95, 255, 0.1) 96.2% 100%
+        );
+    box-shadow: 0 0 12px rgba(76, 236, 255, 0.22);
+    opacity: 0.95;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-base-tray::after {
+    left: 3.2%;
+    right: 3.2%;
+    top: 26px;
+    bottom: 12px;
+    background:
+        linear-gradient(90deg, rgba(76, 236, 255, 0.06), transparent 10% 90%, rgba(87, 110, 255, 0.08)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 26%);
+    clip-path: polygon(2% 0, 98% 0, 100% 20%, 100% 100%, 0 100%, 0 20%);
+    border: 1px solid rgba(104, 134, 255, 0.12);
+    opacity: 0.85;
+}
+
+/* 机械装甲底盘 - 采用大厂斜切战损斑马纹 + 深层渐变遮罩 */
+.lobby-overlay.lobby-stitch-exact .stitch-tray-plate {
+    position: absolute;
+    bottom: 0; left: 0; width: 100%; height: 100%;
+    overflow: hidden;
+    background: 
+        repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.015) 5px, rgba(255,255,255,0.015) 8px),
+        linear-gradient(to top, rgba(5, 8, 20, 0.98) 20%, rgba(5, 8, 20, 0.6) 60%, transparent);
+    pointer-events: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-plate::before,
+.lobby-overlay.lobby-stitch-exact .stitch-tray-plate::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-plate::before {
+    background:
+        repeating-linear-gradient(
+            90deg,
+            transparent 0 168px,
+            rgba(110, 136, 255, 0.08) 168px 170px,
+            transparent 170px 336px
+        ),
+        linear-gradient(
+            90deg,
+            transparent 0 12%,
+            rgba(88, 120, 255, 0.12) 12.1% 12.4%,
+            transparent 12.5% 29%,
+            rgba(88, 120, 255, 0.1) 29.1% 29.35%,
+            transparent 29.45% 68%,
+            rgba(0, 242, 255, 0.12) 68.1% 68.35%,
+            transparent 68.45% 100%
+        );
+    opacity: 0.7;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-plate::after {
+    inset: 18px 6% 10px;
+    background:
+        linear-gradient(90deg, transparent, rgba(94, 114, 255, 0.14), transparent 22%),
+        linear-gradient(90deg, transparent 32%, rgba(90, 240, 255, 0.12) 32.2% 32.4%, transparent 32.6% 67%, rgba(94, 114, 255, 0.1) 67.2% 67.4%, transparent 67.6%),
+        repeating-linear-gradient(
+            90deg,
+            transparent 0 144px,
+            rgba(255, 255, 255, 0.045) 144px 146px,
+            transparent 146px 288px
+        );
+    mask: linear-gradient(to top, rgba(0, 0, 0, 0.92), transparent 86%);
+    opacity: 0.7;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-glowline::before {
+    content: "";
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    bottom: 12px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(96, 238, 255, 0.55), transparent);
+    opacity: 0.7;
+}
+
+/* 机甲风格光刃垫底 */
+.lobby-overlay.lobby-stitch-exact .stitch-tray-glowline {
+    position: absolute;
+    bottom: 0; left: 0; width: 100%; height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(82, 115, 255, 0.8), transparent);
+    box-shadow: 0 0 15px rgba(82, 115, 255, 0.9);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-nav {
+    display: flex;
+    gap: 60px;
+    padding-bottom: 28px;
+    position: relative;
+    z-index: 41;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-btn {
+    background: transparent;
+    border: none; outline: none;
+    color: rgba(255,255,255,0.5);
+    display: flex; flex-direction: column; align-items: center; gap: 12px; /* 拉大文字与图标的落差 */
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-symbol {
+    font-size: 38px; /* 放大指示图标级 */
+    transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+    font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important; /* 强制覆盖文字字体，恢复图标 */
+    font-style: normal;
+    font-weight: 400;
+    line-height: 1;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-btn span {
+    font-size: 10px;
+    font-weight: 800; letter-spacing: 0.1em;
+    font-family: monospace;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tray-btn:hover {
+    color: #fff;
+}
+.lobby-overlay.lobby-stitch-exact .stitch-tray-btn:hover .stitch-tray-symbol {
+    transform: translateY(-8px) scale(1.2);
+    filter: drop-shadow(0 0 14px rgba(255,255,255,0.7));
+    color: var(--flow-secondary);
+}
+
+/* =======================================================
+   Lobby 3.0: 主核爆启动倒角按钮 (Core Launch CTA)
+   ======================================================= */
+/* 隐藏旧版紫条遗留 css 痕迹 */
+.lobby-overlay.lobby-stitch-exact .stitch-cta-row { display: none !important; }
+
+.lobby-overlay.lobby-stitch-exact .stitch-core-launch-stage {
+    position: absolute;
+    right: 80px;
+    bottom: 140px; /* 悬浮放置于托盘之上 */
+    z-index: 60;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-btn {
+    position: relative;
+    background: transparent;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    width: 280px;
+    height: 84px;
+    /* 核心多边形剪切：左下与右上倒角 */
+    clip-path: polygon(10% 0, 100% 0, 100% 75%, 90% 100%, 0 100%, 0 25%);
+    transition: transform 0.15s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-btn:active {
+    transform: scale(0.92) translateZ(-20px);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-border {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(82, 115, 255, 0.9), rgba(0, 255, 128, 0.9));
+    z-index: 1;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-inner {
+    position: absolute;
+    inset: 2px;
+    background: rgba(10, 15, 30, 0.95);
+    clip-path: polygon(10% 0, 100% 0, 100% 75%, 90% 100%, 0 100%, 0 25%);
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    transition: background 0.3s;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-btn:hover .stitch-launch-inner {
+    background: rgba(82, 115, 255, 0.2);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-pulse {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 140%; height: 160%;
+    background: radial-gradient(circle, rgba(82, 115, 255, 0.6) 0%, transparent 60%);
+    filter: blur(24px);
+    z-index: 0;
+    opacity: 0.5;
+    pointer-events: none;
+    animation: launchPulse 2s infinite alternate;
+}
+
+@keyframes launchPulse {
+    0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.3; }
+    100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.7; }
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-text {
+    font-size: 26px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 0.25em;
+    text-shadow: 0 0 12px rgba(82, 115, 255, 1);
+    transform: skewX(-12deg);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-ms {
+    font-size: 11px;
+    color: #00ff80;
+    letter-spacing: 0.3em;
+    font-family: monospace;
+    margin-top: 4px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-launch-flare {
+    position: absolute;
+    top: 0; left: -100%;
+    width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    transform: skewX(-20deg);
+    z-index: 3;
+    pointer-events: none;
+    animation: launchFlare 3s infinite 2s;
+}
+
+@keyframes launchFlare {
+    0%, 75% { transform: skewX(-20deg) translateX(0); }
+    100% { transform: skewX(-20deg) translateX(500%); }
+}
+
+/* =======================================================
+   Lobby 3.0: 史诗上线加载演场 (Cinematic Entry Animations)
+   ======================================================= */
+.lobby-overlay.lobby-stitch-exact .stitch-hud-top {
+    animation: hudDropIn 1.2s cubic-bezier(0.19, 1, 0.22, 1) both;
+}
+
+@keyframes hudDropIn {
+    0% { transform: translateY(-100%); opacity: 0; filter: blur(20px); }
+    100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar {
+    animation: tacSlideIn 1.2s cubic-bezier(0.19, 1, 0.22, 1) 0.15s both;
+}
+
+@keyframes tacSlideIn {
+    0% { transform: translateX(-150px); opacity: 0; filter: blur(10px); }
+    100% { transform: translateX(0); opacity: 1; filter: blur(0); }
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-base-tray {
+    animation: trayRiseUp 1.2s cubic-bezier(0.19, 1, 0.22, 1) 0.3s both;
+}
+
+@keyframes trayRiseUp {
+    0% { transform: translateY(100%); opacity: 0; filter: drop-shadow(0 20px 20px rgba(82, 115, 255, 0.8)); }
+    100% { transform: translateY(0); opacity: 1; filter: drop-shadow(0 0 0 transparent); }
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-mode-panel {
+    animation: stageZoomIn 1.6s cubic-bezier(0.19, 1, 0.22, 1) 0.4s both;
+}
+
+@keyframes stageZoomIn {
+    0% { transform: scale(1.6) translateZ(300px); opacity: 0; filter: blur(40px); }
+    100% { transform: scale(1) translateZ(0); opacity: 1; filter: blur(0); }
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-core-launch-stage {
+    animation: coreLaunchIn 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 0.8s both;
+}
+
+@keyframes coreLaunchIn {
+    0% { transform: scale(0.2) translateX(300px) rotate(40deg); opacity: 0; filter: blur(20px); }
+    100% { transform: scale(1) translateX(0) rotate(0deg); opacity: 1; filter: blur(0); }
+}
+
+/* =======================================================
+   Lobby 3.0: 大厂排印与微型组件重构 (Typography & HUD Overrides)
+   ======================================================= */
+/* 强制所有高亮大数字与英文使用机甲字体 */
+.lobby-overlay.lobby-stitch-exact .stitch-asset-val,
+.lobby-overlay.lobby-stitch-exact .stitch-z4-counter,
+.lobby-overlay.lobby-stitch-exact .stitch-main-cta span,
+.lobby-overlay.lobby-stitch-exact .stitch-tray-btn span,
+.lobby-overlay.lobby-stitch-exact .stitch-launch-text,
+.lobby-overlay.lobby-stitch-exact .stitch-launch-ms,
+.lobby-overlay.lobby-stitch-exact .stitch-profile-kicker,
+.lobby-overlay.lobby-stitch-exact .stitch-z4-kicker {
+    font-family: 'Teko', 'Impact', sans-serif !important;
+    letter-spacing: 0.08em;
+}
+
+/* 顶部玻璃板斩角 (HUD cut-out) */
+.lobby-overlay.lobby-stitch-exact .stitch-hud-assets {
+    border-radius: 0 !important;
+    clip-path: polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: none !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(255,255,255,0.1) !important;
+}
+
+/* 独立的主模式名称文字倾斜与挤压 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active strong {
+    font-weight: 900 !important;
+    transform: skewX(-8deg); /* 主标题斜切张力 */
+    letter-spacing: -0.02em;
+}
+
+/* 顶部 Ping 值指示器脉冲微动效 */
+.lobby-overlay.lobby-stitch-exact .stitch-hud-status::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: #10B981; /* 大厂毒蛇绿 */
+    margin-right: 8px;
+    vertical-align: middle;
+    box-shadow: 0 0 12px #10B981;
+    animation: pingBlink 2s infinite;
+}
+
+@keyframes pingBlink {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.6); }
+}
+
+/* =======================================================
+   Lobby 3.0: 全局深空雷达斑纹基底 (Atmosphere Texture)
+   ======================================================= */
+.lobby-overlay.lobby-stitch-exact::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: 
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), 
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 100px 100px;
+    background-position: center bottom;
+    mask-image: radial-gradient(circle at center 60%, rgba(0,0,0,1) 10%, rgba(0,0,0,0) 80%);
+    -webkit-mask-image: radial-gradient(circle at center 60%, rgba(0,0,0,1) 10%, rgba(0,0,0,0) 80%);
+}
+
+/* =======================================================
+   Lobby 3.0: 战术级抽屉列表项 (Tactical List Items)
+   ======================================================= */
+/* 去除原本列表项生硬的白色背板或实线边框，使用深色幽灵底座 */
+.lobby-overlay.lobby-stitch-exact .stitch-task-row,
+.lobby-overlay.lobby-stitch-exact .stitch-friend-row {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important; /* 仅保留 5% 亮度的极弱扫描线 */
+    position: relative;
+    padding: 16px 12px !important;
+    margin: 0 !important;
+    border-radius: 0 !important; /* 切割所有旧的圆角 */
+    transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+    overflow: hidden;
+}
+
+/* 左侧装甲贴花垂直文本的强化覆写 (防止缩成一串) */
+.lobby-overlay.lobby-stitch-exact .stitch-tac-text,
+.lobby-overlay.lobby-stitch-exact .stitch-profile-name {
+    font-size: 15px !important;
+    letter-spacing: 0.3em !important;
+    font-weight: 800 !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* 扫描式边缘高光与雷达底色 (Hover Scanner Effect) */
+.lobby-overlay.lobby-stitch-exact .stitch-task-row::before,
+.lobby-overlay.lobby-stitch-exact .stitch-friend-row::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; /* 贴紧左侧发火缘 */
+    width: 3px; height: 100%;
+    background: #3B82F6; /* 雷达主蓝 */
+    box-shadow: 0 0 12px #3B82F6;
+    transform: scaleY(0);
+    transition: transform 0.2s cubic-bezier(0.19, 1, 0.22, 1);
+    transform-origin: center;
+    z-index: 10;
+}
+
+/* 悬浮瞬间的推挤阻尼与幽灵背光 */
+.lobby-overlay.lobby-stitch-exact .stitch-task-row:hover,
+.lobby-overlay.lobby-stitch-exact .stitch-friend-row:hover {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.15), transparent) !important;
+    padding-left: 24px !important; /* 明显的推挤感，营造机甲交互阻力 */
+    border-bottom-color: transparent !important; /* 去除原本微弱底线，防止视觉干扰 */
+}
+
+/* 点亮探针扫描标 */
+.lobby-overlay.lobby-stitch-exact .stitch-task-row:hover::before,
+.lobby-overlay.lobby-stitch-exact .stitch-friend-row:hover::before {
+    transform: scaleY(1);
+}
+
+/* =======================================================
+   Lobby 3.0: 核心动效与性能防劣化护城河 (Motion & Performance)
+   ======================================================= */
+/* 强制主组件开辟独立渲染层与硬件加速，防止掉帧 */
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card,
+.lobby-overlay.lobby-stitch-exact .stitch-z4-drawer,
+.lobby-overlay.lobby-stitch-exact .stitch-launch-btn {
+    will-change: transform, opacity, filter;
+    backface-visibility: hidden;
+    transform: translateZ(0); /* 触发 GPU 加速 */
+}
+
+/* 主 CTA 极致交互：安静时的深呼吸外发光 */
+.lobby-overlay.lobby-stitch-exact .stitch-launch-btn {
+    animation: ctaBreath 3s ease-in-out infinite alternate !important;
+}
+
+@keyframes ctaBreath {
+    0% { filter: drop-shadow(0 0 8px rgba(82,115,255,0.4)); }
+    100% { filter: drop-shadow(0 0 24px rgba(82,115,255,0.9)); }
+}
+
+/* 警示光流横扫（叠加在启动按钮伪元素外挂） */
+.lobby-overlay.lobby-stitch-exact .stitch-launch-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.8) 50%, transparent 80%);
+    transform: translateX(-150%) skewX(-15deg);
+    animation: scanLightWipe 4s cubic-bezier(0.19, 1, 0.22, 1) infinite;
+    z-index: 10;
+}
+
+@keyframes scanLightWipe {
+    0%, 60% { transform: translateX(-150%) skewX(-15deg); }
+    100% { transform: translateX(150%) skewX(-15deg); }
+}
+
+/* 全量小型组件的重压物理反馈强化 */
+.lobby-overlay.lobby-stitch-exact .stitch-tray-btn:active,
+.lobby-overlay.lobby-stitch-exact .stitch-link-btn:active {
+    transform: scale(0.9) translateY(4px);
+    transition: transform 0.05s;
+}
+
+/* =======================================================
+   Lobby Layout Calibration
+   只做主页大厅桌面端排版对齐，不改业务结构
+   ======================================================= */
+@media (min-width: 1025px) {
+    .lobby-overlay.lobby-stitch-exact {
+        --stitch-bottom-wall-offset: 389px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-topbar.stitch-hud-top {
+        position: relative;
+        display: flex !important;
+        justify-content: space-between;
+        align-items: flex-start;
+        min-height: 92px;
+        padding: 10px 18px 0 10px;
+        gap: 16px;
+        overflow: visible;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-brand {
+        flex: 0 0 auto;
+        gap: 8px;
+        padding-left: 6px;
+        min-width: 0;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-brand .stitch-brand-title {
+        display: block;
+        white-space: nowrap;
+        line-height: 1;
+        font-size: clamp(32px, 2.2vw, 44px);
+        letter-spacing: -0.04em;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-resources {
+        position: absolute;
+        left: 50%;
+        top: 14px;
+        transform: translateX(-50%);
+        justify-content: center;
+        min-width: 590px;
+        max-width: 680px;
+        padding: 8px 12px;
+        gap: 10px;
+        z-index: 2;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-resources .stitch-resource-chip {
+        min-width: 0 !important;
+        flex: 0 0 auto;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-resources .stitch-resource-chip:first-of-type {
+        width: 160px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-resources .stitch-resource-chip:nth-of-type(2) {
+        width: 320px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-resource-copy strong {
+        white-space: nowrap;
+        font-size: clamp(20px, 1.7vw, 31px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-top-actions,
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-actions {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding-top: 14px;
+        gap: 14px;
+        white-space: nowrap;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-btn-text,
+    .lobby-overlay.lobby-stitch-exact .stitch-auth-btn {
+        min-height: 36px;
+        padding: 0 12px;
+        white-space: nowrap;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-hud-btn-text span,
+    .lobby-overlay.lobby-stitch-exact .stitch-auth-btn-label {
+        white-space: nowrap;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-auth-btn-label {
+        max-width: none !important;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-main {
+        gap: 30px !important;
+        padding-top: 20px;
+        align-items: stretch;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-left-col {
+        flex: 0 0 404px !important;
+        width: 404px;
+        min-width: 404px;
+        min-height: calc(100dvh - 218px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar {
+        width: 404px !important;
+        min-width: 404px;
+        margin-right: 0;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar:hover {
+        width: 404px !important;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-drawer {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        transform: none !important;
+        background:
+            linear-gradient(180deg, rgba(11, 18, 36, 0.96), rgba(9, 14, 28, 0.9)),
+            linear-gradient(90deg, rgba(79, 107, 255, 0.08), transparent 20%);
+        border-left: 2px solid rgba(82, 115, 255, 0.8);
+        border-right: 1px solid rgba(129, 236, 255, 0.08);
+        box-shadow:
+            inset 0 0 0 1px rgba(129, 236, 255, 0.04),
+            18px 0 40px rgba(0, 0, 0, 0.28);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar:hover .stitch-tac-drawer {
+        transform: none !important;
+        background:
+            linear-gradient(180deg, rgba(11, 18, 36, 0.96), rgba(9, 14, 28, 0.9)),
+            linear-gradient(90deg, rgba(79, 107, 255, 0.08), transparent 20%);
+        box-shadow:
+            inset 0 0 0 1px rgba(129, 236, 255, 0.04),
+            18px 0 40px rgba(0, 0, 0, 0.28);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-collapsed {
+        width: 72px;
+        padding: 18px 0;
+        gap: 18px;
+        background: rgba(0, 0, 0, 0.24);
+        border-right: 1px solid rgba(129, 236, 255, 0.08);
+        box-shadow: inset -12px 0 24px rgba(0, 0, 0, 0.36);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-expanded {
+        padding: 24px 24px 24px 28px;
+        gap: 18px;
+        opacity: 1;
+        transform: none;
+        min-height: 100%;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-sidebar:hover .stitch-tac-expanded {
+        opacity: 1;
+        transform: none;
+        transition-delay: 0s;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-kicker {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-name {
+        font-size: clamp(34px, 2vw, 40px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-meta {
+        gap: 12px;
+        font-size: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-ball-stage {
+        min-height: 212px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-model-stage .stitch-ball-core {
+        width: 152px;
+        height: 152px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-skin-profile {
+        padding: 16px 16px 18px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-skin-profile-head strong {
+        font-size: 21px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-skin-meta-card strong {
+        font-size: 12px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-skin-drawer {
+        padding-top: 14px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-skin-drawer .stitch-skin-chip {
+        min-height: 40px;
+        font-size: 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-data-grid {
+        gap: 10px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tac-radar strong {
+        font-size: clamp(28px, 1.8vw, 34px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-right-col,
+    .lobby-overlay.lobby-stitch-exact .stitch-stage-col {
+        position: relative;
+        overflow: visible;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-panel {
+        max-width: 1340px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 12px 0 164px !important;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-panel .stitch-panel-head {
+        margin: 0 10px 20px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-panel-head strong {
+        font-size: clamp(28px, 1.55vw, 34px);
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-panel-head small {
+        font-size: clamp(14px, 0.92vw, 16px);
+        line-height: 1.45;
+        letter-spacing: 0.01em;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-panel .stitch-mode-status {
+        font-size: 14px;
+        padding: 8px 14px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-grid {
+        min-height: 474px;
+        margin-top: 0;
+        padding-right: 296px;
+        gap: 20px !important;
+        align-items: stretch;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card {
+        justify-items: start;
+        height: 388px;
+        border-radius: 24px !important;
+        transform: rotateY(15deg) scale(0.9) translateZ(-58px) !important;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card:not(.is-active) .stitch-mode-icon {
+        position: absolute;
+        top: 22px;
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        justify-self: auto;
+        color: rgba(210, 223, 245, 0.16);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active {
+        display: flex !important;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-end;
+        flex-basis: 612px !important;
+        height: 456px;
+        padding: 32px 28px 26px !important;
+        transform: rotateY(0deg) scale(1) translateZ(0) !important;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active .stitch-mode-icon {
+        position: absolute;
+        top: 18px;
+        right: 22px;
+        left: auto;
+        transform: none;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active .stitch-mode-card-status {
+        position: absolute;
+        top: 62px;
+        right: 18px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active .stitch-mode-card-kicker {
+        position: absolute;
+        top: 96px;
+        left: 28px;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        opacity: 1;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active strong {
+        margin-top: auto;
+        font-size: clamp(52px, 4vw, 66px) !important;
+        line-height: 0.92;
+        letter-spacing: -0.03em;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-active p {
+        margin-top: 8px;
+        max-width: 16ch;
+        font-size: 14px !important;
+        line-height: 1.35;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-core-launch-stage {
+        right: 86px !important;
+        bottom: calc(92px - var(--stitch-bottom-wall-offset, 0px)) !important;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-launch-btn {
+        width: 274px;
+        height: 84px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-launch-text {
+        font-size: 24px;
+        letter-spacing: 0.2em;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-base-tray {
+        bottom: calc(-1 * var(--stitch-bottom-wall-offset, 0px));
+        height: 238px;
+        align-items: flex-end;
+        padding:
+            12px
+            clamp(240px, 18vw, 340px)
+            0
+            clamp(72px, 5vw, 132px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tray-nav {
+        width: min(100%, 1160px);
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        align-items: end;
+        gap: clamp(24px, 2vw, 40px);
+        padding-bottom: 0;
+        transform: translate(-54px, 18px);
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tray-btn {
+        min-width: 0;
+        width: 100%;
+        min-height: 108px;
+        padding: 14px 18px 8px;
+        justify-content: center;
+        gap: 16px;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tray-symbol {
+        font-size: clamp(34px, 2.2vw, 44px) !important;
+        line-height: 1;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-tray-btn span:not(.stitch-tray-symbol) {
+        font-size: clamp(14px, 0.95vw, 17px) !important;
+        line-height: 1.35;
+        letter-spacing: 0.08em;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-inline-tip {
+        display: none !important;
+    }
+
+    .lobby-overlay.lobby-stitch-exact[data-active-drawer="tasks"] .stitch-drawer-backdrop,
+    .lobby-overlay.lobby-stitch-exact[data-active-drawer="friends"] .stitch-drawer-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .lobby-overlay.lobby-stitch-exact[data-active-drawer="tasks"] .stitch-z4-drawer.is-left {
+        transform: translateX(0);
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .lobby-overlay.lobby-stitch-exact[data-active-drawer="friends"] .stitch-z4-drawer.is-right {
+        transform: translateX(0);
+        opacity: 1;
+        pointer-events: auto;
+    }
 }

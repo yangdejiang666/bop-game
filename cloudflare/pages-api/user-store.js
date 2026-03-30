@@ -12,6 +12,7 @@ export async function getUserSummaryById(db, userId) {
     `
       SELECT
         u.id AS user_id,
+        u.game_id AS user_game_id,
         u.status AS user_status,
         u.created_at AS user_created_at,
         u.updated_at AS user_updated_at,
@@ -63,6 +64,7 @@ export async function getUserSummaryById(db, userId) {
     summary: {
       user: {
         id: userRow.user_id,
+        gameId: userRow.user_game_id || userRow.user_id,
         status: userRow.user_status,
         createdAt: userRow.user_created_at,
         updatedAt: userRow.user_updated_at,
@@ -109,6 +111,7 @@ export function buildAuthUser(summaryRecord) {
     summary.identities[0];
   return {
     userId: summary.user.id,
+    gameId: summary.user.gameId,
     accountId: identity?.username || identity?.providerUid || summary.user.id,
     nickname: summary.profile.nickname,
     avatarUrl: summary.profile.avatarUrl || "",
@@ -155,6 +158,7 @@ export async function getDeveloperAccountStats(db) {
 function mapDeveloperDigest(row) {
   return {
     userId: row.user_id,
+    gameId: row.game_id || row.user_id,
     nickname: row.nickname,
     account: row.account || null,
     provider: row.provider || "password",
@@ -173,6 +177,7 @@ export async function getDeveloperAccountDigestByUserId(db, userId) {
     `
       SELECT
         u.id AS user_id,
+        u.game_id AS game_id,
         u.status AS status,
         u.created_at AS created_at,
         u.last_login_at AS last_login_at,
@@ -200,6 +205,7 @@ export async function listRecentDeveloperAccounts(db, limit = 6) {
     `
       SELECT
         u.id AS user_id,
+        u.game_id AS game_id,
         u.status AS status,
         u.created_at AS created_at,
         u.last_login_at AS last_login_at,
@@ -225,14 +231,16 @@ export async function getPublicUserCardById(db, userId) {
     db,
     `
       SELECT
-        user_id,
-        nickname,
-        avatar_url,
-        level,
-        best_mass,
-        season_score
-      FROM user_profiles
-      WHERE user_id = ?
+        p.user_id,
+        u.game_id,
+        p.nickname,
+        p.avatar_url,
+        p.level,
+        p.best_mass,
+        p.season_score
+      FROM user_profiles p
+      INNER JOIN users u ON u.id = p.user_id
+      WHERE p.user_id = ?
       LIMIT 1
     `,
     [userId],

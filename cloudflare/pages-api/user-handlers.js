@@ -244,6 +244,7 @@ export async function handleGetPublicUser(request, env, requestId, userId) {
   return success(request, requestId, {
     user: {
       userId: card.user_id,
+      gameId: card.game_id || card.user_id,
       nickname: card.nickname,
       avatarUrl: card.avatar_url || null,
       level: clampNonNegativeInteger(card.level, 1),

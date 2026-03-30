@@ -6,11 +6,14 @@ const REQUIRED_SCHEMA_TABLE = "users";
 const INITIAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
+  game_id TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   last_login_at TEXT
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_game_id ON users(game_id);
 
 CREATE TABLE IF NOT EXISTS user_identities (
   id TEXT PRIMARY KEY,
@@ -151,15 +154,258 @@ CREATE TABLE IF NOT EXISTS matchmaking_tickets (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_matchmaking_active_ticket_per_user
 ON matchmaking_tickets(user_id)
 WHERE stage IN ('searching', 'confirming', 'matched');
+
+CREATE TABLE IF NOT EXISTS social_friend_requests (
+  id TEXT PRIMARY KEY,
+  requester_user_id TEXT NOT NULL,
+  target_user_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  responded_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_friend_requests_requester
+ON social_friend_requests(requester_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_social_friend_requests_target
+ON social_friend_requests(target_user_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_social_friend_requests_pending_pair
+ON social_friend_requests(requester_user_id, target_user_id)
+WHERE status = 'pending';
+
+CREATE TABLE IF NOT EXISTS social_friendships (
+  id TEXT PRIMARY KEY,
+  user_low TEXT NOT NULL,
+  user_high TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  created_by_user_id TEXT,
+  UNIQUE(user_low, user_high)
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_friendships_low
+ON social_friendships(user_low);
+
+CREATE INDEX IF NOT EXISTS idx_social_friendships_high
+ON social_friendships(user_high);
+
+CREATE TABLE IF NOT EXISTS social_blocks (
+  id TEXT PRIMARY KEY,
+  blocker_user_id TEXT NOT NULL,
+  blocked_user_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(blocker_user_id, blocked_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_blocks_blocker
+ON social_blocks(blocker_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_social_blocks_blocked
+ON social_blocks(blocked_user_id);
+
+CREATE TABLE IF NOT EXISTS room_live_sessions (
+  room_id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  mode_id TEXT NOT NULL,
+  phase TEXT NOT NULL DEFAULT 'running',
+  version INTEGER NOT NULL DEFAULT 1,
+  state_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  last_simulated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_room_live_sessions_session_id
+ON room_live_sessions(session_id);
 `;
 
 let schemaInitPromise = null;
+let schemaPatchPromise = null;
 
 const INITIAL_SCHEMA_STATEMENTS = INITIAL_SCHEMA_SQL
   .split(/;\s*\n+/)
   .map((statement) => statement.trim())
   .filter(Boolean)
   .map((statement) => `${statement};`);
+
+function randomGameId() {
+  return `${Math.floor(100_000_000 + Math.random() * 900_000_000)}`;
+}
+
+export function normalizeGameId(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const normalized = value.trim();
+  return /^\d{9}$/.test(normalized) ? normalized : "";
+}
+
+export async function generateUniqueGameId(db, maxAttempts = 80) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const candidate = randomGameId();
+    const existing = await dbFirst(
+      db,
+      `
+        SELECT id
+        FROM users
+        WHERE game_id = ?
+        LIMIT 1
+      `,
+      [candidate],
+    );
+    if (!existing?.id) {
+      return candidate;
+    }
+  }
+
+  throw new Error("Failed to allocate a unique 9-digit game_id.");
+}
+
+async function ensureUsersGameIdColumn(db) {
+  const userColumns = await dbAll(db, "PRAGMA table_info(users)");
+  const hasGameIdColumn = userColumns.some(
+    (column) => String(column.name) === "game_id",
+  );
+
+  if (!hasGameIdColumn) {
+    await dbRun(db, "ALTER TABLE users ADD COLUMN game_id TEXT");
+  }
+
+  await dbRun(db, "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_game_id ON users(game_id)");
+}
+
+async function ensureUsersHaveGameIds(db) {
+  const missingRows = await dbAll(
+    db,
+    `
+      SELECT id
+      FROM users
+      WHERE game_id IS NULL OR TRIM(game_id) = ''
+      ORDER BY datetime(created_at) ASC
+    `,
+  );
+
+  if (!missingRows.length) {
+    return;
+  }
+
+  for (const row of missingRows) {
+    const userId = String(row.id ?? "");
+    if (!userId) {
+      continue;
+    }
+
+    let assigned = false;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const candidate = await generateUniqueGameId(db);
+      try {
+        await dbRun(
+          db,
+          `
+            UPDATE users
+            SET
+              game_id = ?,
+              updated_at = ?
+            WHERE id = ?
+              AND (game_id IS NULL OR TRIM(game_id) = '')
+          `,
+          [candidate, new Date().toISOString(), userId],
+        );
+      } catch (error) {
+        if (isUniqueConstraintError(error)) {
+          continue;
+        }
+        throw error;
+      }
+
+      const verified = await dbFirst(
+        db,
+        `
+          SELECT game_id
+          FROM users
+          WHERE id = ?
+          LIMIT 1
+        `,
+        [userId],
+      );
+
+      if (verified?.game_id) {
+        assigned = true;
+        break;
+      }
+    }
+
+    if (!assigned) {
+      throw new Error(`Failed to backfill game_id for user ${userId}.`);
+    }
+  }
+}
+
+async function ensureSocialSchema(db) {
+  if (typeof db.batch !== "function") {
+    throw new Error("D1 batch() is not available for social schema patch.");
+  }
+
+  await db.batch(
+    [
+      `
+        CREATE TABLE IF NOT EXISTS social_friend_requests (
+          id TEXT PRIMARY KEY,
+          requester_user_id TEXT NOT NULL,
+          target_user_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          responded_at TEXT
+        );
+      `,
+      "CREATE INDEX IF NOT EXISTS idx_social_friend_requests_requester ON social_friend_requests(requester_user_id);",
+      "CREATE INDEX IF NOT EXISTS idx_social_friend_requests_target ON social_friend_requests(target_user_id);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS uq_social_friend_requests_pending_pair ON social_friend_requests(requester_user_id, target_user_id) WHERE status = 'pending';",
+      `
+        CREATE TABLE IF NOT EXISTS social_friendships (
+          id TEXT PRIMARY KEY,
+          user_low TEXT NOT NULL,
+          user_high TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          created_by_user_id TEXT,
+          UNIQUE(user_low, user_high)
+        );
+      `,
+      "CREATE INDEX IF NOT EXISTS idx_social_friendships_low ON social_friendships(user_low);",
+      "CREATE INDEX IF NOT EXISTS idx_social_friendships_high ON social_friendships(user_high);",
+      `
+        CREATE TABLE IF NOT EXISTS social_blocks (
+          id TEXT PRIMARY KEY,
+          blocker_user_id TEXT NOT NULL,
+          blocked_user_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(blocker_user_id, blocked_user_id)
+        );
+      `,
+      "CREATE INDEX IF NOT EXISTS idx_social_blocks_blocker ON social_blocks(blocker_user_id);",
+      "CREATE INDEX IF NOT EXISTS idx_social_blocks_blocked ON social_blocks(blocked_user_id);",
+    ].map((sql) => db.prepare(sql)),
+  );
+}
+
+async function ensureSchemaPatch(db) {
+  if (!schemaPatchPromise) {
+    schemaPatchPromise = (async () => {
+      await ensureUsersGameIdColumn(db);
+      await ensureSocialSchema(db);
+      await ensureUsersHaveGameIds(db);
+    })().finally(() => {
+      schemaPatchPromise = null;
+    });
+  }
+
+  await schemaPatchPromise;
+}
 
 async function ensureSchemaReady(db) {
   const existing = await dbFirst(
@@ -173,38 +419,38 @@ async function ensureSchemaReady(db) {
     [REQUIRED_SCHEMA_TABLE],
   );
 
-  if (existing?.name) {
-    return;
+  if (!existing?.name) {
+    if (!schemaInitPromise) {
+      schemaInitPromise = (async () => {
+        if (typeof db.batch !== "function") {
+          throw new Error("D1 batch() is not available for schema bootstrap.");
+        }
+
+        await db.batch(INITIAL_SCHEMA_STATEMENTS.map((sql) => db.prepare(sql)));
+
+        const verified = await dbFirst(
+          db,
+          `
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name = ?
+            LIMIT 1
+          `,
+          [REQUIRED_SCHEMA_TABLE],
+        );
+
+        if (!verified?.name) {
+          throw new Error("D1 schema bootstrap did not create the users table.");
+        }
+      })().finally(() => {
+        schemaInitPromise = null;
+      });
+    }
+
+    await schemaInitPromise;
   }
 
-  if (!schemaInitPromise) {
-    schemaInitPromise = (async () => {
-      if (typeof db.batch !== "function") {
-        throw new Error("D1 batch() is not available for schema bootstrap.");
-      }
-
-      await db.batch(INITIAL_SCHEMA_STATEMENTS.map((sql) => db.prepare(sql)));
-
-      const verified = await dbFirst(
-        db,
-        `
-          SELECT name
-          FROM sqlite_master
-          WHERE type = 'table' AND name = ?
-          LIMIT 1
-        `,
-        [REQUIRED_SCHEMA_TABLE],
-      );
-
-      if (!verified?.name) {
-        throw new Error("D1 schema bootstrap did not create the users table.");
-      }
-    })().finally(() => {
-      schemaInitPromise = null;
-    });
-  }
-
-  await schemaInitPromise;
+  await ensureSchemaPatch(db);
 }
 
 export async function getDbOrResponse(request, env, requestId) {

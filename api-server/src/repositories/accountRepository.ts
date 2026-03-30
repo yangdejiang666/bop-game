@@ -52,6 +52,7 @@ interface DeveloperAccountDigestRow extends QueryResultRow {
   userId: string;
   nickname: string;
   account: string | null;
+  providerUid: string | null;
   provider: "guest" | "password" | "phone" | "apple" | "wechat" | null;
   userStatus: "active" | "banned" | "deleted";
   level: number;
@@ -76,6 +77,14 @@ export interface PasswordIdentityRecord {
   banned: boolean;
   banReason: string | null;
   banUntil: string | null;
+}
+
+export interface ProviderIdentityRecord {
+  userId: string;
+  provider: "guest" | "password" | "phone" | "apple" | "wechat" | "platform";
+  providerUid: string;
+  email: string | null;
+  emailVerified: boolean;
 }
 
 export interface SessionRecord {
@@ -150,11 +159,38 @@ function mapIdentity(row: UserIdentityRow): UserIdentity {
   };
 }
 
+function toGameIdSeed(identities: UserIdentity[]): string | null {
+  const preferredAccount = identities.find(
+    (identity) => identity.provider === "password" && identity.username?.trim(),
+  );
+  if (preferredAccount?.username) {
+    return preferredAccount.username;
+  }
+
+  const preferredProviderUid = identities.find((identity) =>
+    identity.providerUid.trim().length > 0
+  );
+  if (preferredProviderUid?.providerUid) {
+    return preferredProviderUid.providerUid;
+  }
+
+  return null;
+}
+
+function deriveGameId(seed: string): string {
+  let hash = 0;
+  for (const char of seed) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return String(100_000_000 + (hash % 900_000_000));
+}
+
 function mapDeveloperAccountDigest(
   row: DeveloperAccountDigestRow,
 ): DeveloperAccountDigest {
   return {
     userId: row.userId,
+    gameId: deriveGameId(row.account ?? row.providerUid ?? row.userId),
     nickname: row.nickname,
     account: row.account,
     provider: row.provider ?? "password",
@@ -268,6 +304,7 @@ export async function getUserSummaryById(
     summary: {
       user: {
         id: row.user_id,
+        gameId: deriveGameId(toGameIdSeed(identities) ?? row.user_id),
         status: row.user_status,
         createdAt: row.user_created_at,
         updatedAt: row.user_updated_at,
@@ -294,8 +331,11 @@ export async function getPublicUserCardById(
     return null;
   }
 
+  const identities = await getUserIdentities(userId, executor);
+
   return {
     userId: row.user_id,
+    gameId: deriveGameId(toGameIdSeed(identities) ?? row.user_id),
     nickname: row.profile_nickname,
     avatarUrl: row.profile_avatar_url,
     level: row.profile_level,
@@ -343,6 +383,7 @@ export async function getDeveloperAccountDigestByUserId(
         u.id AS "userId",
         p.nickname AS nickname,
         identity.account AS account,
+        identity.provider_uid AS "providerUid",
         identity.provider AS provider,
         u.status AS "userStatus",
         p.level AS level,
@@ -355,6 +396,7 @@ export async function getDeveloperAccountDigestByUserId(
       LEFT JOIN LATERAL (
         SELECT
           provider::text AS provider,
+          provider_uid,
           account
         FROM user_identities
         WHERE user_id = u.id
@@ -386,6 +428,7 @@ export async function listRecentDeveloperAccounts(
         u.id AS "userId",
         p.nickname AS nickname,
         identity.account AS account,
+        identity.provider_uid AS "providerUid",
         identity.provider AS provider,
         u.status AS "userStatus",
         p.level AS level,
@@ -398,6 +441,7 @@ export async function listRecentDeveloperAccounts(
       LEFT JOIN LATERAL (
         SELECT
           provider::text AS provider,
+          provider_uid,
           account
         FROM user_identities
         WHERE user_id = u.id
@@ -441,6 +485,35 @@ export async function findPasswordIdentityByAccount(
       LIMIT 1
     `,
     [normalizeAccount(account)],
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function findIdentityByProviderUid(
+  params: {
+    provider: ProviderIdentityRecord["provider"];
+    providerUid: string;
+  },
+  executor?: Executor,
+): Promise<ProviderIdentityRecord | null> {
+  const db = getExecutor(executor);
+  const result = await db.query<
+    ProviderIdentityRecord & QueryResultRow
+  >(
+    `
+      SELECT
+        ui.user_id AS "userId",
+        ui.provider::text AS provider,
+        ui.provider_uid AS "providerUid",
+        ui.email AS email,
+        ui.email_verified AS "emailVerified"
+      FROM user_identities ui
+      WHERE ui.provider = $1::provider_type
+        AND ui.provider_uid = $2
+      LIMIT 1
+    `,
+    [params.provider, params.providerUid],
   );
 
   return result.rows[0] ?? null;
@@ -527,6 +600,157 @@ export async function createPasswordUser(
   );
 
   return { userId };
+}
+
+async function findUnusedEmail(
+  email: string | null | undefined,
+  executor?: Executor,
+): Promise<string | null> {
+  const normalized = sanitizeNullableText(email);
+  if (!normalized) {
+    return null;
+  }
+
+  const db = getExecutor(executor);
+  const existing = await db.query<{ userId: string } & QueryResultRow>(
+    `
+      SELECT user_id AS "userId"
+      FROM user_identities
+      WHERE email = $1
+      LIMIT 1
+    `,
+    [normalized],
+  );
+
+  return existing.rows[0] ? null : normalized;
+}
+
+export async function createPlatformUser(
+  params: {
+    providerUid: string;
+    nickname?: string;
+    avatarUrl?: string | null;
+    email?: string | null;
+    emailVerified?: boolean;
+  },
+  executor?: Executor,
+): Promise<{ userId: string }> {
+  const db = getExecutor(executor);
+  const nickname = normalizeNickname(params.nickname);
+  const safeEmail = await findUnusedEmail(params.email, db);
+
+  const userResult = await db.query<{ id: string }>(
+    `
+      INSERT INTO users (status, created_at, updated_at, last_login_at)
+      VALUES ('active', NOW(), NOW(), NOW())
+      RETURNING id
+    `,
+  );
+  const userId = userResult.rows[0]?.id;
+  if (!userId) {
+    throw new Error("failed to create platform user");
+  }
+
+  await db.query(
+    `
+      INSERT INTO user_profiles (
+        user_id,
+        nickname,
+        avatar_url,
+        level,
+        current_xp,
+        total_xp,
+        coins,
+        season_score,
+        best_mass,
+        total_matches,
+        total_wins,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, 1, 0, 0, 0, 0, 0, 0, 0, NOW(), NOW())
+    `,
+    [userId, nickname, sanitizeNullableText(params.avatarUrl)],
+  );
+
+  await db.query(
+    `
+      INSERT INTO user_bans (
+        user_id,
+        is_banned,
+        reason,
+        banned_until,
+        operator_note,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, FALSE, NULL, NULL, NULL, NOW(), NOW())
+      ON CONFLICT (user_id) DO NOTHING
+    `,
+    [userId],
+  );
+
+  await db.query(
+    `
+      INSERT INTO user_identities (
+        user_id,
+        provider,
+        provider_uid,
+        email,
+        email_verified,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, 'platform', $2, $3, $4, NOW(), NOW())
+    `,
+    [userId, params.providerUid, safeEmail, params.emailVerified ?? false],
+  );
+
+  return { userId };
+}
+
+export async function syncPlatformIdentity(
+  params: {
+    userId: string;
+    providerUid: string;
+    avatarUrl?: string | null;
+    email?: string | null;
+    emailVerified?: boolean;
+  },
+  executor?: Executor,
+): Promise<void> {
+  const db = getExecutor(executor);
+  const safeEmail = await findUnusedEmail(params.email, db);
+
+  await db.query(
+    `
+      UPDATE user_identities
+      SET
+        email = COALESCE($3, email),
+        email_verified = CASE
+          WHEN $4 THEN TRUE
+          ELSE email_verified
+        END,
+        updated_at = NOW()
+      WHERE user_id = $1
+        AND provider = 'platform'
+        AND provider_uid = $2
+    `,
+    [params.userId, params.providerUid, safeEmail, params.emailVerified ?? false],
+  );
+
+  if (params.avatarUrl !== undefined) {
+    await db.query(
+      `
+        UPDATE user_profiles
+        SET
+          avatar_url = $2,
+          updated_at = NOW()
+        WHERE user_id = $1
+      `,
+      [params.userId, sanitizeNullableText(params.avatarUrl)],
+    );
+  }
 }
 
 export async function touchUserLogin(
@@ -1063,5 +1287,25 @@ export async function overwriteUserProgression(
       params.progression.totalWins,
       params.progression.bestMass,
     ],
+  );
+}
+
+export async function updatePasswordHashForUser(
+  userId: string,
+  passwordHash: string,
+  executor?: Executor,
+): Promise<void> {
+  const db = getExecutor(executor);
+  await db.query(
+    `
+      UPDATE user_identities
+      SET
+        password_hash = $2,
+        password_algo = 'bcrypt',
+        updated_at = NOW()
+      WHERE user_id = $1
+        AND provider = 'password'
+    `,
+    [userId, passwordHash],
   );
 }

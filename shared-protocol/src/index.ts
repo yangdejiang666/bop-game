@@ -7,6 +7,8 @@ export * from "./user.js";
 export * from "./room.js";
 export * from "./progression.js";
 export * from "./matchmaking.js";
+export * from "./social.js";
+export * from "./platform.js";
 
 export * as MatchmakingProtocol from "./matchmaking.js";
 export * as WsProtocol from "./ws.js";

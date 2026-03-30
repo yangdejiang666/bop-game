@@ -19,7 +19,7 @@ export interface NetworkConfig {
 const DEFAULTS: NetworkConfig = {
   env: "development",
   apiBaseUrl: "http://127.0.0.1:8788/api/v1",
-  wsBaseUrl: "ws://127.0.0.1:8799/ws",
+  wsBaseUrl: "ws://127.0.0.1:8899/ws",
   requestTimeoutMs: 12_000,
   heartbeatIntervalMs: 10_000,
   useBackendMatching: false,

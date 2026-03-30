@@ -6,18 +6,25 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "prepare:protocol": "npm --prefix ../shared-protocol run build",
+    "dev": "npm run prepare:protocol && tsx watch src/index.ts",
     "start": "node --enable-source-maps dist/index.js",
-    "build": "tsc -p tsconfig.json",
-    "check": "tsc --noEmit -p tsconfig.json"
+    "build": "npm run prepare:protocol && tsc -p tsconfig.json",
+    "check": "npm run prepare:protocol && tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@bop/shared-protocol": "file:../shared-protocol",
+    "@clerk/backend": "^3.2.2",
     "@fastify/cors": "^10.0.1",
     "@fastify/helmet": "^13.0.1",
     "@fastify/jwt": "^9.0.1",
     "@fastify/rate-limit": "^10.1.0",
     "@fastify/sensible": "^5.6.0",
+    "@pinecone-database/pinecone": "^7.1.0",
+    "@sentry/node": "^10.45.0",
+    "@supabase/supabase-js": "^2.100.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -27,6 +34,9 @@
     "jsonwebtoken": "^9.0.3",
     "nanoid": "^5.1.5",
     "pg": "^8.20.0",
+    "posthog-node": "^5.28.5",
+    "resend": "^6.9.4",
+    "stripe": "^20.4.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

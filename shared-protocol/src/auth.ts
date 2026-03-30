@@ -28,6 +28,7 @@ export interface TokenPair {
 
 export interface AuthUser {
   userId: string;
+  gameId: string;
   accountId: string;
   nickname: string;
   avatarUrl: string;

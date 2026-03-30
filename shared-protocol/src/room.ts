@@ -105,9 +105,73 @@ export interface StartRoomMatchRequest {
     roomId: string;
 }
 
+export interface RoomMatchInputPayload {
+    moveX: number;
+    moveY: number;
+}
+
+export interface RoomMatchLeaderboardEntry {
+    userId: string;
+    nickname: string;
+    mass: number;
+    score: number;
+    alive: boolean;
+}
+
+export interface RoomMatchPlayerSnapshot {
+    userId: string;
+    nickname: string;
+    color: string;
+    accentColor: string;
+    x: number;
+    y: number;
+    mass: number;
+    radius: number;
+    score: number;
+    alive: boolean;
+    respawnAt: string | null;
+}
+
+export interface RoomMatchFoodSnapshot {
+    id: string;
+    x: number;
+    y: number;
+    mass: number;
+}
+
+export interface RoomMatchSnapshot {
+    sessionId: string;
+    roomId: string;
+    modeId: string;
+    roomCode: string | null;
+    phase: 'running' | 'finished';
+    tick: number;
+    version: number;
+    worldSize: number;
+    serverTime: string;
+    startedAt: string;
+    endsAt: string;
+    winnerUserId: string | null;
+    leaderboard: RoomMatchLeaderboardEntry[];
+    players: RoomMatchPlayerSnapshot[];
+    foods: RoomMatchFoodSnapshot[];
+    localPlayerId: string | null;
+}
+
 export interface StartRoomMatchResponse {
     room: RoomSnapshot;
-    ticketId: string;
+    session: RoomMatchSnapshot;
+}
+
+export interface SyncRoomMatchRequest {
+    roomId: string;
+    input?: RoomMatchInputPayload;
+    lastKnownVersion?: number;
+}
+
+export interface SyncRoomMatchResponse {
+    room: RoomSnapshot;
+    session: RoomMatchSnapshot;
 }
 
 export interface GetRoomSnapshotRequest {

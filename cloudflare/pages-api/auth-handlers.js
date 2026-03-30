@@ -8,7 +8,14 @@ import {
   REFRESH_TOKEN_TTL_SECONDS,
 } from "./constants.js";
 import { createOpaqueToken, hashPassword, sha256Hex, verifyPassword } from "./crypto.js";
-import { dbBatch, dbFirst, dbRun, getDbOrResponse, isUniqueConstraintError } from "./db.js";
+import {
+  dbBatch,
+  dbFirst,
+  dbRun,
+  generateUniqueGameId,
+  getDbOrResponse,
+  isUniqueConstraintError,
+} from "./db.js";
 import {
   failure,
   normalizeAccount,
@@ -357,6 +364,7 @@ export async function handleRegister(request, env, requestId) {
     }
 
     const userId = `user_${crypto.randomUUID().replaceAll("-", "")}`;
+    const gameId = await generateUniqueGameId(db);
     const identityId = `identity_${crypto.randomUUID().replaceAll("-", "")}`;
     const timestamp = nowIso();
 
@@ -369,10 +377,10 @@ export async function handleRegister(request, env, requestId) {
       await dbBatch(db, [
         {
           sql: `
-            INSERT INTO users (id, status, created_at, updated_at, last_login_at)
-            VALUES (?, 'active', ?, ?, NULL)
+            INSERT INTO users (id, game_id, status, created_at, updated_at, last_login_at)
+            VALUES (?, ?, 'active', ?, ?, NULL)
           `,
-          params: [userId, timestamp, timestamp],
+          params: [userId, gameId, timestamp, timestamp],
         },
         {
           sql: `

@@ -218,6 +218,13 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
   - Classic: 成长倍率 / 当前体重 / 最终名次
   - Speed: 快局时长 / 节奏倍率 / 冲刺名次
   - Team: 队伍总质量 / 团队质量差 / 个人名次
+- 2026-03-24: Simplified the stitch-exact lobby shell to a Ball Battle-style single-stage layout: removed the extra season strip, activity row, dock shortcuts, and invite side strip from `LobbyUI`, keeping the home screen focused on left profile, center 4-mode stage, right task/friend rail, and one primary CTA.
+- 2026-03-24: Reworked desktop lobby layout in `src/lobby-stitch-hotfix.css` to a fixed three-zone stage (`profile / mode stage / compact rail`) with 2x2 mode cards, compact topbar chips, tighter task/friend cards, and no browser-page scrolling fallback on desktop.
+- 2026-03-24: Restored desktop viewport fitting in `LobbyUI.syncLobbyFit()` using real content measurement against the root content box instead of relying on root overflow scrolling; mobile/tablet (`<=1024px`) still keep native stacked flow.
+- 2026-03-24: Validation: `npm run build` passed. Real-browser checks on `http://127.0.0.1:4187/` with injected local auth confirmed the lobby now shows only 4 modes (`排位赛 / 巅峰赛 / 经典模式 / 大逃杀`) and stays fully visible without page scrolling at `1366x768`, `1280x720`, and `1152x648`; CTA remained fully inside the viewport in all three cases.
+- 2026-03-24: 收紧模式入口与分厅视口适配：大厅模式卡改为仅保留 `排位赛 / 巅峰赛 / 经典模式 / 大逃杀` 四张，`极速模式` 与 `团队模式` 已从大厅入口、运行期可达校验和模式定义中移除。
+- 2026-03-24: `mode-hall-v2` 分厅改为无底部托盘版本，删除底部 tray DOM，并在 `ModeHallUI` 中加入基于 `offsetWidth/offsetHeight` 的桌面端一屏 fit 逻辑；同时修复了入场动画内联 transform 覆盖 fit 缩放的问题。
+- 2026-03-24: 验证：`npm run build` 通过；Playwright 本地预览检查确认大厅仅剩 4 个模式卡，排位分厅默认桌面态在 `1366x768` 与 `1280x720` 下 `document.documentElement.scrollHeight === viewportHeight`，且分厅 shell 未超出视口底边；当前浏览器控制台残留报错仍来自未启动的 `127.0.0.1:8788` 后端接口与 WebGL 占位模型告警，不属于本次布局调整本身。
   - BattleRoyale: 安全圈终态 / 圈外伤害 / 生存名次
 - 2026-03-21: Extended snapshot schema with `session.match.modeStats` (label/value/icon array) for deterministic inspection via `render_game_to_text`, synchronized with on-screen settlement cards.
 - 2026-03-21: Validation: `npm run build` passed; Playwright verified speed and team settlements both show distinct `modeStats` payloads and matching UI cards, and no new console errors were introduced.
@@ -454,3 +461,99 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
     - first hit to `/readyz` or any `/api/v1/*` route creates the tables automatically;
     - `/readyz` then returns `200`;
     - registration/login and developer toolbox account stats work without any dashboard-side SQL step.
+- 2026-03-23: Started the first true private-room multiplayer pass on top of the existing Cloudflare Pages + D1 deployment, without introducing a second backend platform.
+  - Added new shared room-match protocol contracts in `shared-protocol/src/room.ts`:
+    - `RoomMatchSnapshot`
+    - `StartRoomMatchResponse.session`
+    - `SyncRoomMatchRequest/Response`
+  - Added a Cloudflare room live-session table to both the bootstrap schema and the checked-in D1 migration:
+    - `room_live_sessions`
+  - Added a server-authoritative lightweight private-room match engine in `cloudflare/pages-api/room-match-engine.js`.
+    - Current scope is the first playable online room layer:
+      - same room/session id for all room members
+      - shared food pellets
+      - shared player positions / mass / leaderboard
+      - simple eat/respawn loop
+      - timed match end + winner snapshot
+    - This intentionally does not yet reuse the full single-player `createGameSession` ruleset; it is a smaller online ruleset to get real synchronized private rooms live first.
+  - Added new Cloudflare API handlers in `cloudflare/pages-api/room-match-handlers.js` and wired them in `cloudflare/pages-api/backend.js`:
+    - `POST /api/v1/room/start-match`
+    - `POST /api/v1/room/session/sync`
+  - Frontend integration:
+    - added `src/game/createOnlineRoomSession.ts` as a dedicated online private-room battle scene
+    - extended `src/network/roomService.ts` with `startRoomMatch()` and `syncRoomMatch()`
+    - updated `src/main.ts` so:
+      - room-code join payloads from `ModeHallUI` are no longer dropped
+      - private rooms poll the latest room snapshot while open
+      - if a room enters `inGame`, clients auto-enter the shared online room session
+      - clicking the main start CTA inside a private room now starts the shared room match instead of local matchmaking
+    - added the first batch of online session styles in `src/style.css`
+  - Validation:
+    - `npm run build` passed in the frontend root after the multiplayer changes.
+    - `npm run check` passed in `shared-protocol`.
+    - direct node smoke test of `cloudflare/pages-api/room-match-engine.js` produced a valid two-player shared snapshot with diverging positions and a populated leaderboard.
+  - Remaining edge to verify on the live site after deployment:
+    - two separate logged-in browsers in the same private room should now auto-enter the same online arena when the owner starts;
+    - the online arena currently syncs through repeated authenticated HTTP `sync` calls to Pages Functions rather than a dedicated WebSocket server, which keeps deployment simple on free Cloudflare but is still a v1 realtime approach.
+- 2026-03-23: Updated lobby mode-card UX and mode mapping per latest requirement.
+  - Kept the lobby at 4 cards and replaced the previous "巅峰极速" slot with "大逃杀", mapping the card `modeId` to `battleRoyale` in `src/ui/LobbyUI.ts`.
+  - Restricted runtime mode guard in `src/main.ts` to the currently intended playable set (`ranked` / `classic` / `battleRoyale`) so deprecated extra modes are no longer reachable through current UI/debug guard path.
+  - Enhanced per-mode card edge lighting in `src/lobby-stitch-hotfix.css` with stronger flowing border beams and theme-specific glow palettes (including a new red/orange survival theme), and added fallback red flow color in `src/style.css`.
+  - Validation: `npm run build` passed after these changes.
+- 2026-03-23: Fixed lobby viewport adaptation issue that caused visible blank space and incomplete lower-area rendering on some browser sizes.
+  - In `src/lobby-stitch-hotfix.css`, changed the root container from hard `overflow: hidden` to adaptive vertical scrolling (`overflow-y: auto`) and made the scale frame use `height: auto; min-height: 100%` to avoid clipping/empty-gap artifacts.
+  - In `src/lobby-stitch-hotfix.css`, overrode `.stitch-main` to `flex: 0 0 auto` so the center section no longer stretches and leaves a large empty block before the bottom activity area.
+  - In `src/ui/LobbyUI.ts`, simplified `syncLobbyFit()` to keep `--stitch-fit-scale` at `1` and rely on responsive CSS/layout instead of transform downscaling, which previously amplified blank-gap behavior.
+  - Validation:
+    - `npm run build` passed.
+    - `develop-web-game` Playwright client script was re-run and still fails on this machine with the existing Chromium launch `spawn EPERM` environment issue.
+    - In-session Playwright browser MCP check on `http://127.0.0.1:4180` confirms full-page scrollable rendering and no missing bottom block in the current auth-gated viewport.
+- 2026-03-23: Implemented the UID + social link-up baseline for Cloudflare Pages + D1 and completed the runtime social polling bridge.
+  - Shared protocol:
+    - Added `gameId` to auth/user contracts (`AuthUser`, `UserBase`, `PublicUserCard`, `DeveloperAccountDigest`).
+    - Added `shared-protocol/src/social.ts` with overview/search/friend-request/block request-response types and exported from `shared-protocol/src/index.ts`.
+  - Cloudflare backend:
+    - Added `users.game_id` (unique) and social tables/indexes (`social_friend_requests`, `social_friendships`, `social_blocks`) to bootstrap schema and D1 migration.
+    - Added idempotent schema patch flow in `cloudflare/pages-api/db.js` to auto-patch old DBs and backfill missing 9-digit UIDs.
+    - Added social domain store + handlers + routes for overview/search/request/accept/reject/unfriend/block/unblock.
+    - Enforced key rules: no self-add, block isolation, duplicate/request conflicts, reverse-pending auto-accept, block auto-removes friendship and pending requests.
+  - Frontend:
+    - Added `src/network/socialService.ts` and upgraded `src/network/lobbyService.ts` to consume real social APIs instead of static friend data.
+    - Extended session/account rendering with external UID (`gameId`) in auth state and developer toolbox.
+    - Added social management UI in settings (`src/ui/LobbyUI.ts`): UID exact search, incoming/outgoing requests, friend actions, block/unblock, social counters.
+    - Connected mode-hall friend panel to real social friends and switched to online-first ordering.
+    - Added global social polling in `src/main.ts`: starts after login (lobby/mode-hall/settings), polls every 20s, and stops/clears on logout/auth-gate.
+  - Validation:
+    - `npm run check` passed in `shared-protocol/`.
+    - `npm run build` passed in frontend root.
+    - `node --input-type=module -e "import('./cloudflare/pages-api/backend.js')..."` passed (`backend ok`).
+- 2026-03-23: Fixed mode-hall completeness and responsive scrolling so all hall sections render on one page with browser-adaptive vertical scroll.
+  - Restored the missing mode-hall footer block (`规则 / 奖励 / 地图/教学` tabs + content) in `src/ui/ModeHallUI.ts`; this was the direct cause of “分厅内容不全”.
+  - Reworked the final mode-hall layout overrides in `src/style.css` to use a single scroll container strategy:
+    - overlay keeps `overflow-y: auto`,
+    - orb shell keeps full content rows and no nested vertical scroll,
+    - footer is displayed again,
+    - mobile fixed-position header action bar is reset to normal flow for this orb layout,
+    - internal lists/tabs remove max-height clipping so content is not truncated.
+  - Validation:
+    - `npm run build` passed in frontend root.
+    - Playwright MCP verification on `http://127.0.0.1:4180/?hallfit=1` after `debug_backend_login_demo()` + `debug_open_mode_hall('ranked','rules')` confirmed:
+      - footer/tabs are present and visible,
+      - overlay reports scrollable dimensions (`clientHeight 965`, `scrollHeight 2641`),
+      - hall content is now complete and reachable via page scrolling.
+    - The required `develop-web-game` client script was attempted and still hits the known environment-level Playwright launch issue (`browserType.launch: spawn EPERM`), so visual verification used the in-session browser tooling.
+- 2026-03-24: Removed all mode-hall rule/footer blocks again per latest request and refit the hall UI to stay inside the browser viewport without hall scrolling.
+  - Removed the entire mode-hall footer/template block from `src/ui/ModeHallUI.ts` and deleted the related tab rendering/binding logic (`规则 / 奖励 / 地图/教学` no longer appears in any hall).
+  - Reworked the orb hall responsive layout in `src/style.css`:
+    - desktop/medium browser widths now use a compressed no-scroll hall shell,
+    - 901px-1200px widths get a dedicated compact 3-column layout,
+    - section labels and secondary copy are reduced at that breakpoint to keep everything above the fold,
+    - internal hall lists (`room members`, `social`) no longer introduce hall scrolling in the desktop browser case.
+  - Validation:
+    - `npm run build` passed in frontend root.
+    - `develop-web-game` Playwright client script was attempted and still fails on this machine with the existing `browserType.launch: spawn EPERM`.
+    - In-session browser verification on `http://127.0.0.1:4180/?modehall-clean=6` confirmed for a 929x965 browser viewport:
+      - `mode-hall-footer` is absent,
+      - `shellScrollH === shellClientH` (`947 === 947`),
+      - `mainScrollH === mainClientH` (`719 === 719`),
+      - the hall UI fits within the visible browser shell without hall scrolling.

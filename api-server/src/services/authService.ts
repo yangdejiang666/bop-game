@@ -18,6 +18,8 @@ import {
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import {
   createPasswordUser,
+  createPlatformUser,
+  findIdentityByProviderUid,
   findPasswordIdentityByAccount,
   getActiveSessionById,
   getUserSummaryById,
@@ -28,11 +30,16 @@ import {
   revokeRefreshTokenById,
   revokeSessionById,
   revokeSessionTokens,
+  syncPlatformIdentity,
   touchUserLogin,
   upsertAuthSession,
   type RefreshTokenRecord,
 } from "../repositories/accountRepository.js";
 import { findRefreshTokenByHash } from "../repositories/accountRepository.js";
+import {
+  captureServerEvent,
+  verifyClerkPlatformToken,
+} from "./platformService.js";
 
 function buildAuthUser(summary: Awaited<ReturnType<typeof getUserSummaryById>>): AuthUser {
   if (!summary) {
@@ -45,6 +52,7 @@ function buildAuthUser(summary: Awaited<ReturnType<typeof getUserSummaryById>>):
 
   return {
     userId: summary.summary.user.id,
+    gameId: summary.summary.user.gameId,
     accountId:
       accountIdentity?.username ??
       accountIdentity?.providerUid ??
@@ -213,6 +221,85 @@ export async function loginByPassword(params: {
       riskLevel: "low",
       requiresVerification: false,
       reasonCodes: [],
+    },
+  };
+}
+
+export async function loginByPlatform(params: {
+  provider: string;
+  providerToken: string;
+  device: DeviceInfo;
+}): Promise<LoginResponse> {
+  if (params.provider !== "clerk") {
+    throw new Error("unsupported platform provider");
+  }
+
+  const verified = await verifyClerkPlatformToken(params.providerToken);
+  const providerUid = `clerk:${verified.subject}`;
+  const existingIdentity = await findIdentityByProviderUid({
+    provider: "platform",
+    providerUid,
+  });
+
+  let userId = existingIdentity?.userId ?? null;
+  let isNewUser = false;
+
+  if (!userId) {
+    const created = await createPlatformUser({
+      providerUid,
+      nickname: verified.nickname ?? undefined,
+      avatarUrl: verified.avatarUrl,
+      email: verified.email,
+      emailVerified: !!verified.email,
+    });
+    userId = created.userId;
+    isNewUser = true;
+  } else {
+    await syncPlatformIdentity({
+      userId,
+      providerUid,
+      avatarUrl: verified.avatarUrl,
+      email: verified.email,
+      emailVerified: !!verified.email,
+    });
+  }
+  if (!userId) {
+    throw new Error("platform user resolution failed");
+  }
+
+  const summary = await withTransaction(async (client) => {
+    await touchUserLogin(userId, client);
+    const found = await getUserSummaryById(userId, client);
+    if (!found) {
+      throw new Error("user summary not found");
+    }
+    return found;
+  });
+
+  const issued = await issueTokenPair({
+    userId,
+    device: params.device,
+  });
+
+  await captureServerEvent({
+    event: "auth_platform_login_succeeded",
+    distinctId: userId,
+    properties: {
+      provider: params.provider,
+      isNewUser,
+    },
+  });
+
+  return {
+    user: buildAuthUser(summary),
+    tokens: issued.tokens,
+    method: "platform",
+    isNewUser,
+    serverTime: new Date().toISOString(),
+    riskMeta: {
+      riskLevel: "low",
+      requiresVerification: false,
+      reasonCodes: [params.provider],
     },
   };
 }

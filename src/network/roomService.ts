@@ -9,6 +9,10 @@ import type {
   SetReadyResponse,
   GetRoomSnapshotResponse,
   QueryRoomByInviteCodeResponse,
+  StartRoomMatchRequest,
+  StartRoomMatchResponse,
+  SyncRoomMatchRequest,
+  SyncRoomMatchResponse,
 } from "../../shared-protocol/src/room";
 import { HttpClient } from "./http";
 import { networkConfig } from "./config";
@@ -128,6 +132,40 @@ export class RoomService {
         withAuth: true,
       },
     );
+
+    if (!response.ok) {
+      throw new Error(response.error.message);
+    }
+
+    return response.data;
+  }
+
+  async startRoomMatch(
+    payload: StartRoomMatchRequest,
+  ): Promise<StartRoomMatchResponse> {
+    const response = await this.http.post<
+      StartRoomMatchResponse,
+      StartRoomMatchRequest
+    >("/room/start-match", payload, {
+      withAuth: true,
+    });
+
+    if (!response.ok) {
+      throw new Error(response.error.message);
+    }
+
+    return response.data;
+  }
+
+  async syncRoomMatch(
+    payload: SyncRoomMatchRequest,
+  ): Promise<SyncRoomMatchResponse> {
+    const response = await this.http.post<
+      SyncRoomMatchResponse,
+      SyncRoomMatchRequest
+    >("/room/session/sync", payload, {
+      withAuth: true,
+    });
 
     if (!response.ok) {
       throw new Error(response.error.message);

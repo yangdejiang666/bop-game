@@ -9,6 +9,7 @@ export type AccountProvider = 'guest' | 'password' | 'phone' | 'apple' | 'wechat
 
 export interface UserBase {
   id: UserId;
+  gameId: string;
   status: UserStatus;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
@@ -83,6 +84,7 @@ export interface UserSummary {
 
 export interface PublicUserCard {
   userId: UserId;
+  gameId: string;
   nickname: string;
   avatarUrl: string | null;
   level: number;
@@ -92,6 +94,7 @@ export interface PublicUserCard {
 
 export interface DeveloperAccountDigest {
   userId: UserId;
+  gameId: string;
   nickname: string;
   account: string | null;
   provider: AccountProvider;

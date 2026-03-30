@@ -74,7 +74,7 @@ async function getRoomMembers(db, roomId) {
   );
 }
 
-function canStartRoom(snapshot) {
+export function canStartRoom(snapshot) {
   if (snapshot.status !== "idle") {
     return false;
   }
@@ -456,11 +456,17 @@ export async function handleLeaveRoom(request, env, requestId) {
 
   if (!snapshot || snapshot.members.length === 0) {
     roomClosed = true;
-    await dbRun(
-      required.auth.db,
-      "UPDATE rooms SET status = 'closed', updated_at = ? WHERE room_id = ?",
-      [nowIso(), roomId],
-    );
+    const closedAt = nowIso();
+    await dbBatch(required.auth.db, [
+      {
+        sql: "UPDATE rooms SET status = 'closed', updated_at = ? WHERE room_id = ?",
+        params: [closedAt, roomId],
+      },
+      {
+        sql: "DELETE FROM room_live_sessions WHERE room_id = ?",
+        params: [roomId],
+      },
+    ]);
   } else {
     if (snapshot.ownerUserId === required.auth.userId) {
       const nextOwner = snapshot.members[0];

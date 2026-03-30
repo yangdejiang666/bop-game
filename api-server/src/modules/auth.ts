@@ -11,6 +11,7 @@ import {
   type ConfirmPasswordResetResponse,
   type DeviceInfo,
   type ListDeviceSessionsResponse,
+  type LoginByPlatformRequest,
   type LoginByPasswordRequest,
   type LoginRequest,
   type LoginResponse,
@@ -35,12 +36,21 @@ import {
 } from "../lib/auth.js";
 import {
   listDeviceSessions,
+  loginByPlatform,
   loginByPassword,
   logoutSession,
   refreshSession,
   registerByPassword,
   revokeDeviceSession,
 } from "../services/authService.js";
+import {
+  assertPlatformRateLimit,
+  PlatformServiceError,
+  requestPasswordResetByEmail,
+  verifyPasswordResetChallenge,
+} from "../services/platformService.js";
+import { hashPassword } from "../lib/password.js";
+import { updatePasswordHashForUser } from "../repositories/accountRepository.js";
 
 const router = Router();
 
@@ -142,6 +152,10 @@ router.post(
     }
 
     try {
+      await assertPlatformRateLimit(
+        "register",
+        `${request.ip}:${account}`,
+      );
       const result = await registerByPassword({
         account,
         password: body.password,
@@ -167,6 +181,14 @@ router.post(
         );
         return;
       }
+      if (error instanceof PlatformServiceError) {
+        response.status(error.status).json(
+          createError(error.code as any, error.message, {
+            requestId: readRequestId(request),
+          }),
+        );
+        return;
+      }
       throw error;
     }
   }),
@@ -176,9 +198,9 @@ router.post(
   "/login",
   asyncHandler(async (request, response) => {
     const body = (request.body ?? {}) as Partial<LoginRequest>;
-    if (!body || body.method !== "password" || typeof body.payload !== "object") {
+    if (!body || typeof body.method !== "string" || typeof body.payload !== "object") {
       response.status(400).json(
-        createError(PROTOCOL_ERROR.INVALID_REQUEST, "Only password login is enabled.", {
+        createError(PROTOCOL_ERROR.INVALID_REQUEST, "Login payload is invalid.", {
           requestId: readRequestId(request),
           details: { field: "method" },
         }),
@@ -186,34 +208,93 @@ router.post(
       return;
     }
 
-    const payload = body.payload as unknown as LoginByPasswordRequest;
-    const account =
-      typeof payload.account === "string"
-        ? normalizeAccount(payload.account)
-        : "";
-    const password = typeof payload.password === "string" ? payload.password : "";
-
-    if (!account || !password) {
-      sendValidationError(
-        response,
-        request,
-        "account and password are required.",
-        "payload.account/password",
-      );
-      return;
-    }
-
     try {
-      const result = await loginByPassword({
-        account,
-        password,
-        device: readDeviceInfo(request),
-      });
+      if (body.method === "password") {
+        const payload = body.payload as unknown as LoginByPasswordRequest;
+        const account =
+          typeof payload.account === "string"
+            ? normalizeAccount(payload.account)
+            : "";
+        const password =
+          typeof payload.password === "string" ? payload.password : "";
 
-      response.json(
-        createSuccess<LoginResponse>(result, readRequestId(request)),
+        if (!account || !password) {
+          sendValidationError(
+            response,
+            request,
+            "account and password are required.",
+            "payload.account/password",
+          );
+          return;
+        }
+
+        await assertPlatformRateLimit(
+          "login",
+          `${request.ip}:${account}`,
+        );
+        const result = await loginByPassword({
+          account,
+          password,
+          device: readDeviceInfo(request),
+        });
+
+        response.json(
+          createSuccess<LoginResponse>(result, readRequestId(request)),
+        );
+        return;
+      }
+
+      if (body.method === "platform") {
+        const payload = body.payload as unknown as LoginByPlatformRequest;
+        const provider =
+          typeof payload.provider === "string" ? payload.provider.trim() : "";
+        const providerToken =
+          typeof payload.providerToken === "string"
+            ? payload.providerToken.trim()
+            : "";
+
+        if (!provider || !providerToken) {
+          sendValidationError(
+            response,
+            request,
+            "provider and providerToken are required.",
+            "payload.provider/providerToken",
+          );
+          return;
+        }
+
+        await assertPlatformRateLimit(
+          "login",
+          `${request.ip}:${provider}`,
+        );
+        const result = await loginByPlatform({
+          provider,
+          providerToken,
+          device: readDeviceInfo(request),
+        });
+
+        response.json(
+          createSuccess<LoginResponse>(result, readRequestId(request)),
+        );
+        return;
+      }
+
+      response.status(400).json(
+        createError(PROTOCOL_ERROR.INVALID_REQUEST, "Unsupported login method.", {
+          requestId: readRequestId(request),
+          details: { field: "method" },
+        }),
       );
     } catch (error) {
+      if (error instanceof PlatformServiceError) {
+        response.status(error.status).json(
+          createError(error.code as any, error.message, {
+            requestId: readRequestId(request),
+          }),
+        );
+        return;
+      }
+
       const message = error instanceof Error ? error.message : "login failed";
       if (message === "invalid credentials") {
         response.status(401).json(
@@ -236,6 +317,15 @@ router.post(
               requestId: readRequestId(request),
             },
           ),
+        );
+        return;
+      }
+      if (message === "unsupported platform provider") {
+        response.status(400).json(
+          createError(PROTOCOL_ERROR.INVALID_REQUEST, "Unsupported platform provider.", {
+            requestId: readRequestId(request),
+            details: { field: "payload.provider" },
+          }),
         );
         return;
       }
@@ -390,7 +480,7 @@ router.post("/sms/send", (request, response) => {
   response.json(createSuccess(payload, readRequestId(request)));
 });
 
-router.post("/password/request-reset", (request, response) => {
+router.post("/password/request-reset", asyncHandler(async (request, response) => {
   const body = (request.body ?? {}) as Partial<RequestPasswordResetRequest>;
   if (typeof body.account !== "string" || typeof body.verifyBy !== "string") {
     sendValidationError(
@@ -402,15 +492,44 @@ router.post("/password/request-reset", (request, response) => {
     return;
   }
 
-  const payload: RequestPasswordResetResponse = {
-    success: true,
-    challengeId: `pwd_${Math.random().toString(36).slice(2, 10)}`,
-    serverTime: new Date().toISOString(),
-  };
-  response.json(createSuccess(payload, readRequestId(request)));
-});
+  if (body.verifyBy !== "email") {
+    response.status(400).json(
+      createError(
+        PROTOCOL_ERROR.INVALID_REQUEST,
+        "Only email password reset is configured.",
+        {
+          requestId: readRequestId(request),
+          details: { field: "verifyBy" },
+        },
+      ),
+    );
+    return;
+  }
 
-router.post("/password/confirm-reset", (request, response) => {
+  try {
+    const result = await requestPasswordResetByEmail({
+      account: body.account,
+    });
+    const payload: RequestPasswordResetResponse = {
+      success: true,
+      challengeId: result.challengeId,
+      serverTime: new Date().toISOString(),
+    };
+    response.json(createSuccess(payload, readRequestId(request)));
+  } catch (error) {
+    if (error instanceof PlatformServiceError) {
+      response.status(error.status).json(
+        createError(error.code as any, error.message, {
+          requestId: readRequestId(request),
+        }),
+      );
+      return;
+    }
+    throw error;
+  }
+}));
+
+router.post("/password/confirm-reset", asyncHandler(async (request, response) => {
   const body = (request.body ?? {}) as Partial<ConfirmPasswordResetRequest>;
   if (
     typeof body.challengeId !== "string" ||
@@ -426,12 +545,31 @@ router.post("/password/confirm-reset", (request, response) => {
     return;
   }
 
+  try {
+    const challenge = await verifyPasswordResetChallenge({
+      challengeId: body.challengeId.trim(),
+      code: body.verificationCode.trim(),
+    });
+    const passwordHash = await hashPassword(body.newPassword);
+    await updatePasswordHashForUser(challenge.userId, passwordHash);
+  } catch (error) {
+    if (error instanceof PlatformServiceError) {
+      response.status(error.status).json(
+        createError(error.code as any, error.message, {
+          requestId: readRequestId(request),
+        }),
+      );
+      return;
+    }
+    throw error;
+  }
+
   const payload: ConfirmPasswordResetResponse = {
     success: true,
     serverTime: new Date().toISOString(),
   };
   response.json(createSuccess(payload, readRequestId(request)));
-});
+}));
 
 router.post("/bind/mobile", asyncHandler(async (request, response) => {
   const auth = await requireAuth(request as AuthenticatedRequest, response);

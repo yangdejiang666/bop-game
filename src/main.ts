@@ -1,4 +1,5 @@
 import "./style.css";
+import "./mode-hall-v2.css";
 import "./lobby-stitch-hotfix.css";
 import {
   DEFAULT_GAME_SETTINGS,
@@ -13,7 +14,13 @@ import {
   hasScopedStorageValue,
   setActiveStorageScopeForUser,
 } from "./app/storageScope";
-import { createGameSession, type GameSession } from "./game/createGameSession";
+import {
+  createGameSession,
+  type DebugMatchFinishOptions,
+} from "./game/createGameSession";
+import {
+  createOnlineRoomSession,
+} from "./game/createOnlineRoomSession";
 import {
   applyGameplayTuningPatch,
   cloneGameplayTuning,
@@ -33,25 +40,46 @@ import { loadBestMassRecord, saveBestMassRecord, BEST_MASS_RECORD_KEY } from "./
 import {
   LobbyUI,
   type LobbyAuthStatus,
+  type LobbyFeatureId,
   type LobbyLoginPayload,
   type LobbyModeId,
   type LobbyRegisterPayload,
 } from "./ui/LobbyUI";
 import { MatchmakingUI } from "./ui/MatchmakingUI";
-import { ModeHallUI, type RoomAction } from "./ui/ModeHallUI";
+import {
+  ModeHallUI,
+  type ModeHallSocialFriend,
+  type RoomAction,
+} from "./ui/ModeHallUI";
 import type { ModeHallTabId } from "./modes/definitions";
 import { authService } from "./network/authService";
+import { lobbyService } from "./network/lobbyService";
 import { MatchmakingService } from "./network/matchmakingService";
 import { progressionService } from "./network/progressionService";
 import { roomService } from "./network/roomService";
 import { userService } from "./network/userService";
 import { networkConfig } from "./network/config";
-import type { RoomSnapshot } from "../shared-protocol/src/room";
+import { platformService } from "./network/platformService";
+import { clerkBridge } from "./platform/clerk";
+import { clientPlatformConfig } from "./platform/config";
+import {
+  captureClientEvent,
+  captureClientException,
+  clearClientUser,
+  identifyClientUser,
+  initializeClientTelemetry,
+} from "./platform/telemetry";
+import type {
+  RoomMatchSnapshot,
+  RoomSnapshot,
+} from "../shared-protocol/src/room";
 import type { ModeHallRoomSnapshot } from "./modes/definitions";
 import type {
   DeveloperAccountsOverview,
   UserSummary,
 } from "../shared-protocol/src/user";
+import type { SocialOverview } from "../shared-protocol/src/social";
+import type { PlatformConfigResponse } from "../shared-protocol/src/platform";
 
 declare global {
   interface Window {
@@ -82,6 +110,21 @@ declare global {
   }
 }
 
+type RuntimeSession = {
+  mount(root: HTMLElement): void;
+  startNewGame(): void;
+  stop(): void;
+  destroy(): void;
+  applySettings(settings: GameSettings): void;
+  getSnapshot(): unknown;
+  advanceTime(ms: number): void;
+  debugFinishMatch(options?: DebugMatchFinishOptions): void;
+  debugSetBestMassRecord(value: number): void;
+  debugSetBattleZone(stage: number): void;
+};
+
+type CheckoutReturnState = "success" | "cancelled" | null;
+
 const appRoot = document.createElement("div");
 appRoot.className = "app-root";
 
@@ -94,11 +137,15 @@ overlayMount.className = "overlay-mount";
 appRoot.append(gameMount, overlayMount);
 document.body.appendChild(appRoot);
 
+initializeClientTelemetry();
+
 setActiveStorageScopeForUser(authService.getSession()?.userId ?? null);
+
+const initialCheckoutReturnState = consumeCheckoutReturnState();
 
 let phase: GamePhase = authService.getSession() ? "lobby" : "auth";
 let settings: GameSettings = loadGameSettings();
-let currentSession: GameSession | null = null;
+let currentSession: RuntimeSession | null = null;
 let pendingModeForMatch: LobbyModeId | null = null;
 let activeModeHall: LobbyModeId | null = null;
 let activeModeHallTab: ModeHallTabId = "rules";
@@ -109,7 +156,11 @@ let activeBackendRoomInviteCode: string | null = null;
 let lastKnownBackendRoomId: string | null = null;
 let lastKnownBackendRoomInviteCode: string | null = null;
 let profileSyncTimerId: number | null = null;
+let roomSnapshotPollTimerId: number | null = null;
+let socialPollTimerId: number | null = null;
 let suppressRemoteProfileSync = false;
+let runtimePlatformConfig: PlatformConfigResponse | null = null;
+const SOCIAL_POLL_INTERVAL_MS = 20_000;
 const backendMatchmaking = new MatchmakingService({
   baseUrl: networkConfig.apiBaseUrl,
   prepareAuth: () => authService.refreshToken(),
@@ -133,12 +184,75 @@ function toProfileProgression(summary: UserSummary): PlayerProgression {
   };
 }
 
+function hydrateRuntimePlatformConfig() {
+  void platformService
+    .getConfig()
+    .then((config) => {
+      runtimePlatformConfig = config;
+    })
+    .catch((error) => {
+      console.error("Failed to hydrate platform config:", error);
+    });
+}
+
+function isStripeShopEnabled() {
+  return (
+    runtimePlatformConfig?.commerce.stripeEnabled ??
+    clientPlatformConfig.stripe.enabled
+  );
+}
+
+function getDefaultStripeProductKey() {
+  return (
+    runtimePlatformConfig?.commerce.defaultProductKey ??
+    clientPlatformConfig.stripe.defaultProductKey
+  );
+}
+
+function consumeCheckoutReturnState(): CheckoutReturnState {
+  const url = new URL(window.location.href);
+  const checkout =
+    url.searchParams.get("checkout") === "success" ||
+    url.searchParams.get("checkout") === "cancelled"
+      ? (url.searchParams.get("checkout") as Exclude<CheckoutReturnState, null>)
+      : null;
+
+  if (!checkout) {
+    return null;
+  }
+
+  url.searchParams.delete("checkout");
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, document.title, nextUrl);
+  return checkout;
+}
+
+function applyCheckoutReturnFeedback(state: CheckoutReturnState) {
+  if (!state) {
+    return;
+  }
+
+  captureClientEvent("stripe_checkout_returned", { state });
+
+  if (state === "cancelled") {
+    lobbyUI.notify("你已取消本次 Stripe 结算。");
+    return;
+  }
+
+  if (!authService.getSession()) {
+    lobbyUI.notify("支付已完成，但当前登录态已失效，请重新登录后确认到账。");
+    return;
+  }
+
+  lobbyUI.notify("商城订单已完成，金币和权益已同步到当前账号。");
+}
+
 function getAuthStatusView(): LobbyAuthStatus {
   const session = authService.getSession();
   return {
     loggedIn: !!session,
     userLabel: session?.nickname ?? "游客",
-    accountLabel: session?.userId ? `UID · ${session.userId}` : "本地试玩档",
+    accountLabel: session?.gameId ? `UID · ${session.gameId}` : "本地试玩档",
   };
 }
 
@@ -175,6 +289,11 @@ function applyUserSummaryToLocalState(
     updateRuntimeSettings?: boolean;
   },
 ) {
+  identifyClientUser({
+    userId: summary.user.id,
+    gameId: summary.user.gameId,
+    nickname: summary.profile.nickname,
+  });
   const userScope = getStorageScopeForUser(summary.user.id);
   const scopedSettings = loadGameSettings(userScope);
   const syncedSettings = mergeGameSettings({
@@ -251,13 +370,81 @@ async function loadDeveloperAccountsOverview(): Promise<DeveloperAccountsOvervie
   return result.overview;
 }
 
+function toModeHallSocialFriends(overview: SocialOverview): ModeHallSocialFriend[] {
+  return [...overview.friends]
+    .sort((left, right) => {
+      const onlineDiff = Number(right.isOnline) - Number(left.isOnline);
+      if (onlineDiff !== 0) {
+        return onlineDiff;
+      }
+      return left.nickname.localeCompare(right.nickname, "zh-Hans-CN");
+    })
+    .map((friend) => ({
+      gameId: friend.gameId,
+      nickname: friend.nickname,
+      isOnline: friend.isOnline,
+    }));
+}
+
+function applySocialOverviewToViews(overview: SocialOverview | null) {
+  lobbyUI.setSocialOverview(overview);
+  modeHallUI.setSocialFriends(overview ? toModeHallSocialFriends(overview) : []);
+}
+
+async function pollSocialOverviewOnce() {
+  if (!authService.getSession()) {
+    applySocialOverviewToViews(null);
+    return;
+  }
+
+  try {
+    const overview = await lobbyService.fetchSocialOverview();
+    applySocialOverviewToViews(overview);
+  } catch (error) {
+    console.error("Failed to sync social overview:", error);
+  }
+}
+
+function stopSocialPolling(clearState = false) {
+  if (socialPollTimerId !== null) {
+    window.clearInterval(socialPollTimerId);
+    socialPollTimerId = null;
+  }
+
+  if (clearState) {
+    applySocialOverviewToViews(null);
+  }
+}
+
+function beginSocialPolling() {
+  if (!authService.getSession()) {
+    stopSocialPolling(true);
+    return;
+  }
+
+  if (socialPollTimerId !== null) {
+    return;
+  }
+
+  void pollSocialOverviewOnce();
+  socialPollTimerId = window.setInterval(() => {
+    if (!authService.getSession()) {
+      stopSocialPolling(true);
+      return;
+    }
+    void pollSocialOverviewOnce();
+  }, SOCIAL_POLL_INTERVAL_MS);
+}
+
 function applyAnonymousScopeState() {
+  clearClientUser();
   setActiveStorageScopeForUser(null);
   suppressRemoteProfileSync = true;
   applyLoadedSettings(loadGameSettings(getAnonymousStorageScope()));
   suppressRemoteProfileSync = false;
   lobbyUI.refreshProgression();
   lobbyUI.refreshAuthStatus();
+  applySocialOverviewToViews(null);
   void lobbyUI.refreshDeveloperOverview(true);
 }
 
@@ -267,6 +454,7 @@ function clearBackendAccountState() {
   activeBackendRoomInviteCode = null;
   lastKnownBackendRoomId = null;
   lastKnownBackendRoomInviteCode = null;
+  stopRoomSnapshotPolling();
   stopBackendMatchmakingPolling();
   clearModeHallRoomSnapshot("私人模式链路待连接。");
 }
@@ -276,7 +464,10 @@ async function logoutToAnonymousScope() {
     window.clearTimeout(profileSyncTimerId);
     profileSyncTimerId = null;
   }
+  stopSocialPolling(true);
   await authService.logout(false);
+  await clerkBridge.signOut().catch(() => undefined);
+  captureClientEvent("auth_logout");
   clearBackendAccountState();
   applyAnonymousScopeState();
   showAuthGate();
@@ -293,12 +484,23 @@ async function syncRemoteProfile(nextSettings: GameSettings) {
     return;
   }
 
+  const rawAvatar = nextSettings.avatarDataUrl.trim();
+  let avatarUrl: string | null = null;
+  if (rawAvatar.length > 0) {
+    if (rawAvatar.startsWith("data:")) {
+      const uploaded = await platformService.uploadAvatar({
+        dataUrl: rawAvatar,
+        filename: `${session.userId}-avatar`,
+      });
+      avatarUrl = uploaded.avatarUrl;
+    } else {
+      avatarUrl = rawAvatar;
+    }
+  }
+
   const response = await authService.updateProfile({
     nickname: normalizeServerNickname(nextSettings.playerName),
-    avatarUrl:
-      nextSettings.avatarDataUrl.trim().length > 0
-        ? nextSettings.avatarDataUrl
-        : null,
+    avatarUrl,
   });
 
   if (!response.ok) {
@@ -380,7 +582,12 @@ function destroyCurrentSession() {
 }
 
 function showAuthGate() {
+  if (!authService.getSession()) {
+    clearClientUser();
+  }
+  stopSocialPolling(true);
   destroyCurrentSession();
+  stopRoomSnapshotPolling();
   pendingModeForMatch = null;
   activeModeHall = null;
   matchmakingUI.hide(true);
@@ -407,6 +614,7 @@ function showLobby() {
   }
 
   destroyCurrentSession();
+  stopRoomSnapshotPolling();
   pendingModeForMatch = null;
   activeModeHall = null;
   matchmakingUI.hide(true);
@@ -414,6 +622,7 @@ function showLobby() {
   phase = "lobby";
   lobbyUI.refreshProgression();
   lobbyUI.showLobby();
+  beginSocialPolling();
   applyReducedMotionState();
 }
 
@@ -422,14 +631,17 @@ function isLobbyModeId(value: string): value is LobbyModeId {
     value === "ranked" ||
     value === "peak" ||
     value === "classic" ||
-    value === "speed" ||
-    value === "team" ||
     value === "battleRoyale"
   );
 }
 
 function isModeHallTabId(value: string): value is ModeHallTabId {
-  return value === "rules" || value === "rewards" || value === "map";
+  return (
+    value === "rules" ||
+    value === "rewards" ||
+    value === "records" ||
+    value === "guide"
+  );
 }
 
 function showModeHall(modeId: LobbyModeId, tabId: ModeHallTabId = "rules") {
@@ -445,6 +657,12 @@ function showModeHall(modeId: LobbyModeId, tabId: ModeHallTabId = "rules") {
   lobbyUI.hideAll();
   modeHallUI.show(modeId, tabId);
   phase = "modeHall";
+  if (activeBackendRoomId) {
+    beginRoomSnapshotPolling();
+  } else {
+    stopRoomSnapshotPolling();
+  }
+  beginSocialPolling();
   applyReducedMotionState();
 }
 
@@ -455,6 +673,7 @@ function openSettings(modalOnly: boolean) {
 
   phase = "settings";
   lobbyUI.openSettings(modalOnly);
+  beginSocialPolling();
   applyReducedMotionState();
 }
 
@@ -486,6 +705,7 @@ function launchGame(modeId: LobbyModeId = "classic") {
   }
 
   destroyCurrentSession();
+  stopRoomSnapshotPolling();
   pendingModeForMatch = null;
   activeModeHall = modeId;
   matchmakingUI.hide(true);
@@ -509,6 +729,19 @@ function launchGame(modeId: LobbyModeId = "classic") {
   applyReducedMotionState();
 }
 
+function formatRoomStatusMessage(room: RoomSnapshot) {
+  if (room.status === "inGame") {
+    return `私人房间对局中 · ${room.members.length}/${room.maxMembers}`;
+  }
+  if (room.status === "matching") {
+    return `房间已满足开局条件 · ${room.members.length}/${room.maxMembers}`;
+  }
+  if (room.status === "closed") {
+    return "房间已关闭。";
+  }
+  return `房间同步成功 · ${room.members.length}/${room.maxMembers}`;
+}
+
 function mapBackendRoomToModeHallSnapshot(
   room: RoomSnapshot,
   message?: string,
@@ -523,8 +756,7 @@ function mapBackendRoomToModeHallSnapshot(
       ready: member.ready,
       isBot: false,
     })),
-    lastCheck:
-      message ?? `房间同步成功 · ${room.members.length}/${room.maxMembers}`,
+    lastCheck: message ?? formatRoomStatusMessage(room),
   };
 }
 
@@ -544,11 +776,110 @@ function syncModeHallRoomSnapshot(
 function clearModeHallRoomSnapshot(message: string) {
   activeBackendRoomId = null;
   activeBackendRoomInviteCode = null;
+  stopRoomSnapshotPolling();
   modeHallUI.clearRoomSnapshot(message);
+}
+
+function stopRoomSnapshotPolling() {
+  if (roomSnapshotPollTimerId !== null) {
+    window.clearInterval(roomSnapshotPollTimerId);
+    roomSnapshotPollTimerId = null;
+  }
+}
+
+async function maybeEnterOnlineRoomFromSnapshot(room: RoomSnapshot) {
+  if (
+    room.status !== "inGame" ||
+    currentSession ||
+    !authService.getSession()
+  ) {
+    return false;
+  }
+
+  try {
+    const result = await roomService.syncRoomMatch({
+      roomId: room.roomId,
+      input: { moveX: 0, moveY: 0 },
+    });
+    launchOnlineRoomSession(result.room, result.session);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function beginRoomSnapshotPolling() {
+  stopRoomSnapshotPolling();
+
+  roomSnapshotPollTimerId = window.setInterval(() => {
+    if (!activeBackendRoomId || !authService.getSession()) {
+      stopRoomSnapshotPolling();
+      return;
+    }
+
+    void roomService
+      .getRoomSnapshot(activeBackendRoomId)
+      .then(async (result) => {
+        syncModeHallRoomSnapshot(result.room);
+        const entered = await maybeEnterOnlineRoomFromSnapshot(result.room);
+        if (entered) {
+          stopRoomSnapshotPolling();
+        }
+      })
+      .catch(() => {
+        // Keep the current room state visible and retry on next tick.
+      });
+  }, 1500);
+}
+
+function launchOnlineRoomSession(
+  room: RoomSnapshot,
+  session: RoomMatchSnapshot,
+) {
+  if (!requireAuthenticatedSession()) {
+    return;
+  }
+
+  destroyCurrentSession();
+  stopRoomSnapshotPolling();
+  pendingModeForMatch = null;
+  activeModeHall = (room.modeId as LobbyModeId) ?? activeModeHall ?? "classic";
+  matchmakingUI.hide(true);
+  modeHallUI.hide();
+
+  currentSession = createOnlineRoomSession({
+    settings,
+    modeId: (room.modeId as LobbyModeId) ?? "classic",
+    roomId: room.roomId,
+    initialRoom: room,
+    initialSession: session,
+    onReturnToModeHall: () => {
+      showModeHall((room.modeId as LobbyModeId) ?? "classic", activeModeHallTab);
+      syncModeHallRoomSnapshot(
+        room,
+        session.phase === "finished" ? "在线对局已结束，可继续准备下一局。" : "已返回私人房间。",
+      );
+      beginRoomSnapshotPolling();
+    },
+    onOpenSettings: () => openSettings(true),
+    onRoomSnapshot: (nextRoom) => {
+      syncModeHallRoomSnapshot(nextRoom);
+    },
+    onCompleteMatch: authService.getSession()
+      ? (payload) => handleCloudMatchCompletion(payload)
+      : undefined,
+  });
+
+  currentSession.mount(gameMount);
+  currentSession.startNewGame();
+  phase = "playing";
+  lobbyUI.hideAll();
+  applyReducedMotionState();
 }
 
 async function handleModeHallRoomAction(
   action: RoomAction,
+  payload?: string,
 ): Promise<ModeHallRoomSnapshot | null> {
   const session = authService.getSession();
   if (!session) {
@@ -563,12 +894,25 @@ async function handleModeHallRoomAction(
       visibility: "private",
       maxMembers: 4,
       minStartMembers: 2,
-      teamMode: modeId === "team" ? "team" : "solo",
+      teamMode: "solo",
     });
-    return syncModeHallRoomSnapshot(result.room, "私人房间创建成功。");
+    const snapshot = syncModeHallRoomSnapshot(result.room, "私人房间创建成功。");
+    beginRoomSnapshotPolling();
+    return snapshot;
   }
 
   if (action === "join") {
+    const typedInviteCode = payload?.trim().toUpperCase();
+    if (typedInviteCode) {
+      const joined = await roomService.joinRoom({
+        inviteCode: typedInviteCode,
+        joinType: "inviteCode",
+      });
+      const snapshot = syncModeHallRoomSnapshot(joined.room, "加入私人房间成功。");
+      beginRoomSnapshotPolling();
+      return snapshot;
+    }
+
     if (activeBackendRoomId) {
       const snapshot = await roomService.getRoomSnapshot(activeBackendRoomId);
       return syncModeHallRoomSnapshot(snapshot.room, "已同步当前私人房间。");
@@ -581,7 +925,9 @@ async function handleModeHallRoomAction(
         inviteCode,
         joinType: "inviteCode",
       });
-      return syncModeHallRoomSnapshot(joined.room, "加入私人房间成功。");
+      const snapshot = syncModeHallRoomSnapshot(joined.room, "加入私人房间成功。");
+      beginRoomSnapshotPolling();
+      return snapshot;
     }
 
     const roomId = lastKnownBackendRoomId;
@@ -590,7 +936,9 @@ async function handleModeHallRoomAction(
         roomId,
         joinType: "direct",
       });
-      return syncModeHallRoomSnapshot(joined.room, "加入私人房间成功。");
+      const snapshot = syncModeHallRoomSnapshot(joined.room, "加入私人房间成功。");
+      beginRoomSnapshotPolling();
+      return snapshot;
     }
 
     throw new Error("当前没有可加入的私人房间，请先创建房间。");
@@ -613,10 +961,12 @@ async function handleModeHallRoomAction(
       roomId: activeBackendRoomId,
       ready: !me.ready,
     });
-    return syncModeHallRoomSnapshot(
+    const snapshot = syncModeHallRoomSnapshot(
       updated.room,
       me.ready ? "你已取消准备。" : "你已准备。",
     );
+    beginRoomSnapshotPolling();
+    return snapshot;
   }
 
   if (action === "leave") {
@@ -636,6 +986,24 @@ async function handleModeHallRoomAction(
 
 function mapLobbyModeToQueueMode(modeId: LobbyModeId) {
   return modeId;
+}
+
+function isSinglePlayerSessionSnapshot(
+  snapshot: unknown,
+): snapshot is { playerMass: number; match: { bestMassRecord: number } } {
+  if (!snapshot || typeof snapshot !== "object") {
+    return false;
+  }
+
+  const candidate = snapshot as {
+    playerMass?: unknown;
+    match?: { bestMassRecord?: unknown };
+  };
+
+  return (
+    typeof candidate.playerMass === "number" &&
+    typeof candidate.match?.bestMassRecord === "number"
+  );
 }
 
 function stopBackendMatchmakingPolling() {
@@ -711,6 +1079,7 @@ async function handleLoginSubmit(
     throw new Error(result.error.message);
   }
 
+  captureClientEvent("auth_password_login_succeeded");
   await syncAuthenticatedAccount(true);
   clearBackendAccountState();
   showLobby();
@@ -729,9 +1098,84 @@ async function handleRegisterSubmit(
     throw new Error(result.error.message);
   }
 
+  captureClientEvent("auth_password_register_succeeded");
   await syncAuthenticatedAccount(true);
   clearBackendAccountState();
   showLobby();
+}
+
+async function handleClerkSessionToken(token: string) {
+  const result = await authService.login({
+    method: "platform",
+    payload: {
+      provider: "clerk",
+      providerToken: token,
+    },
+  });
+
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
+
+  captureClientEvent("auth_clerk_login_succeeded", {
+    isNewUser: result.data.isNewUser,
+  });
+  await syncAuthenticatedAccount(true);
+  clearBackendAccountState();
+  showLobby();
+}
+
+async function handleLobbyFeatureAction(feature: LobbyFeatureId) {
+  if (feature !== "shop") {
+    captureClientEvent("lobby_feature_selected", { feature });
+    return;
+  }
+
+  if (!authService.getSession()) {
+    lobbyUI.notify("请先登录账号后再打开商城。");
+    return;
+  }
+
+  if (!isStripeShopEnabled()) {
+    lobbyUI.notify("Stripe 商城还没配置完成，先把价格和密钥补上就能打开。");
+    return;
+  }
+
+  const productKey = getDefaultStripeProductKey();
+  if (!productKey) {
+    lobbyUI.notify("商城默认商品还没配置。");
+    return;
+  }
+
+  try {
+    captureClientEvent("shop_checkout_requested", { productKey });
+    const checkout = await platformService.createCheckoutSession({
+      productKey,
+    });
+    lobbyUI.notify("正在跳转到 Stripe 结算页...");
+    window.location.assign(checkout.checkoutUrl);
+  } catch (error) {
+    captureClientException(error, {
+      action: "stripe_checkout_open",
+      productKey,
+    });
+    lobbyUI.notify(
+      error instanceof Error ? error.message : "打开商城失败，请稍后再试。",
+    );
+  }
+}
+
+async function startRoomBackedMatch(modeId: LobbyModeId) {
+  if (!activeBackendRoomId) {
+    throw new Error("请先创建或加入私人房间。");
+  }
+
+  activeModeHall = modeId;
+  const result = await roomService.startRoomMatch({
+    roomId: activeBackendRoomId,
+  });
+  syncModeHallRoomSnapshot(result.room, "房主已开局，正在进入在线对局。");
+  launchOnlineRoomSession(result.room, result.session);
 }
 
 function startMatchmaking(modeId: LobbyModeId = "classic") {
@@ -739,7 +1183,19 @@ function startMatchmaking(modeId: LobbyModeId = "classic") {
     return;
   }
 
+  if (activeBackendRoomId) {
+    void startRoomBackedMatch(modeId).catch((error) => {
+      modeHallUI.setRoomSnapshot({
+        ...modeHallUI.getSnapshot().room,
+        lastCheck:
+          error instanceof Error ? error.message : "私人房间开局失败，请稍后再试。",
+      });
+    });
+    return;
+  }
+
   destroyCurrentSession();
+  stopRoomSnapshotPolling();
   pendingModeForMatch = modeId;
   activeModeHall = modeId;
   phase = "matching";
@@ -797,7 +1253,7 @@ const modeHallUI = new ModeHallUI({
   onStartMatch: (modeId) => {
     startMatchmaking(modeId);
   },
-  onRoomAction: (action) => handleModeHallRoomAction(action),
+  onRoomAction: (action, payload) => handleModeHallRoomAction(action, payload),
 });
 
 const lobbyUI = new LobbyUI({
@@ -813,7 +1269,10 @@ const lobbyUI = new LobbyUI({
   onSettingsClosed: closeSettings,
   onLoginSubmit: handleLoginSubmit,
   onRegisterSubmit: handleRegisterSubmit,
+  clerkEnabled: clientPlatformConfig.clerk.enabled,
+  onClerkLoginStart: () => clerkBridge.openSignIn(),
   onLogoutSubmit: logoutToAnonymousScope,
+  onFeatureAction: handleLobbyFeatureAction,
   onRequestDeveloperOverview: loadDeveloperAccountsOverview,
   getAuthStatus: getAuthStatusView,
 });
@@ -822,6 +1281,29 @@ matchmakingUI.mount(overlayMount);
 modeHallUI.mount(overlayMount);
 lobbyUI.mount(overlayMount);
 lobbyUI.refreshAuthStatus();
+hydrateRuntimePlatformConfig();
+
+void clerkBridge
+  .initialize({
+    onSessionToken: handleClerkSessionToken,
+    onSignedOut: async () => {
+      if (authService.getSession()?.method === "platform") {
+        await logoutToAnonymousScope();
+      }
+    },
+  })
+  .then(async () => {
+    if (!authService.getSession()) {
+      await clerkBridge.resumeExistingSession();
+    }
+  })
+  .catch((error) => {
+    console.error("Failed to initialize Clerk bridge:", error);
+    captureClientException(error, {
+      phase: "startup",
+      provider: "clerk",
+    });
+  });
 
 if (authService.getSession()) {
   showLobby();
@@ -830,18 +1312,36 @@ if (authService.getSession()) {
 }
 
 if (authService.getSession()) {
-  void syncAuthenticatedAccount(false).catch((error) => {
-    if (!authService.getSession()) {
-      clearBackendAccountState();
-      applyAnonymousScopeState();
-      showAuthGate();
-    } else {
-      lobbyUI.refreshAuthStatus();
-    }
+  void syncAuthenticatedAccount(false)
+    .then(() => {
+      applyCheckoutReturnFeedback(initialCheckoutReturnState);
+    })
+    .catch((error) => {
+      if (!authService.getSession()) {
+        clearBackendAccountState();
+        applyAnonymousScopeState();
+        showAuthGate();
+      } else {
+        lobbyUI.refreshAuthStatus();
+      }
 
-    console.error("Failed to hydrate authenticated account:", error);
-  });
+      console.error("Failed to hydrate authenticated account:", error);
+    });
+} else {
+  applyCheckoutReturnFeedback(initialCheckoutReturnState);
 }
+
+window.addEventListener("error", (event) => {
+  captureClientException(event.error ?? new Error(event.message), {
+    source: "window.error",
+  });
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  captureClientException(event.reason, {
+    source: "window.unhandledrejection",
+  });
+});
 
 window.render_game_to_text = () => {
   const authStatus = getAuthStatusView();
@@ -854,6 +1354,7 @@ window.render_game_to_text = () => {
       userLabel: authStatus.userLabel,
       accountLabel: authStatus.accountLabel ?? null,
       userId: authService.getSession()?.userId ?? null,
+      gameId: authService.getSession()?.gameId ?? null,
     },
     progression: loadPlayerProgression(),
     settings: {
@@ -920,10 +1421,10 @@ window.debug_finish_match = (mode = "auto") => {
     });
   } else if (mode === "record") {
     const snapshot = currentSession.getSnapshot();
-    const previewMass = Math.max(
-      snapshot.playerMass,
-      snapshot.match.bestMassRecord + 500,
-    );
+    if (!isSinglePlayerSessionSnapshot(snapshot)) {
+      return window.render_game_to_text();
+    }
+    const previewMass = Math.max(snapshot.playerMass, snapshot.match.bestMassRecord + 500);
     currentSession.debugFinishMatch({
       winner: "player",
       playerMass: previewMass,

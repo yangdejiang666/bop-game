@@ -11,6 +11,13 @@
 - `https://bop-game.pages.dev/healthz`
 - `https://bop-game.pages.dev/readyz`
 
+适用范围：
+
+- 这个方案适合把 `账号 / 资料 / 社交 / 房间 / 匹配 / 局后奖励` 放到 Cloudflare Pages Functions + D1
+- 这个方案目前 **不等于完整落地产品**
+- `Stripe / Supabase / Resend / Clerk / PostHog / Sentry / Upstash / Pinecone` 这套平台层现在仍然在 `api-server/`，不在 Pages Functions
+- 如果你要的是“完整产品链路”，请直接看 [DEPLOY_CLOUDFLARE_PAGES_ORACLE_VM.md](/d:/all/bop/DEPLOY_CLOUDFLARE_PAGES_ORACLE_VM.md)
+
 ## 1. 创建 D1
 
 Cloudflare Dashboard：
@@ -83,6 +90,19 @@ VITE_USE_BACKEND_MATCHING=true
 1. 推送到生产分支
 2. Pages 会自动把 `dist/` 和 `functions/` 一起部署
 
+仓库里也已经补了 GitHub Actions：
+
+- [.github/workflows/ci.yml](/d:/all/bop/.github/workflows/ci.yml)
+- [.github/workflows/deploy-pages.yml](/d:/all/bop/.github/workflows/deploy-pages.yml)
+
+如果你想让 GitHub Actions 直接发 Pages，而不是依赖 Pages 的内建 Git 集成，需要配置：
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_PAGES_PROJECT=bop-game`
+- `CLOUDFLARE_PAGES_URL=https://bop-game.pages.dev`
+- `CLOUDFLARE_PAGES_DEPLOY_ENABLED=true`
+
 部署完成后，先看：
 
 1. `healthz`
@@ -90,6 +110,12 @@ VITE_USE_BACKEND_MATCHING=true
 
 第一次访问时可能会触发表结构自动初始化；随后 `readyz` 返回 `ready: true`，就说明 Pages Functions 和 D1 已经接起来了。  
 如果仍然返回 `503`，就看响应里提示的是 `DB` 绑定缺失，还是自动建表本身失败。
+
+你也可以先跑一遍预检：
+
+```bash
+npm run deploy:check:pages
+```
 
 ## 6. 现在已经迁过去的接口
 
@@ -103,5 +129,26 @@ VITE_USE_BACKEND_MATCHING=true
 
 ## 7. 当前边界
 
-这次是把“账号和平台链路”迁到了 Cloudflare。  
-`game-server` 目前仍然是 WebSocket 网关脚手架，不是完整的实时多人战斗服，所以真正的 `/ws` 对战链路后面还要继续补。
+这次迁到 Cloudflare 的是“账号大厅链路”，不是完整平台链路。  
+当前 Pages Functions 这条线已经覆盖：
+
+- 注册 / 登录 / 刷新 / 登出
+- 用户资料同步
+- 本地资料首登迁移
+- 设置页开发者工具箱总览
+- 私人房间创建 / 加入 / 准备 / 离开
+- 匹配开始 / 取消 / 轮询
+- 局后奖励写回
+
+当前 **还没有** 迁到 Pages Functions 的能力：
+
+- `platform/config`
+- Stripe 结算与 webhook
+- Supabase 头像上传
+- Resend 邮件重置与回执邮件
+- Clerk 平台登录验签
+- Pinecone 检索
+- Upstash / PostHog / Sentry 的服务端平台链路
+
+另外，`game-server` 目前仍然是 WebSocket 网关脚手架，不是完整的实时多人战斗服，所以真正的 `/ws` 对战链路后面还要继续补。  
+如果你要“完整可落地产品”，当前应该走 `Cloudflare Pages + Oracle VM` 这条拆分部署。

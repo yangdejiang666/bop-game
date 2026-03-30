@@ -1,0 +1,58 @@
+name: Deploy Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-pages.yml"
+      - "cloudflare/**"
+      - "functions/**"
+      - "public/**"
+      - "scripts/build-frontend.mjs"
+      - "scripts/smoke-cloud-stack.mjs"
+      - "src/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.CLOUDFLARE_PAGES_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend bundle
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'bop-game' }}
+
+      - name: Smoke deployed Pages build
+        env:
+          SITE_URL: ${{ steps.deploy.outputs['pages-deployment-alias-url'] || steps.deploy.outputs['deployment-url'] || vars.CLOUDFLARE_PAGES_URL || 'https://bop-game.pages.dev' }}
+        run: node ./scripts/smoke-cloud-stack.mjs --site "$SITE_URL"

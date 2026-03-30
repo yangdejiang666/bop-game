@@ -1,5 +1,4 @@
 import "dotenv/config";
-// @ts-nocheck
 /* eslint-disable no-console */
 import express from "express";
 import cors from "cors";
@@ -11,6 +10,18 @@ import matchmakingRouter from "./modules/matchmaking.js";
 import roomRouter from "./modules/room.js";
 import progressionRouter from "./modules/progression.js";
 import { closeDbPool } from "./lib/db.js";
+import {
+  handleResendWebhookHttp,
+  handleStripeWebhookHttp,
+  platformRouter,
+} from "./modules/platform.js";
+import {
+  captureServerException,
+  initializeServerTelemetry,
+  shutdownPlatformClients,
+} from "./services/platformService.js";
+
+initializeServerTelemetry();
 
 function parseCorsOrigins(raw: string): string[] | boolean {
   const normalized = (raw ?? "").trim();
@@ -51,8 +62,6 @@ function createApp() {
       contentSecurityPolicy: false,
     }),
   );
-  app.use(express.json({ limit: "1mb" }));
-  app.use(express.urlencoded({ extended: false }));
 
   app.use((req, _res, next) => {
     const requestIdHeader = req.header("x-request-id")?.trim();
@@ -62,6 +71,25 @@ function createApp() {
     }
     next();
   });
+
+  app.post(
+    "/api/v1/platform/commerce/webhooks/stripe",
+    express.raw({ type: "application/json" }),
+    (request, response, next) => {
+      void handleStripeWebhookHttp(request, response).catch(next);
+    },
+  );
+
+  app.post(
+    "/api/v1/platform/communications/webhooks/resend",
+    express.raw({ type: "application/json" }),
+    (request, response, next) => {
+      void handleResendWebhookHttp(request, response).catch(next);
+    },
+  );
+
+  app.use(express.json({ limit: "6mb" }));
+  app.use(express.urlencoded({ extended: false }));
 
   // Health endpoints
   app.get("/healthz", (_req, res) => {
@@ -94,6 +122,7 @@ function createApp() {
   app.use("/api/v1/matchmaking", matchmakingRouter);
   app.use("/api/v1/room", roomRouter);
   app.use("/api/v1/progression", progressionRouter);
+  app.use("/api/v1/platform", platformRouter);
 
   app.all("/api/v1/inventory/*", (_req, res) => {
     res.status(501).json({
@@ -151,6 +180,11 @@ function createApp() {
       const message =
         error instanceof Error ? error.message : "Unexpected server error";
       console.error("[api-server] unhandled error:", error);
+      captureServerException(error, {
+        method: _req.method,
+        path: _req.originalUrl,
+        requestId: _req.header("x-request-id") ?? null,
+      });
       res.status(500).json({
         ok: false,
         error: {
@@ -182,6 +216,9 @@ async function start() {
         console.error("[api-server] graceful shutdown failed", err);
         process.exit(1);
       }
+      await shutdownPlatformClients().catch((shutdownError) => {
+        console.error("[api-server] platform shutdown failed", shutdownError);
+      });
       await closeDbPool().catch((closeError) => {
         console.error("[api-server] database shutdown failed", closeError);
       });

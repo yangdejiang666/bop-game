@@ -24,7 +24,10 @@ npm run local:stop
 
 - Frontend static site: `http://127.0.0.1:4180`
 - API server: `http://127.0.0.1:8788`
+- Game gateway: `http://127.0.0.1:8899`
+- Local WebSocket base: `ws://127.0.0.1:8899/ws`
 - API health check: `http://127.0.0.1:8788/healthz`
+- Game gateway probe: `http://127.0.0.1:8899/`
 
 The start script intentionally runs the compiled API (`api-server/dist/index.js`) instead of `tsx watch`, because the current local environment has a `spawn EPERM` issue with the watch path.
 If the frontend rebuild hits the known local Vite `spawn EPERM` problem but a previous `dist/` already exists, the script will reuse that last successful frontend build so the stack can still start.
@@ -47,6 +50,8 @@ Runtime artifacts are written to `.tmp_local-stack/`:
 
 - `api-server.log`
 - `api-server.error.log`
+- `game-server.log`
+- `game-server.error.log`
 - `web.log`
 - `web.error.log`
 - `local-stack.json`

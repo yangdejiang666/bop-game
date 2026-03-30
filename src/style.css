@@ -9473,6 +9473,9 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
 .lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-gold {
     --flow-color: #ffe483;
 }
+.lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-red {
+    --flow-color: #ff7d66;
+}
 .lobby-overlay.lobby-stitch-exact .stitch-mode-card.is-theme-neutral {
     --flow-color: #8ca4c6;
 }
@@ -12849,4 +12852,477 @@ html[data-reduced-motion="true"] .mode-hall-stage-orbit--inner,
 [data-reduced-motion="true"] .mode-hall-stage-scanline,
 html[data-reduced-motion="true"] .mode-hall-stage-scanline {
     animation: none;
+}
+
+.mode-hall-overlay {
+    align-items: center;
+    overflow: hidden;
+}
+
+.mode-hall-overlay .mode-hall-shell--orb {
+    grid-template-rows: auto minmax(0, 1fr);
+    height: calc(100dvh - 28px);
+    max-height: calc(100dvh - 28px);
+    min-height: 0;
+    overflow: hidden;
+    padding: 16px;
+    gap: 14px;
+}
+
+.mode-hall-overlay .mode-hall-main {
+    align-items: start;
+    gap: 14px;
+}
+
+.mode-hall-overlay .mode-hall-header-actions {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    z-index: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.mode-hall-overlay .mode-hall-hero {
+    align-content: start;
+}
+
+.mode-hall-overlay .mode-hall-hero-stage-shell {
+    align-items: start;
+    gap: 12px;
+}
+
+.mode-hall-overlay .mode-hall-hero-stage {
+    min-height: clamp(220px, 30vh, 300px);
+}
+
+.mode-hall-overlay .mode-hall-hero-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mode-hall-overlay .mode-hall-header {
+    gap: 12px;
+}
+
+.mode-hall-overlay .mode-hall-header-ribbon {
+    gap: 10px;
+}
+
+.mode-hall-overlay .mode-hall-ribbon-chip {
+    min-height: 58px;
+    padding: 10px 12px;
+}
+
+.mode-hall-overlay .mode-hall-ribbon-chip strong {
+    font-size: 16px;
+}
+
+.mode-hall-overlay .mode-hall-hero,
+.mode-hall-overlay .mode-hall-operation,
+.mode-hall-overlay .mode-hall-intel,
+.mode-hall-overlay .mode-hall-social-panel {
+    padding: 14px;
+}
+
+.mode-hall-overlay .mode-hall-hero-summary {
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.mode-hall-overlay .mode-hall-hero-stat {
+    gap: 6px;
+    padding: 12px;
+}
+
+.mode-hall-overlay .mode-hall-hero-stat strong {
+    font-size: 18px;
+}
+
+.mode-hall-overlay .mode-hall-room-line {
+    min-height: 68px;
+    padding: 12px;
+}
+
+.mode-hall-overlay .mode-hall-room-actions button {
+    min-height: 64px;
+    padding: 12px 14px;
+}
+
+.mode-hall-overlay .mode-hall-room-actions button span {
+    font-size: 14px;
+}
+
+.mode-hall-overlay .mode-hall-room-actions button small {
+    font-size: 11px;
+}
+
+.mode-hall-overlay .mode-hall-room-member,
+.mode-hall-overlay .mode-hall-social-row {
+    min-height: 62px;
+    padding: 12px;
+}
+
+.mode-hall-overlay .mode-hall-intel-list li {
+    padding: 12px;
+}
+
+.mode-hall-overlay .mode-hall-operation {
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+    align-content: start;
+}
+
+.mode-hall-overlay .mode-hall-room-members,
+.mode-hall-overlay .mode-hall-intel-list,
+.mode-hall-overlay .mode-hall-social-list {
+    overflow: hidden;
+    max-height: none;
+}
+
+.mode-hall-overlay .mode-hall-room-members {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mode-hall-overlay .mode-hall-side-column {
+    align-content: start;
+}
+
+@media (max-width: 1200px) and (min-width: 901px) {
+    .mode-hall-overlay .mode-hall-shell--orb {
+        height: calc(100dvh - 16px);
+        max-height: calc(100dvh - 16px);
+        min-height: 0;
+        margin: 8px auto;
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .mode-hall-overlay .mode-hall-main {
+        grid-template-columns: minmax(250px, 0.84fr) minmax(320px, 1.08fr) minmax(210px, 0.64fr);
+    }
+
+    .mode-hall-overlay .mode-hall-hero,
+    .mode-hall-overlay .mode-hall-side-column {
+        grid-column: auto;
+    }
+
+    .mode-hall-overlay .mode-hall-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+    }
+
+    .mode-hall-overlay .mode-hall-header-ribbon {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .mode-hall-overlay .mode-hall-title-wrap h2 {
+        font-size: clamp(26px, 3vw, 36px);
+    }
+
+    .mode-hall-overlay .mode-hall-ribbon-chip {
+        min-height: 52px;
+        padding: 8px 10px;
+    }
+
+    .mode-hall-overlay .mode-hall-section-label {
+        display: none;
+    }
+
+    .mode-hall-overlay .mode-hall-hero-stage-shell {
+        grid-template-columns: minmax(0, 1fr) 172px;
+    }
+
+    .mode-hall-overlay .mode-hall-hero-stage {
+        min-height: 240px;
+    }
+
+    .mode-hall-overlay .mode-hall-hero-summary {
+        display: none;
+    }
+
+    .mode-hall-overlay .mode-hall-room-members {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .mode-hall-overlay .mode-hall-side-column {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .mode-hall-overlay .mode-hall-room-member,
+    .mode-hall-overlay .mode-hall-social-row {
+        min-height: 56px;
+        padding: 10px;
+    }
+
+    .mode-hall-overlay .mode-hall-room-member-copy strong,
+    .mode-hall-overlay .mode-hall-social-copy strong {
+        font-size: 13px;
+    }
+
+    .mode-hall-overlay .mode-hall-room-member-copy span,
+    .mode-hall-overlay .mode-hall-social-copy span {
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .mode-hall-overlay .mode-hall-room-line strong {
+        font-size: 15px;
+    }
+
+    .mode-hall-overlay .mode-hall-room-actions button small {
+        display: none;
+    }
+
+    .mode-hall-overlay .mode-hall-social-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mode-hall-overlay .mode-hall-intel-list li {
+        gap: 10px;
+        padding: 10px;
+    }
+}
+
+@media (max-width: 900px) {
+    .mode-hall-overlay {
+        overflow: auto;
+        align-items: flex-start;
+    }
+
+    .mode-hall-overlay .mode-hall-shell--orb {
+        height: auto;
+        max-height: none;
+        min-height: calc(100dvh - 16px);
+        overflow: auto;
+    }
+
+    .mode-hall-overlay .mode-hall-hero-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .mode-hall-overlay .mode-hall-room-members {
+        grid-template-columns: 1fr;
+    }
+}
+
+.online-room-session {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    color: #eef7ff;
+}
+
+.online-room-session__shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 18px;
+    width: 100%;
+    height: 100%;
+    padding: 18px;
+    box-sizing: border-box;
+}
+
+.online-room-session__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border: 1px solid rgba(150, 205, 255, 0.18);
+    border-radius: 22px;
+    background: linear-gradient(145deg, rgba(9, 19, 34, 0.92), rgba(17, 33, 56, 0.86));
+    box-shadow: 0 24px 60px rgba(1, 10, 20, 0.28);
+}
+
+.online-room-session__kicker {
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(180, 221, 255, 0.68);
+}
+
+.online-room-session__room {
+    margin-top: 6px;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.online-room-session__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.online-room-session__btn {
+    border: 1px solid rgba(160, 212, 255, 0.26);
+    border-radius: 999px;
+    padding: 10px 18px;
+    background: rgba(8, 20, 34, 0.72);
+    color: #edf8ff;
+    font: inherit;
+    cursor: pointer;
+}
+
+.online-room-session__btn--primary {
+    background: linear-gradient(135deg, #56c9ff, #8df0c9);
+    color: #082030;
+    border-color: transparent;
+    font-weight: 700;
+}
+
+.online-room-session__stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 18px;
+    min-height: 0;
+}
+
+.online-room-session__canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 560px;
+    border-radius: 28px;
+    border: 1px solid rgba(166, 216, 255, 0.16);
+    background: #0f1d2c;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.online-room-session__panel {
+    display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    gap: 14px;
+    min-height: 0;
+    padding: 18px;
+    border-radius: 28px;
+    border: 1px solid rgba(166, 216, 255, 0.16);
+    background: linear-gradient(160deg, rgba(6, 16, 28, 0.92), rgba(17, 34, 56, 0.88));
+    box-shadow: 0 24px 60px rgba(1, 10, 20, 0.24);
+}
+
+.online-room-session__timer {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.online-room-session__status,
+.online-room-session__player,
+.online-room-session__hint {
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(227, 243, 255, 0.86);
+}
+
+.online-room-session__leaderboard {
+    display: grid;
+    gap: 10px;
+    min-height: 0;
+    align-content: start;
+}
+
+.online-room-leaderboard-row {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(235, 246, 255, 0.9);
+}
+
+.online-room-leaderboard-row.is-self {
+    background: rgba(116, 214, 255, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(129, 223, 255, 0.2);
+}
+
+.online-room-leaderboard-row strong,
+.online-room-leaderboard-row em {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.online-room-leaderboard-row em {
+    font-style: normal;
+    color: rgba(255, 233, 170, 0.94);
+}
+
+.online-room-session__result {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    border-radius: 28px;
+    background: rgba(3, 9, 16, 0.56);
+    backdrop-filter: blur(8px);
+}
+
+.online-room-session__result-card {
+    width: min(420px, 100%);
+    padding: 28px;
+    border-radius: 24px;
+    border: 1px solid rgba(166, 216, 255, 0.18);
+    background: linear-gradient(160deg, rgba(10, 20, 36, 0.96), rgba(20, 39, 64, 0.94));
+    box-shadow: 0 24px 60px rgba(1, 10, 20, 0.28);
+    text-align: center;
+}
+
+.online-room-session__result-card h2 {
+    margin: 12px 0 8px;
+    font-size: 28px;
+}
+
+.online-room-session__result-card p {
+    margin: 0;
+    color: rgba(226, 241, 255, 0.8);
+    line-height: 1.6;
+}
+
+.online-room-session__result-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 18px;
+}
+
+@media (max-width: 1080px) {
+    .online-room-session__stage {
+        grid-template-columns: 1fr;
+    }
+
+    .online-room-session__canvas {
+        min-height: 440px;
+    }
+}
+
+@media (max-width: 720px) {
+    .online-room-session__shell {
+        padding: 12px;
+    }
+
+    .online-room-session__header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .online-room-session__header-actions {
+        justify-content: stretch;
+    }
+
+    .online-room-session__header-actions > * {
+        flex: 1 1 0;
+    }
+
+    .online-room-session__canvas {
+        min-height: 360px;
+    }
 }
