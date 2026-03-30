@@ -68,6 +68,12 @@ Recommended production topology for a domestic cloud server:
 Cloudflare Pages same-origin proxying to the backend is optional only. Keep it disabled unless you
 explicitly want `bop-game.pages.dev/api/v1` and `bop-game.pages.dev/ws` to forward traffic.
 
+If you temporarily enable the Pages proxy before `api.*` / `ws.*` DNS is cut over, do not point
+`ALIYUN_UPSTREAM_ORIGIN` at a bare public IP such as `http://8.163.55.135`. Cloudflare may reject
+that upstream with `Direct IP access not allowed`. Use a hostname that resolves to the VM instead,
+for example a temporary `sslip.io` hostname, and keep the VM Caddy listener accepting traffic on
+`:80` for that host.
+
 ## 3. Backend env
 
 On the VM:
