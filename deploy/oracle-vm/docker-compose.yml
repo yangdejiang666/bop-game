@@ -41,6 +41,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
     expose:
       - "${API_PORT}"
+    ports:
+      - "${PUBLIC_API_PORT:-8788}:${API_PORT}"
 
   game-server:
     build:
@@ -58,6 +60,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
     expose:
       - "${GAME_PORT}"
+    ports:
+      - "${PUBLIC_GAME_PORT:-8899}:${GAME_PORT}"
 
   caddy:
     image: caddy:2-alpine
@@ -79,4 +83,3 @@ volumes:
   postgres_data:
   caddy_data:
   caddy_config:
-

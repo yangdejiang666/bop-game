@@ -75,6 +75,19 @@ Edit `.env` and set at minimum:
 - `WS_DOMAIN`
 - `PUBLIC_GAME_WS_URL`
 
+If you want a ready-to-edit local baseline first, generate it from the repo root:
+
+```bash
+npm run deploy:env:split
+```
+
+That command creates:
+
+- `./.env.production`
+- `./deploy/oracle-vm/.env`
+
+It also generates fresh values for `POSTGRES_PASSWORD`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET`, while leaving optional provider integrations disabled until you fill in live keys.
+
 If you want the full provider stack, also fill:
 
 - `STRIPE_*`
