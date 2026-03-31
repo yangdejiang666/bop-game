@@ -5,10 +5,17 @@ export type DeviceId = string;
 export type ISODateTimeString = string;
 
 export type UserStatus = 'active' | 'banned' | 'deleted';
-export type AccountProvider = 'guest' | 'password' | 'phone' | 'apple' | 'wechat';
+export type AccountProvider =
+  | 'guest'
+  | 'password'
+  | 'phone'
+  | 'apple'
+  | 'wechat'
+  | 'platform';
 
 export interface UserBase {
   id: UserId;
+  gameId: string;
   status: UserStatus;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
@@ -83,6 +90,7 @@ export interface UserSummary {
 
 export interface PublicUserCard {
   userId: UserId;
+  gameId: string;
   nickname: string;
   avatarUrl: string | null;
   level: number;
@@ -92,6 +100,7 @@ export interface PublicUserCard {
 
 export interface DeveloperAccountDigest {
   userId: UserId;
+  gameId: string;
   nickname: string;
   account: string | null;
   provider: AccountProvider;

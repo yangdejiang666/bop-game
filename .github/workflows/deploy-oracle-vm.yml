@@ -1,0 +1,53 @@
+name: Deploy Oracle VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Git branch to deploy on the VM
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH key
+        env:
+          ORACLE_VM_SSH_KEY: ${{ secrets.ORACLE_VM_SSH_KEY }}
+          ORACLE_VM_HOST: ${{ secrets.ORACLE_VM_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$ORACLE_VM_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$ORACLE_VM_HOST" >> ~/.ssh/known_hosts
+
+      - name: Redeploy application on VM
+        env:
+          ORACLE_VM_HOST: ${{ secrets.ORACLE_VM_HOST }}
+          ORACLE_VM_USER: ${{ secrets.ORACLE_VM_USER }}
+          ORACLE_VM_APP_DIR: ${{ vars.ORACLE_VM_APP_DIR || '/opt/bop-game' }}
+          DEPLOY_BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          ssh "${ORACLE_VM_USER}@${ORACLE_VM_HOST}" \
+            "set -euo pipefail; \
+             cd '${ORACLE_VM_APP_DIR}'; \
+             git fetch origin --prune; \
+             git checkout '${DEPLOY_BRANCH}'; \
+             git pull --ff-only origin '${DEPLOY_BRANCH}'; \
+             cd deploy/oracle-vm; \
+             bash redeploy.sh"
+
+      - name: Smoke split-stack deployment
+        env:
+          SITE_URL: ${{ vars.CLOUDFLARE_PAGES_URL || 'https://bop-game.pages.dev' }}
+          API_BASE_URL: ${{ vars.ORACLE_API_BASE_URL || 'https://api.bop-game.com/api/v1' }}
+          WS_BASE_URL: ${{ vars.ORACLE_WS_BASE_URL || 'wss://ws.bop-game.com/ws' }}
+        run: node ./scripts/smoke-cloud-stack.mjs --site "$SITE_URL" --api-base "$API_BASE_URL" --ws-base "$WS_BASE_URL"

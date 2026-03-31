@@ -1,6 +1,7 @@
 import { GameLoop } from '../core/GameLoop';
 import { RenderSystem } from '../systems/RenderSystem';
 import { Camera } from '../core/Camera';
+import { Controller } from '../core/Controller';
 import { Player } from '../entities/Player';
 import { Bot } from '../entities/Bot';
 import { Input } from '../core/Input';
@@ -13,6 +14,7 @@ import {
     type SplitMetrics
 } from '../systems/AbilitySystem';
 import { QuadTree, Rectangle } from '../utils/QuadTree';
+import { Vector } from '../utils/Vector';
 import { Food } from '../entities/Food';
 import { Virus } from '../entities/Virus';
 import { Blob } from '../entities/Blob';
@@ -35,9 +37,17 @@ import type { LobbyModeId } from '../ui/LobbyUI';
 import { renderLobbyIcon, type LobbyIconId } from '../ui/icons';
 import { GameAudioManager, type GameAudioDebugState } from '../audio/GameAudioManager';
 import { getModeDefinition, type ModeDefinition } from '../modes/definitions';
+import {
+    getModeMapBlueprint,
+    type ModeMapAnchor,
+    type ModeMapRectZone
+} from '../modes/mapBlueprints';
+import {
+    createBattleRoyaleRuntime,
+    type BattleRoyaleShieldStationDefinition
+} from '../modes/battleRoyaleRuntime';
 import type { CompleteMatchProgressionResponse } from '../../shared-protocol/src/progression';
 
-const WORLD_SIZE = 6000;
 const DEFAULT_FOOD_COUNT = 1200;
 const DEFAULT_VIRUS_COUNT = 12;
 const MAX_VIRUS_COUNT = 64;
@@ -90,6 +100,27 @@ interface SettlementPaceScale {
     rewards: number;
 }
 
+interface BattleRoyaleShieldStationState extends BattleRoyaleShieldStationDefinition {
+    available: boolean;
+    cooldownRemainingSeconds: number;
+}
+
+interface BattleZoneSafeRect {
+    size: number;
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+}
+
+interface BattleZoneRuntimeState {
+    stage: 0 | 1 | 2 | 3 | 4;
+    label: string;
+    damagePerSecond: number;
+    safeRect: BattleZoneSafeRect;
+    suddenDeath: boolean;
+}
+
 const FULL_SETTLEMENT_TIMING: SettlementTiming = {
     introEnd: 420,
     rankEnd: 1680,
@@ -126,6 +157,153 @@ const SETTLEMENT_PACE_SCALES: Record<ModeDefinition['settlement']['revealPace'],
         rewards: 0.85
     }
 };
+
+function clampNumber(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
+function randomInRange(min: number, max: number): number {
+    return min + Math.random() * (max - min);
+}
+
+function createCenteredSafeRect(worldSize: number, size: number): BattleZoneSafeRect {
+    const safeSize = clampNumber(size, 0, worldSize);
+    const half = safeSize / 2;
+    const center = worldSize / 2;
+    return {
+        size: safeSize,
+        minX: center - half,
+        minY: center - half,
+        maxX: center + half,
+        maxY: center + half
+    };
+}
+
+function createBattleZoneRuntimeState(
+    modeDefinition: ModeDefinition,
+    worldSize: number,
+    elapsedSeconds: number
+): BattleZoneRuntimeState {
+    const rules = modeDefinition.gameplay.battleRoyale;
+    if (!rules.enabled) {
+        return {
+            stage: 0,
+            label: '未启用',
+            damagePerSecond: 0,
+            safeRect: createCenteredSafeRect(worldSize, 0),
+            suddenDeath: false
+        };
+    }
+
+    const timings = rules.phaseTimings;
+    const safeRect = rules.safeRect;
+    if (elapsedSeconds < timings.safeUntilSeconds) {
+        return {
+            stage: 0,
+            label: '全图安全',
+            damagePerSecond: rules.damagePerSecond.phase1,
+            safeRect: createCenteredSafeRect(worldSize, safeRect.initialSize),
+            suddenDeath: false
+        };
+    }
+
+    if (elapsedSeconds < timings.firstShrinkEndSeconds) {
+        const progress = clampNumber(
+            (elapsedSeconds - timings.safeUntilSeconds)
+                / Math.max(1, timings.firstShrinkEndSeconds - timings.safeUntilSeconds),
+            0,
+            1
+        );
+        const size = safeRect.initialSize + (safeRect.phaseOneSize - safeRect.initialSize) * progress;
+        return {
+            stage: 1,
+            label: '第一段收缩',
+            damagePerSecond: rules.damagePerSecond.phase1,
+            safeRect: createCenteredSafeRect(worldSize, size),
+            suddenDeath: false
+        };
+    }
+
+    if (elapsedSeconds < timings.secondShrinkEndSeconds) {
+        const progress = clampNumber(
+            (elapsedSeconds - timings.firstShrinkEndSeconds)
+                / Math.max(1, timings.secondShrinkEndSeconds - timings.firstShrinkEndSeconds),
+            0,
+            1
+        );
+        const size = safeRect.phaseOneSize + (safeRect.phaseTwoSize - safeRect.phaseOneSize) * progress;
+        return {
+            stage: 2,
+            label: '第二段收缩',
+            damagePerSecond: rules.damagePerSecond.phase2,
+            safeRect: createCenteredSafeRect(worldSize, size),
+            suddenDeath: false
+        };
+    }
+
+    if (elapsedSeconds < timings.collapseEndSeconds) {
+        const progress = clampNumber(
+            (elapsedSeconds - timings.secondShrinkEndSeconds)
+                / Math.max(1, timings.collapseEndSeconds - timings.secondShrinkEndSeconds),
+            0,
+            1
+        );
+        const size = safeRect.phaseTwoSize + (safeRect.finalSize - safeRect.phaseTwoSize) * progress;
+        return {
+            stage: 3,
+            label: '终极收缩',
+            damagePerSecond: rules.damagePerSecond.phase3,
+            safeRect: createCenteredSafeRect(worldSize, size),
+            suddenDeath: false
+        };
+    }
+
+    return {
+        stage: 4,
+        label: '无安全区',
+        damagePerSecond: rules.damagePerSecond.suddenDeath,
+        safeRect: createCenteredSafeRect(worldSize, 0),
+        suddenDeath: rules.suddenDeath
+    };
+}
+
+function pickWeightedItem<T extends { weight: number }>(items: T[]): T {
+    if (items.length === 0) {
+        throw new Error('Cannot pick from an empty weighted list.');
+    }
+
+    const totalWeight = items.reduce((sum, item) => sum + Math.max(0, item.weight), 0);
+    if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+        return items[Math.floor(Math.random() * items.length)];
+    }
+
+    let cursor = Math.random() * totalWeight;
+    for (const item of items) {
+        cursor -= Math.max(0, item.weight);
+        if (cursor <= 0) {
+            return item;
+        }
+    }
+    return items[items.length - 1];
+}
+
+function samplePointInRectZone(zone: ModeMapRectZone, padding = 0): Vector {
+    const halfWidth = Math.max(24, zone.width / 2 - padding);
+    const halfHeight = Math.max(24, zone.height / 2 - padding);
+    return new Vector(
+        randomInRange(zone.x - halfWidth, zone.x + halfWidth),
+        randomInRange(zone.y - halfHeight, zone.y + halfHeight)
+    );
+}
+
+function samplePointAroundAnchor(anchor: ModeMapAnchor): Vector {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.sqrt(Math.random()) * Math.max(12, anchor.radius);
+    return new Vector(
+        anchor.x + Math.cos(angle) * distance,
+        anchor.y + Math.sin(angle) * distance
+    );
+}
 
 export interface GameSessionSnapshot {
     isMounted: boolean;
@@ -193,6 +371,8 @@ export interface GameSessionSnapshot {
     match: {
         modeId: LobbyModeId;
         modeName: string;
+        mapSignature: string;
+        worldSize: number;
         timed: boolean;
         durationSeconds: number;
         remainingSeconds: number;
@@ -218,10 +398,13 @@ export interface GameSessionSnapshot {
             rankPointMultiplier: number;
             battleZone: {
                 enabled: boolean;
-                radius: number;
+                shape: "square";
                 stage: number;
-                shrinkStartSeconds: number;
-                shrinkDurationSeconds: number;
+                label: string;
+                damagePerSecond: number;
+                suddenDeath: boolean;
+                safeRect: BattleZoneSafeRect;
+                phaseTimings: ModeDefinition['gameplay']['battleRoyale']['phaseTimings'];
             };
         };
         hudProfile: {
@@ -243,6 +426,18 @@ export interface GameSessionSnapshot {
             roomSize: number;
             supportsSpectate: boolean;
             supportsReplay: boolean;
+        };
+        battleRoyaleState: {
+            enabled: boolean;
+            safeRect: BattleZoneSafeRect;
+            damagePerSecond: number;
+            suddenDeath: boolean;
+            noRespawn: boolean;
+            availableShieldStations: number;
+            shieldCharge: number;
+            shieldMaxCharge: number;
+            shieldSecondsRemaining: number;
+            spikeChains: number;
         };
     };
 }
@@ -308,6 +503,7 @@ interface SessionHudRefs {
     zoneAlertEl: HTMLDivElement;
     zoneStatusEl: HTMLDivElement;
     zoneDamageEl: HTMLDivElement;
+    zoneShieldEl: HTMLDivElement;
     resultOverlay: HTMLDivElement;
     resultPanelEl: HTMLDivElement;
     resultRankSplashEl: HTMLDivElement;
@@ -353,6 +549,11 @@ interface SessionHudRefs {
 export function createGameSession(options: CreateGameSessionOptions): GameSession {
     let settings = { ...options.settings };
     const modeDefinition = getModeDefinition(options.modeId);
+    const modeMapBlueprint = getModeMapBlueprint(options.modeId);
+    const worldSize = modeMapBlueprint.worldSize;
+    const battleRoyaleRuntime = modeDefinition.gameplay.battleRoyale.enabled
+        ? createBattleRoyaleRuntime(worldSize)
+        : null;
     const modeConfig: MatchModeConfig = {
         id: modeDefinition.id,
         name: modeDefinition.name,
@@ -383,10 +584,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
     let targetFoodCount = modeDefinition.gameplay.foodTarget || DEFAULT_FOOD_COUNT;
     let targetVirusCount = modeDefinition.gameplay.virusTarget || DEFAULT_VIRUS_COUNT;
-    let battleZoneRadius = modeDefinition.gameplay.battleRoyale.enabled
-        ? modeDefinition.gameplay.battleRoyale.initialRadius
-        : 0;
-    let battleZoneStage = 0;
+    let battleZoneRuntime = createBattleZoneRuntimeState(modeDefinition, worldSize, 0);
+    let battleRoyaleShieldStations: BattleRoyaleShieldStationState[] = [];
+    let battleRoyaleShieldCharge = 0;
+    let battleRoyaleShieldMaxCharge = 0;
+    let battleRoyaleShieldSecondsRemaining = 0;
     let gameStartTime = 0;
     let lastFrameTime = performance.now();
     let frameCount = 0;
@@ -473,6 +675,43 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
     }
 
+    function clampPointToWorld(point: Vector, margin = 140): Vector {
+        const safeMargin = Math.max(0, Math.min(margin, worldSize / 2));
+        return new Vector(
+            clampNumber(point.x, safeMargin, worldSize - safeMargin),
+            clampNumber(point.y, safeMargin, worldSize - safeMargin)
+        );
+    }
+
+    function sampleSpawnPoint(): Vector {
+        const zone = pickWeightedItem(modeMapBlueprint.spawnZones);
+        return clampPointToWorld(samplePointInRectZone(zone, 110), 180);
+    }
+
+    function sampleFoodSpawnPoint(): Vector {
+        if (modeMapBlueprint.foodHotspots.length === 0 || Math.random() < 0.14) {
+            return clampPointToWorld(
+                new Vector(Math.random() * worldSize, Math.random() * worldSize),
+                80
+            );
+        }
+
+        const hotspot = pickWeightedItem(modeMapBlueprint.foodHotspots);
+        return clampPointToWorld(samplePointAroundAnchor(hotspot), 80);
+    }
+
+    function sampleVirusSpawnPoint(): Vector {
+        if (modeMapBlueprint.virusAnchors.length === 0) {
+            return clampPointToWorld(
+                new Vector(Math.random() * worldSize, Math.random() * worldSize),
+                180
+            );
+        }
+
+        const anchor = pickWeightedItem(modeMapBlueprint.virusAnchors);
+        return clampPointToWorld(samplePointAroundAnchor(anchor), 180);
+    }
+
     function debugSetBestMassRecord(value: number) {
         if (!Number.isFinite(value)) {
             return;
@@ -498,63 +737,130 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         return Math.max(0, modeConfig.durationSeconds - getElapsedSeconds(now));
     }
 
-    function resolveBattleZoneRadius(elapsedSeconds: number): number {
-        const zone = modeDefinition.gameplay.battleRoyale;
-        if (!zone.enabled) {
-            return 0;
-        }
-        if (elapsedSeconds <= zone.shrinkStartSeconds) {
-            return zone.initialRadius;
-        }
-        const shrinkElapsed = elapsedSeconds - zone.shrinkStartSeconds;
-        const shrinkDuration = Math.max(1, zone.shrinkDurationSeconds);
-        const t = Math.max(0, Math.min(1, shrinkElapsed / shrinkDuration));
-        return zone.initialRadius + (zone.finalRadius - zone.initialRadius) * t;
-    }
-
     function updateBattleZoneState(elapsedSeconds: number) {
-        const zone = modeDefinition.gameplay.battleRoyale;
-        if (!zone.enabled) {
-            battleZoneRadius = 0;
-            battleZoneStage = 0;
-            return;
-        }
-        battleZoneRadius = resolveBattleZoneRadius(elapsedSeconds);
-        if (elapsedSeconds < zone.shrinkStartSeconds) {
-            battleZoneStage = 0;
-        } else if (elapsedSeconds < zone.shrinkStartSeconds + zone.shrinkDurationSeconds) {
-            battleZoneStage = 1;
-        } else {
-            battleZoneStage = 2;
-        }
+        battleZoneRuntime = createBattleZoneRuntimeState(modeDefinition, worldSize, elapsedSeconds);
     }
 
-    function applyBattleZoneDamage(controller: { cells: Blob[] }, dt: number) {
-        const zone = modeDefinition.gameplay.battleRoyale;
-        if (!zone.enabled || battleZoneRadius <= 0 || dt <= 0 || controller.cells.length === 0) {
+    function isInsideSafeRect(point: Vector, safeRect: BattleZoneSafeRect): boolean {
+        return point.x >= safeRect.minX
+            && point.x <= safeRect.maxX
+            && point.y >= safeRect.minY
+            && point.y <= safeRect.maxY;
+    }
+
+    function refreshPlayerShieldTelemetry() {
+        if (!player) {
+            battleRoyaleShieldCharge = 0;
+            battleRoyaleShieldMaxCharge = 0;
+            battleRoyaleShieldSecondsRemaining = 0;
             return;
         }
 
-        const worldCenter = WORLD_SIZE / 2;
-        const damageTotal = zone.outOfZoneDamagePerSecond * dt;
+        battleRoyaleShieldCharge = Math.max(0, player.hazardShield);
+        battleRoyaleShieldMaxCharge = Math.max(0, player.hazardShieldMax);
+        battleRoyaleShieldSecondsRemaining = Math.max(0, player.hazardShieldTimer);
+    }
+
+    function updateShieldStations(dt: number) {
+        if (!battleRoyaleRuntime || !modeDefinition.gameplay.battleRoyale.enabled) {
+            return;
+        }
+
+        battleRoyaleShieldStations.forEach((station) => {
+            if (!station.available) {
+                station.cooldownRemainingSeconds = Math.max(0, station.cooldownRemainingSeconds - dt);
+                if (station.cooldownRemainingSeconds <= 0) {
+                    station.available = true;
+                }
+            }
+        });
+
+        const controllers: Controller[] = player ? [player, ...bots] : [...bots];
+
+        for (const station of battleRoyaleShieldStations) {
+            if (!station.available) {
+                continue;
+            }
+
+            const claimant = controllers.find((controller) => {
+                if (controller.cells.length === 0) {
+                    return false;
+                }
+                const center = controller.getCenter();
+                return center.dist(new Vector(station.center.x, station.center.y)).mag() <= station.pickupRadius;
+            });
+
+            if (!claimant) {
+                continue;
+            }
+
+            claimant.grantHazardShield(station.shieldAmount, station.shieldDurationSeconds);
+            station.available = false;
+            station.cooldownRemainingSeconds = station.respawnSeconds;
+        }
+
+        refreshPlayerShieldTelemetry();
+    }
+
+    function applyBattleZoneDamage(controller: Controller, dt: number) {
+        const zone = modeDefinition.gameplay.battleRoyale;
+        if (!zone.enabled || dt <= 0 || controller.cells.length === 0) {
+            return;
+        }
+
+        const damageTotal = battleZoneRuntime.damagePerSecond * dt;
         if (damageTotal <= 0) {
             return;
         }
 
-        const massFloor = gameplayTuning.limits.min_cell_mass;
-        controller.cells.forEach((cell) => {
-            const dx = cell.position.x - worldCenter;
-            const dy = cell.position.y - worldCenter;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance <= battleZoneRadius) {
-                return;
+        const shouldDamageAll = battleZoneRuntime.suddenDeath || battleZoneRuntime.safeRect.size <= 0;
+
+        for (let index = controller.cells.length - 1; index >= 0; index -= 1) {
+            const cell = controller.cells[index];
+            if (!shouldDamageAll && isInsideSafeRect(cell.position, battleZoneRuntime.safeRect)) {
+                continue;
             }
-            const nextMass = Math.max(massFloor, cell.mass - damageTotal);
+
+            const remainingDamage = controller.absorbHazardDamage(damageTotal);
+            if (remainingDamage <= 0) {
+                continue;
+            }
+
+            const nextMass = cell.mass - remainingDamage;
+            if (nextMass <= 0) {
+                controller.removeCell(cell);
+                continue;
+            }
+
             if (nextMass !== cell.mass) {
                 cell.mass = nextMass;
                 cell.updateRadiusFromMass();
             }
-        });
+        }
+
+        refreshPlayerShieldTelemetry();
+    }
+
+    function maybeFinalizeBattleRoyaleByElimination(now: number) {
+        if (!modeDefinition.gameplay.battleRoyale.enabled || matchFinished || !player) {
+            return;
+        }
+
+        const liveControllers = [player, ...bots].filter((controller) => controller.cells.length > 0);
+        if (player.cells.length === 0) {
+            finalizeTimedMatch(now, {
+                winner: 'bot',
+                subtitle: '危险区已吞没我方，生存对局提前结算。'
+            });
+            return;
+        }
+
+        if (liveControllers.length <= 1) {
+            finalizeTimedMatch(now, {
+                winner: 'player',
+                subtitle: '场上仅剩我方存活，生存对局提前结算。'
+            });
+        }
     }
 
     function resolvePlayerDisplayName(rawName: string): string {
@@ -594,48 +900,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         return `NO.${Math.max(1, rank)}`;
     }
 
-    function getRankSplashPresentation(rank: number, playerWonInSettlement: boolean): {
+    function getRankSplashPresentation(rank: number): {
         title: string;
         caption: string;
         icon: LobbyIconId;
     } {
-        if (modeConfig.id === 'speed') {
-            if (rank === 1) {
-                return {
-                    title: 'BLITZ WIN',
-                    caption: 'MAX PACE LOCKED',
-                    icon: 'crown'
-                };
-            }
-            if (rank <= 3) {
-                return {
-                    title: 'RUSH FINISH',
-                    caption: 'KEEP THE STREAK',
-                    icon: rank === 2 ? 'rank_silver' : 'rank_bronze'
-                };
-            }
-            return {
-                title: 'NEXT SPRINT',
-                caption: 'ONE MORE SPEED RUN',
-                icon: 'mode_speed'
-            };
-        }
-
-        if (modeConfig.id === 'team') {
-            if (playerWonInSettlement) {
-                return {
-                    title: 'TEAM VICTORY',
-                    caption: 'FORMATION SECURED',
-                    icon: 'crown'
-                };
-            }
-            return {
-                title: 'TEAM RETRY',
-                caption: 'REGROUP AND PUSH',
-                icon: 'mode_team'
-            };
-        }
-
         if (modeConfig.id === 'battleRoyale') {
             if (rank === 1) {
                 return {
@@ -756,9 +1025,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
     function buildModeSettlementStats(
         playerRankValue: number,
-        playerMassValue: number,
-        teamMassA: number,
-        teamMassB: number
+        playerMassValue: number
     ): ModeSettlementStat[] {
         const safeRank = formatRankLabel(playerRankValue);
 
@@ -802,57 +1069,16 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             ];
         }
 
-        if (modeConfig.id === 'speed') {
-            return [
-                {
-                    label: '快局时长',
-                    value: `${modeDefinition.gameplay.durationSeconds}s`,
-                    icon: 'mode_speed'
-                },
-                {
-                    label: '节奏倍率',
-                    value: `${modeDefinition.gameplay.speedMultiplier.toFixed(2)}x`,
-                    icon: 'xp'
-                },
-                {
-                    label: '冲刺名次',
-                    value: safeRank,
-                    icon: 'crown'
-                }
-            ];
-        }
-
-        if (modeConfig.id === 'team') {
-            const delta = teamMassA - teamMassB;
-            return [
-                {
-                    label: '队伍总质量',
-                    value: `A:${teamMassA} / B:${teamMassB}`,
-                    icon: 'mode_team'
-                },
-                {
-                    label: '团队质量差',
-                    value: `${delta >= 0 ? '+' : ''}${delta}kg`,
-                    icon: 'record'
-                },
-                {
-                    label: '个人名次',
-                    value: safeRank,
-                    icon: 'crown'
-                }
-            ];
-        }
-
         if (modeConfig.id === 'battleRoyale') {
             return [
                 {
                     label: '安全圈终态',
-                    value: `阶段${battleZoneStage} · ${Math.floor(battleZoneRadius)}m`,
+                    value: `${battleZoneRuntime.label} · ${Math.floor(battleZoneRuntime.safeRect.size)}m`,
                     icon: 'mode_battleRoyale'
                 },
                 {
                     label: '圈外伤害',
-                    value: `${modeDefinition.gameplay.battleRoyale.outOfZoneDamagePerSecond}/秒`,
+                    value: `${battleZoneRuntime.damagePerSecond}/秒`,
                     icon: 'record'
                 },
                 {
@@ -1114,12 +1340,14 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             <div class="hud-zone-alert-title">安全圈协议</div>
             <div class="hud-zone-alert-status" data-zone-status>等待收缩</div>
             <div class="hud-zone-alert-damage" data-zone-damage>圈外伤害 0 / 秒</div>
+            <div class="hud-zone-alert-shield" data-zone-shield>护盾站 0 / 0</div>
         `;
         root.appendChild(zoneAlertEl);
 
         const zoneStatusEl = zoneAlertEl.querySelector<HTMLDivElement>('[data-zone-status]');
         const zoneDamageEl = zoneAlertEl.querySelector<HTMLDivElement>('[data-zone-damage]');
-        if (!zoneStatusEl || !zoneDamageEl) {
+        const zoneShieldEl = zoneAlertEl.querySelector<HTMLDivElement>('[data-zone-shield]');
+        if (!zoneStatusEl || !zoneDamageEl || !zoneShieldEl) {
             throw new Error('Failed to initialize zone alert HUD.');
         }
 
@@ -1645,6 +1873,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             zoneAlertEl,
             zoneStatusEl,
             zoneDamageEl,
+            zoneShieldEl,
             resultOverlay,
             resultPanelEl,
             resultRankSplashEl,
@@ -1686,36 +1915,47 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
     function initializeWorld() {
         targetFoodCount = modeDefinition.gameplay.foodTarget || DEFAULT_FOOD_COUNT;
         targetVirusCount = modeDefinition.gameplay.virusTarget || DEFAULT_VIRUS_COUNT;
-        battleZoneRadius = modeDefinition.gameplay.battleRoyale.enabled
-            ? modeDefinition.gameplay.battleRoyale.initialRadius
-            : 0;
-        battleZoneStage = 0;
+        battleZoneRuntime = createBattleZoneRuntimeState(modeDefinition, worldSize, 0);
+        battleRoyaleShieldStations = battleRoyaleRuntime
+            ? battleRoyaleRuntime.shieldStations.map((station) => ({
+                ...station,
+                available: true,
+                cooldownRemainingSeconds: 0
+            }))
+            : [];
+        battleRoyaleShieldCharge = 0;
+        battleRoyaleShieldMaxCharge = 0;
+        battleRoyaleShieldSecondsRemaining = 0;
 
         quadTree = new QuadTree(
-            new Rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE / 2),
+            new Rectangle(worldSize / 2, worldSize / 2, worldSize / 2, worldSize / 2),
             10
         );
 
-        player = new Player(WORLD_SIZE / 2, WORLD_SIZE / 2);
+        const playerSpawn = sampleSpawnPoint();
+        player = new Player(playerSpawn.x, playerSpawn.y);
         player.displayName = resolvePlayerDisplayName(settings.playerName);
         applyPlayerVisualSkin();
         player.setModeMultipliers(modeDefinition.gameplay.speedMultiplier, modeDefinition.gameplay.decayMultiplier);
 
         bots = [];
         for (let i = 0; i < BOT_COUNT; i += 1) {
-            const bot = new Bot(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE);
+            const spawn = sampleSpawnPoint();
+            const bot = new Bot(spawn.x, spawn.y);
             bot.setModeMultipliers(modeDefinition.gameplay.speedMultiplier, modeDefinition.gameplay.decayMultiplier);
             bots.push(bot);
         }
 
         foods = [];
         for (let i = 0; i < targetFoodCount; i += 1) {
-            foods.push(new Food(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE));
+            const spawn = sampleFoodSpawnPoint();
+            foods.push(new Food(spawn.x, spawn.y));
         }
 
         viruses = [];
         for (let i = 0; i < targetVirusCount; i += 1) {
-            viruses.push(new Virus(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE));
+            const spawn = sampleVirusSpawnPoint();
+            viruses.push(new Virus(spawn.x, spawn.y));
         }
 
         gameStartTime = performance.now();
@@ -1983,7 +2223,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const rankLabel = formatRankLabel(playerRank);
         const rankNumber = String(playerRank);
-        const splashPresentation = getRankSplashPresentation(playerRank, playerWon);
+        const splashPresentation = getRankSplashPresentation(playerRank);
 
         hudRefs.resultKickerEl.textContent = modeDefinition.settlement.title;
         hudRefs.resultTitleEl.textContent = splashPresentation.title;
@@ -2007,7 +2247,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         hudRefs.resultMassEl.textContent = '0 kg';
         hudRefs.resultBestEl.textContent = '0 kg';
         hudRefs.resultRewardRecordEl.textContent = isNewRecord ? '+0 XP / +0 金币' : '未触发';
-        settlementModeStats = buildModeSettlementStats(playerRank, playerMass, teamATotalForResult, teamBTotalForResult);
+        settlementModeStats = buildModeSettlementStats(playerRank, playerMass);
         hudRefs.resultModeStatLabelEls.forEach((el, index) => {
             const stat = settlementModeStats[index];
             el.textContent = stat ? stat.label : '--';
@@ -2090,15 +2330,20 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             return;
         }
 
-        const normalizedStage = Math.max(0, Math.min(2, Math.floor(stage)));
-        battleZoneStage = normalizedStage;
-        if (normalizedStage === 0) {
-            battleZoneRadius = zone.initialRadius;
-        } else if (normalizedStage === 1) {
-            battleZoneRadius = (zone.initialRadius + zone.finalRadius) / 2;
-        } else {
-            battleZoneRadius = zone.finalRadius;
-        }
+        const normalizedStage = Math.max(0, Math.min(4, Math.floor(stage)));
+        const timings = zone.phaseTimings;
+        const previewTimes = [
+            0,
+            timings.safeUntilSeconds + 20,
+            timings.firstShrinkEndSeconds + 10,
+            timings.secondShrinkEndSeconds + 35,
+            timings.suddenDeathStartSeconds + 5
+        ];
+        battleZoneRuntime = createBattleZoneRuntimeState(
+            modeDefinition,
+            worldSize,
+            previewTimes[normalizedStage] ?? 0
+        );
         syncHud();
     }
 
@@ -2121,7 +2366,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             const seconds = remainingSeconds % 60;
             hudRefs.gameTimerEl.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             if (modeDefinition.hud.showZoneWarning && modeDefinition.gameplay.battleRoyale.enabled) {
-                hudRefs.modeBadgeEl.innerText = `${modeConfig.name} · 安全圈 ${Math.floor(battleZoneRadius)}m`;
+                hudRefs.modeBadgeEl.innerText = `${modeConfig.name} · ${battleZoneRuntime.label}`;
             } else {
                 hudRefs.modeBadgeEl.innerText = `${modeConfig.name} · 限时模式`;
             }
@@ -2154,12 +2399,19 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
 
         if (modeDefinition.hud.showZoneWarning && modeDefinition.gameplay.battleRoyale.enabled) {
-            const zone = modeDefinition.gameplay.battleRoyale;
-            const zoneLabel = battleZoneStage === 0
-                ? '准备收缩'
-                : (battleZoneStage === 1 ? '收缩中' : '终圈阶段');
-            hudRefs.zoneStatusEl.innerText = `${zoneLabel} · 半径 ${Math.floor(battleZoneRadius)}m`;
-            hudRefs.zoneDamageEl.innerText = `圈外伤害 ${zone.outOfZoneDamagePerSecond}/秒`;
+            const zoneLabel = battleZoneRuntime.stage === 0
+                ? '全图安全'
+                : (battleZoneRuntime.suddenDeath ? '无安全区' : battleZoneRuntime.label);
+            const availableShieldStations = battleRoyaleShieldStations.filter((station) => station.available).length;
+            const shieldLabel = battleRoyaleShieldSecondsRemaining > 0
+                ? `护盾 ${Math.round(battleRoyaleShieldCharge)}/${Math.round(battleRoyaleShieldMaxCharge)} · ${battleRoyaleShieldSecondsRemaining.toFixed(1)}s`
+                : `护盾站 ${availableShieldStations}/${battleRoyaleShieldStations.length}`;
+            const rectLabel = battleZoneRuntime.safeRect.size > 0
+                ? `边长 ${Math.floor(battleZoneRuntime.safeRect.size)}m`
+                : '全图危险';
+            hudRefs.zoneStatusEl.innerText = `${zoneLabel} · ${rectLabel}`;
+            hudRefs.zoneDamageEl.innerText = `圈外伤害 ${battleZoneRuntime.damagePerSecond}/秒`;
+            hudRefs.zoneShieldEl.innerText = `${shieldLabel} · 方形安全区`;
         }
 
         hudRefs.leaderboardContainer.style.display = settings.showLeaderboard ? 'block' : 'none';
@@ -2229,16 +2481,70 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const { minimapCtx } = hudRefs;
         minimapCtx.clearRect(0, 0, 150, 150);
+        minimapCtx.fillStyle = 'rgba(7, 16, 30, 0.94)';
+        minimapCtx.fillRect(0, 0, 150, 150);
+
+        const scale = 140 / worldSize;
+        const project = (value: number) => 5 + value * scale;
+
+        minimapCtx.strokeStyle = 'rgba(132, 204, 255, 0.24)';
+        minimapCtx.lineWidth = 1;
+        minimapCtx.strokeRect(5, 5, 140, 140);
+
+        minimapCtx.fillStyle = 'rgba(102, 195, 255, 0.08)';
+        modeMapBlueprint.safeCorridors.forEach((corridor) => {
+            const left = project(corridor.x - corridor.width / 2);
+            const top = project(corridor.y - corridor.height / 2);
+            const width = corridor.width * scale;
+            const height = corridor.height * scale;
+            minimapCtx.fillRect(left, top, width, height);
+        });
+
+        modeMapBlueprint.foodHotspots.forEach((hotspot) => {
+            minimapCtx.beginPath();
+            minimapCtx.arc(project(hotspot.x), project(hotspot.y), Math.max(2, hotspot.radius * scale * 0.35), 0, Math.PI * 2);
+            minimapCtx.fillStyle = modeDefinition.id === 'battleRoyale'
+                ? 'rgba(255, 184, 94, 0.16)'
+                : 'rgba(102, 234, 171, 0.14)';
+            minimapCtx.fill();
+        });
+
+        modeMapBlueprint.virusAnchors.forEach((anchor) => {
+            minimapCtx.beginPath();
+            minimapCtx.arc(project(anchor.x), project(anchor.y), Math.max(2, anchor.radius * scale * 0.22), 0, Math.PI * 2);
+            minimapCtx.fillStyle = 'rgba(97, 255, 146, 0.55)';
+            minimapCtx.fill();
+        });
+
+        if (modeDefinition.gameplay.battleRoyale.enabled) {
+            minimapCtx.fillStyle = 'rgba(255, 72, 72, 0.12)';
+            minimapCtx.fillRect(5, 5, 140, 140);
+            if (battleZoneRuntime.safeRect.size > 0) {
+                const safeLeft = project(battleZoneRuntime.safeRect.minX);
+                const safeTop = project(battleZoneRuntime.safeRect.minY);
+                const safeSize = battleZoneRuntime.safeRect.size * scale;
+                minimapCtx.clearRect(safeLeft, safeTop, safeSize, safeSize);
+                minimapCtx.fillStyle = 'rgba(115, 236, 255, 0.12)';
+                minimapCtx.fillRect(safeLeft, safeTop, safeSize, safeSize);
+                minimapCtx.strokeStyle = battleZoneRuntime.suddenDeath
+                    ? 'rgba(255, 176, 176, 0.75)'
+                    : 'rgba(115, 236, 255, 0.75)';
+                minimapCtx.lineWidth = 2;
+                minimapCtx.setLineDash(battleZoneRuntime.stage >= 3 ? [6, 4] : [10, 6]);
+                minimapCtx.strokeRect(safeLeft, safeTop, safeSize, safeSize);
+                minimapCtx.setLineDash([]);
+            }
+        }
 
         const playerPos = player.getCenter();
-        const minimapX = 5 + (playerPos.x / WORLD_SIZE) * 140;
-        const minimapY = 5 + (playerPos.y / WORLD_SIZE) * 140;
+        const minimapX = project(playerPos.x);
+        const minimapY = project(playerPos.y);
         const edgeMargin = 500;
 
         const showTopEdge = playerPos.y < edgeMargin;
-        const showBottomEdge = playerPos.y > WORLD_SIZE - edgeMargin;
+        const showBottomEdge = playerPos.y > worldSize - edgeMargin;
         const showLeftEdge = playerPos.x < edgeMargin;
-        const showRightEdge = playerPos.x > WORLD_SIZE - edgeMargin;
+        const showRightEdge = playerPos.x > worldSize - edgeMargin;
 
         if (showTopEdge || showBottomEdge || showLeftEdge || showRightEdge) {
             minimapCtx.strokeStyle = '#ff4d4d';
@@ -2291,11 +2597,16 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             return;
         }
 
+        if (modeDefinition.gameplay.battleRoyale.enabled) {
+            return;
+        }
+
         if (player.cells.length === 0) {
             const startMass = gameplayTuning.limits.min_cell_mass;
             const startRadius = Math.sqrt(startMass) * 3.5;
-            const spawnX = Math.random() * (WORLD_SIZE - 1000) + 500;
-            const spawnY = Math.random() * (WORLD_SIZE - 1000) + 500;
+            const spawn = sampleSpawnPoint();
+            const spawnX = spawn.x;
+            const spawnY = spawn.y;
             const newCell = new Blob(spawnX, spawnY, startRadius, player.color);
             newCell.mass = startMass;
             player.addCell(newCell);
@@ -2310,8 +2621,9 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
             const startMass = gameplayTuning.limits.min_cell_mass;
             const startRadius = Math.sqrt(startMass) * 3.5;
-            const spawnX = Math.random() * (WORLD_SIZE - 1000) + 500;
-            const spawnY = Math.random() * (WORLD_SIZE - 1000) + 500;
+            const spawn = sampleSpawnPoint();
+            const spawnX = spawn.x;
+            const spawnY = spawn.y;
             const newCell = new Blob(spawnX, spawnY, startRadius, bot.color);
             newCell.mass = startMass;
             bot.addCell(newCell);
@@ -2371,15 +2683,20 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
 
         if (modeDefinition.gameplay.battleRoyale.enabled) {
+            updateShieldStations(dt);
             applyBattleZoneDamage(player, dt);
             bots.forEach((bot) => applyBattleZoneDamage(bot, dt));
+            maybeFinalizeBattleRoyaleByElimination(currentTime);
+            if (matchFinished) {
+                return;
+            }
         }
 
-        aiSystem.update(bots, player, quadTree, dt, WORLD_SIZE, WORLD_SIZE, abilitySystem);
+        aiSystem.update(bots, player, quadTree, dt, worldSize, worldSize, abilitySystem);
 
         foods.forEach((food) => {
             if (food instanceof EjectedMass) {
-                food.update(dt, WORLD_SIZE, WORLD_SIZE);
+                food.update(dt, worldSize, worldSize);
             }
         });
 
@@ -2392,7 +2709,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             ...bots.flatMap((bot) => bot.cells)
         ];
 
-        physics.update(activeBlobs, foods as Food[], viruses, quadTree, WORLD_SIZE, WORLD_SIZE, dt);
+        physics.update(activeBlobs, foods as Food[], viruses, quadTree, worldSize, worldSize, dt);
         abilitySystem.tickRuntime(dt);
 
         const spikeEventId = abilitySystem.getSpikeEventId(player);
@@ -2414,7 +2731,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         if (foodCount < targetFoodCount) {
             const batch = Math.min(targetFoodCount - foodCount, 20);
             for (let i = 0; i < batch; i += 1) {
-                foods.push(new Food(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE));
+                const spawn = sampleFoodSpawnPoint();
+                foods.push(new Food(spawn.x, spawn.y));
             }
         } else if (foodCount > targetFoodCount + 50) {
             let toRemove = Math.min(foodCount - targetFoodCount, 100);
@@ -2427,12 +2745,20 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         // `targetVirusCount` is baseline spawn target.
         // Feed-split viruses are allowed to exceed baseline so they remain visible.
         if (viruses.length < targetVirusCount && Math.random() < 0.1) {
-            viruses.push(new Virus(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE));
+            const spawn = sampleVirusSpawnPoint();
+            viruses.push(new Virus(spawn.x, spawn.y));
         } else if (viruses.length > MAX_VIRUS_COUNT) {
             // Safety cap only; do not immediately delete feed-split results.
             const overflow = viruses.length - MAX_VIRUS_COUNT;
             for (let i = 0; i < overflow; i += 1) {
                 viruses.pop();
+            }
+        }
+
+        if (modeDefinition.gameplay.battleRoyale.enabled) {
+            maybeFinalizeBattleRoyaleByElimination(currentTime);
+            if (matchFinished) {
+                return;
             }
         }
 
@@ -2449,7 +2775,11 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         activeRenderer.clear();
         activeRenderer.drawGrid(activeCamera, settings.reducedMotion);
-        activeRenderer.drawWorldBorder(WORLD_SIZE, activeCamera);
+        activeRenderer.drawWorldBorder(worldSize, activeCamera);
+        if (modeDefinition.gameplay.battleRoyale.enabled) {
+            activeRenderer.drawBattleZoneSquare(worldSize, battleZoneRuntime.safeRect, battleZoneRuntime.stage, activeCamera);
+            activeRenderer.drawBattleRoyaleShieldStations(battleRoyaleShieldStations, activeCamera);
+        }
 
         const viewW = activeCamera.viewportWidth / activeCamera.scale;
         const viewH = activeCamera.viewportHeight / activeCamera.scale;
@@ -2474,7 +2804,7 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         }
 
         const playerPos = player.getCenter();
-        activeRenderer.drawBoundaryWarnings(playerPos, WORLD_SIZE, activeCamera);
+        activeRenderer.drawBoundaryWarnings(playerPos, worldSize, activeCamera);
 
         visibleFoods.forEach((food) => activeRenderer.drawBlob(food, activeCamera));
 
@@ -2643,6 +2973,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const elapsedSeconds = getElapsedSeconds();
         const remainingSeconds = getRemainingSeconds();
+        updateBattleZoneState(elapsedSeconds);
+        refreshPlayerShieldTelemetry();
         const audioState = audioManager?.getDebugState() ?? {
             supported: false,
             contextState: 'unavailable',
@@ -2723,6 +3055,8 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
             match: {
                 modeId: modeConfig.id,
                 modeName: modeConfig.name,
+                mapSignature: modeMapBlueprint.mapSignature,
+                worldSize,
                 timed: modeConfig.timed,
                 durationSeconds: modeConfig.durationSeconds,
                 remainingSeconds,
@@ -2748,10 +3082,13 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                     rankPointMultiplier: modeDefinition.gameplay.rankPointMultiplier,
                     battleZone: {
                         enabled: modeDefinition.gameplay.battleRoyale.enabled,
-                        radius: Number(battleZoneRadius.toFixed(2)),
-                        stage: battleZoneStage,
-                        shrinkStartSeconds: modeDefinition.gameplay.battleRoyale.shrinkStartSeconds,
-                        shrinkDurationSeconds: modeDefinition.gameplay.battleRoyale.shrinkDurationSeconds
+                        shape: modeDefinition.gameplay.battleRoyale.shape,
+                        stage: battleZoneRuntime.stage,
+                        label: battleZoneRuntime.label,
+                        damagePerSecond: battleZoneRuntime.damagePerSecond,
+                        suddenDeath: battleZoneRuntime.suddenDeath,
+                        safeRect: { ...battleZoneRuntime.safeRect },
+                        phaseTimings: { ...modeDefinition.gameplay.battleRoyale.phaseTimings }
                     }
                 },
                 hudProfile: {
@@ -2773,6 +3110,18 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
                     roomSize: modeDefinition.social.roomSize,
                     supportsSpectate: modeDefinition.social.supportsSpectate,
                     supportsReplay: modeDefinition.social.supportsReplay
+                },
+                battleRoyaleState: {
+                    enabled: modeDefinition.gameplay.battleRoyale.enabled,
+                    safeRect: { ...battleZoneRuntime.safeRect },
+                    damagePerSecond: battleZoneRuntime.damagePerSecond,
+                    suddenDeath: battleZoneRuntime.suddenDeath,
+                    noRespawn: modeDefinition.gameplay.battleRoyale.enabled,
+                    availableShieldStations: battleRoyaleShieldStations.filter((station) => station.available).length,
+                    shieldCharge: Number(battleRoyaleShieldCharge.toFixed(2)),
+                    shieldMaxCharge: Number(battleRoyaleShieldMaxCharge.toFixed(2)),
+                    shieldSecondsRemaining: Number(battleRoyaleShieldSecondsRemaining.toFixed(2)),
+                    spikeChains: battleRoyaleRuntime?.spikeChains.length ?? 0
                 }
             }
         };

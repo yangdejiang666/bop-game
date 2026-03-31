@@ -16,6 +16,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../database/001_init.sql:/docker-entrypoint-initdb.d/010_schema.sql:ro
+      - ../../database/003_enterprise_app_foundation.sql:/docker-entrypoint-initdb.d/020_enterprise_app_foundation.sql:ro
+      - ../../database/004_auth_communications.sql:/docker-entrypoint-initdb.d/030_auth_communications.sql:ro
 
   api-server:
     build:
@@ -41,6 +43,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
     expose:
       - "${API_PORT}"
+    ports:
+      - "${PUBLIC_API_PORT:-8788}:${API_PORT}"
 
   game-server:
     build:
@@ -58,6 +62,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
     expose:
       - "${GAME_PORT}"
+    ports:
+      - "${PUBLIC_GAME_PORT:-8899}:${GAME_PORT}"
 
   caddy:
     image: caddy:2-alpine
@@ -79,4 +85,3 @@ volumes:
   postgres_data:
   caddy_data:
   caddy_config:
-

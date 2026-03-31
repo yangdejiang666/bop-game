@@ -7,6 +7,11 @@ import { gameplayTuning } from '../gameplay/tuning';
 import { Food } from '../entities/Food';
 import { Virus } from '../entities/Virus';
 import { EjectedMass } from '../entities/EjectedMass';
+import type {
+    BattleRoyaleRedZoneDefinition,
+    BattleRoyaleRedZonePhase,
+    BattleRoyaleShieldStationDefinition
+} from '../modes/battleRoyaleRuntime';
 
 export class RenderSystem {
     private ctxGame: CanvasRenderingContext2D;
@@ -361,6 +366,161 @@ export class RenderSystem {
             ctx.fill();
         }
         ctx.restore();
+    }
+
+    drawBattleZoneSquare(
+        worldSize: number,
+        safeRect: { minX: number; minY: number; maxX: number; maxY: number; size: number },
+        stage: number,
+        camera: Camera
+    ) {
+        const ctx = this.ctxBg;
+        const worldTopLeft = camera.project(new Vector(0, 0));
+        const worldBottomRight = camera.project(new Vector(worldSize, worldSize));
+        const worldX = Math.min(worldTopLeft.x, worldBottomRight.x);
+        const worldY = Math.min(worldTopLeft.y, worldBottomRight.y);
+        const worldWidth = Math.abs(worldBottomRight.x - worldTopLeft.x);
+        const worldHeight = Math.abs(worldBottomRight.y - worldTopLeft.y);
+        if (!Number.isFinite(worldWidth) || !Number.isFinite(worldHeight) || worldWidth <= 4 || worldHeight <= 4) {
+            return;
+        }
+
+        const pulse = Math.sin(performance.now() / 260) * 0.08 + 0.92;
+        const fillAlpha = stage >= 4 ? 0.18 : (stage >= 3 ? 0.14 : (stage >= 2 ? 0.1 : 0.08));
+        const strokeAlpha = stage >= 4 ? 0.92 : (stage >= 3 ? 0.82 : (stage >= 2 ? 0.72 : 0.58));
+
+        ctx.save();
+        ctx.fillStyle = `rgba(255, 78, 78, ${fillAlpha.toFixed(3)})`;
+
+        if (safeRect.size <= 0) {
+            ctx.fillRect(worldX, worldY, worldWidth, worldHeight);
+            ctx.restore();
+            return;
+        }
+
+        const safeTopLeft = camera.project(new Vector(safeRect.minX, safeRect.minY));
+        const safeBottomRight = camera.project(new Vector(safeRect.maxX, safeRect.maxY));
+        const safeX = Math.min(safeTopLeft.x, safeBottomRight.x);
+        const safeY = Math.min(safeTopLeft.y, safeBottomRight.y);
+        const safeWidth = Math.abs(safeBottomRight.x - safeTopLeft.x);
+        const safeHeight = Math.abs(safeBottomRight.y - safeTopLeft.y);
+
+        ctx.fillRect(worldX, worldY, worldWidth, Math.max(0, safeY - worldY));
+        ctx.fillRect(worldX, safeY + safeHeight, worldWidth, Math.max(0, worldY + worldHeight - (safeY + safeHeight)));
+        ctx.fillRect(worldX, safeY, Math.max(0, safeX - worldX), safeHeight);
+        ctx.fillRect(safeX + safeWidth, safeY, Math.max(0, worldX + worldWidth - (safeX + safeWidth)), safeHeight);
+
+        ctx.beginPath();
+        ctx.setLineDash(stage >= 3 ? [6, 4] : [12, 8]);
+        ctx.lineWidth = stage >= 3 ? 3 : 2.25;
+        ctx.strokeStyle = `rgba(132, 234, 255, ${(strokeAlpha * pulse).toFixed(3)})`;
+        ctx.rect(safeX, safeY, safeWidth, safeHeight);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    drawBattleRoyaleRedZones(
+        zones: Array<BattleRoyaleRedZoneDefinition & { phase: BattleRoyaleRedZonePhase }>,
+        camera: Camera
+    ) {
+        if (zones.length === 0) {
+            return;
+        }
+
+        const ctx = this.ctxBg;
+        const pulse = Math.sin(performance.now() / 180) * 0.15 + 0.85;
+
+        zones.forEach((zone) => {
+            if (zone.phase !== 'warning' && zone.phase !== 'active') {
+                return;
+            }
+
+            const center = camera.project(new Vector(zone.center.x, zone.center.y));
+            const screenRadius = zone.radius * camera.scale;
+            if (!Number.isFinite(screenRadius) || screenRadius <= 4) {
+                return;
+            }
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, screenRadius, 0, Math.PI * 2);
+
+            if (zone.phase === 'warning') {
+                ctx.setLineDash([12, 10]);
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = `rgba(255, 210, 118, ${(0.7 * pulse).toFixed(3)})`;
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = `rgba(255, 74, 74, ${(0.12 * pulse).toFixed(3)})`;
+                ctx.fill();
+                ctx.setLineDash([10, 6]);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = `rgba(255, 124, 124, ${(0.9 * pulse).toFixed(3)})`;
+                ctx.stroke();
+            }
+
+            if (screenRadius >= 24) {
+                ctx.fillStyle = zone.phase === 'warning'
+                    ? 'rgba(255, 228, 178, 0.92)'
+                    : 'rgba(255, 244, 244, 0.96)';
+                ctx.font = `bold ${Math.max(11, Math.min(20, screenRadius * 0.16))}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(zone.phase === 'warning' ? 'WARN' : 'RED', center.x, center.y);
+            }
+            ctx.restore();
+        });
+    }
+
+    drawBattleRoyaleShieldStations(
+        stations: Array<BattleRoyaleShieldStationDefinition & { available: boolean; cooldownRemainingSeconds: number }>,
+        camera: Camera
+    ) {
+        if (stations.length === 0) {
+            return;
+        }
+
+        const ctx = this.ctxBg;
+        const pulse = Math.sin(performance.now() / 240) * 0.12 + 0.88;
+
+        stations.forEach((station) => {
+            const center = camera.project(new Vector(station.center.x, station.center.y));
+            const screenRadius = station.pickupRadius * camera.scale;
+            if (!Number.isFinite(screenRadius) || screenRadius <= 3) {
+                return;
+            }
+
+            const available = station.available;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, screenRadius, 0, Math.PI * 2);
+            ctx.fillStyle = available
+                ? `rgba(65, 239, 228, ${(0.08 * pulse).toFixed(3)})`
+                : 'rgba(94, 128, 140, 0.05)';
+            ctx.fill();
+
+            ctx.setLineDash(available ? [10, 8] : [4, 10]);
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = available
+                ? `rgba(110, 255, 244, ${(0.9 * pulse).toFixed(3)})`
+                : 'rgba(126, 160, 172, 0.45)';
+            ctx.stroke();
+
+            const coreRadius = Math.max(4, screenRadius * 0.18);
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, coreRadius, 0, Math.PI * 2);
+            ctx.fillStyle = available ? 'rgba(183, 255, 250, 0.94)' : 'rgba(152, 176, 185, 0.74)';
+            ctx.fill();
+
+            if (screenRadius >= 20) {
+                ctx.fillStyle = available ? 'rgba(205, 255, 250, 0.94)' : 'rgba(170, 190, 198, 0.82)';
+                ctx.font = `bold ${Math.max(10, Math.min(18, screenRadius * 0.15))}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(available ? 'SHD' : `${Math.ceil(station.cooldownRemainingSeconds)}`, center.x, center.y - screenRadius * 0.42);
+            }
+            ctx.restore();
+        });
     }
 
     private getBlobFillStyle(

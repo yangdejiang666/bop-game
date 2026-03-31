@@ -10,7 +10,11 @@ import {
   type ConfirmPasswordResetRequest,
   type ConfirmPasswordResetResponse,
   type DeviceInfo,
+  type SendEmailCodeRequest,
+  type SendEmailCodeResponse,
   type ListDeviceSessionsResponse,
+  type LoginByPlatformRequest,
+  type LoginBySmsRequest,
   type LoginByPasswordRequest,
   type LoginRequest,
   type LoginResponse,
@@ -35,12 +39,34 @@ import {
 } from "../lib/auth.js";
 import {
   listDeviceSessions,
+  loginByPlatform,
+  loginBySms,
   loginByPassword,
   logoutSession,
   refreshSession,
   registerByPassword,
   revokeDeviceSession,
 } from "../services/authService.js";
+import {
+  assertPlatformRateLimit,
+  PlatformServiceError,
+} from "../services/platformService.js";
+import { hashPassword } from "../lib/password.js";
+import {
+  bindEmailToUser,
+  bindPhoneIdentityToUser,
+  updatePasswordHashForUser,
+} from "../repositories/accountRepository.js";
+import {
+  consumeEmailChallengeByCode,
+  consumeSmsChallengeByCode,
+  maskEmailForDisplay,
+  maskPhoneForDisplay,
+  requestPasswordReset,
+  sendEmailCode,
+  sendSmsCode,
+  verifyPasswordResetChallenge,
+} from "../services/authChallengeService.js";
 
 const router = Router();
 
@@ -48,9 +74,22 @@ const ACCOUNT_MIN = 3;
 const ACCOUNT_MAX = 64;
 const PASSWORD_MIN = 6;
 const PASSWORD_MAX = 64;
+const VERIFICATION_PURPOSES = new Set([
+  "login",
+  "register",
+  "resetPassword",
+  "bindMobile",
+  "bindEmail",
+]);
 
 function normalizeAccount(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function isVerificationPurpose(
+  value: string,
+): value is SendSmsCodeRequest["purpose"] {
+  return VERIFICATION_PURPOSES.has(value);
 }
 
 function readDeviceInfo(request: Request): DeviceInfo {
@@ -102,6 +141,21 @@ function isPgUniqueViolation(error: unknown): boolean {
   );
 }
 
+function getPgConstraintName(error: unknown): string | null {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("constraint" in error)
+  ) {
+    return null;
+  }
+
+  const constraint = (error as { constraint?: unknown }).constraint;
+  return typeof constraint === "string" && constraint.trim().length > 0
+    ? constraint
+    : null;
+}
+
 router.post(
   "/register",
   asyncHandler(async (request, response) => {
@@ -141,11 +195,79 @@ router.post(
       return;
     }
 
+    const email =
+      typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const emailCode =
+      typeof body.emailCode === "string" ? body.emailCode.trim() : "";
+    if ((email.length > 0 || emailCode.length > 0) && !email) {
+      sendValidationError(
+        response,
+        request,
+        "email is required when emailCode is provided.",
+        "email",
+      );
+      return;
+    }
+    if ((email.length > 0 || emailCode.length > 0) && !emailCode) {
+      sendValidationError(
+        response,
+        request,
+        "emailCode is required when email is provided.",
+        "emailCode",
+      );
+      return;
+    }
+
+    const mobileCountryCode =
+      typeof body.mobileCountryCode === "string"
+        ? body.mobileCountryCode.trim()
+        : "";
+    const mobile = typeof body.mobile === "string" ? body.mobile.trim() : "";
+    const mobileCode =
+      typeof body.mobileCode === "string" ? body.mobileCode.trim() : "";
+    if ((mobile.length > 0 || mobileCode.length > 0) && !mobile) {
+      sendValidationError(
+        response,
+        request,
+        "mobile is required when mobileCode is provided.",
+        "mobile",
+      );
+      return;
+    }
+    if ((mobile.length > 0 || mobileCode.length > 0) && !mobileCode) {
+      sendValidationError(
+        response,
+        request,
+        "mobileCode is required when mobile is provided.",
+        "mobileCode",
+      );
+      return;
+    }
+
     try {
+      await assertPlatformRateLimit(
+        "register",
+        `${request.ip}:${account}`,
+      );
       const result = await registerByPassword({
         account,
         password: body.password,
         nickname: body.nickname,
+        emailVerification:
+          email && emailCode
+            ? {
+                email,
+                code: emailCode,
+              }
+            : undefined,
+        mobileVerification:
+          mobile && mobileCode
+            ? {
+                countryCode: mobileCountryCode || "+86",
+                mobile,
+                code: mobileCode,
+              }
+            : undefined,
         device: readDeviceInfo(request),
       });
 
@@ -159,10 +281,31 @@ router.post(
         );
     } catch (error) {
       if (isPgUniqueViolation(error)) {
+        const constraint = getPgConstraintName(error);
+        const field =
+          constraint === "uq_user_identities_email"
+            ? "email"
+            : constraint === "uq_user_identities_phone"
+              ? "mobile"
+              : "account";
+        const message =
+          field === "email"
+            ? "email is already bound."
+            : field === "mobile"
+              ? "mobile is already bound."
+              : "account already exists.";
         response.status(409).json(
-          createError(PROTOCOL_ERROR.CONFLICT, "account already exists.", {
+          createError(PROTOCOL_ERROR.CONFLICT, message, {
             requestId: readRequestId(request),
-            details: { field: "account" },
+            details: { field },
+          }),
+        );
+        return;
+      }
+      if (error instanceof PlatformServiceError) {
+        response.status(error.status).json(
+          createError(error.code as any, error.message, {
+            requestId: readRequestId(request),
           }),
         );
         return;
@@ -176,9 +319,9 @@ router.post(
   "/login",
   asyncHandler(async (request, response) => {
     const body = (request.body ?? {}) as Partial<LoginRequest>;
-    if (!body || body.method !== "password" || typeof body.payload !== "object") {
+    if (!body || typeof body.method !== "string" || typeof body.payload !== "object") {
       response.status(400).json(
-        createError(PROTOCOL_ERROR.INVALID_REQUEST, "Only password login is enabled.", {
+        createError(PROTOCOL_ERROR.INVALID_REQUEST, "Login payload is invalid.", {
           requestId: readRequestId(request),
           details: { field: "method" },
         }),
@@ -186,34 +329,131 @@ router.post(
       return;
     }
 
-    const payload = body.payload as unknown as LoginByPasswordRequest;
-    const account =
-      typeof payload.account === "string"
-        ? normalizeAccount(payload.account)
-        : "";
-    const password = typeof payload.password === "string" ? payload.password : "";
-
-    if (!account || !password) {
-      sendValidationError(
-        response,
-        request,
-        "account and password are required.",
-        "payload.account/password",
-      );
-      return;
-    }
-
     try {
-      const result = await loginByPassword({
-        account,
-        password,
-        device: readDeviceInfo(request),
-      });
+      if (body.method === "password") {
+        const payload = body.payload as unknown as LoginByPasswordRequest;
+        const account =
+          typeof payload.account === "string"
+            ? normalizeAccount(payload.account)
+            : "";
+        const password =
+          typeof payload.password === "string" ? payload.password : "";
 
-      response.json(
-        createSuccess<LoginResponse>(result, readRequestId(request)),
+        if (!account || !password) {
+          sendValidationError(
+            response,
+            request,
+            "account and password are required.",
+            "payload.account/password",
+          );
+          return;
+        }
+
+        await assertPlatformRateLimit(
+          "login",
+          `${request.ip}:${account}`,
+        );
+        const result = await loginByPassword({
+          account,
+          password,
+          device: readDeviceInfo(request),
+        });
+
+        response.json(
+          createSuccess<LoginResponse>(result, readRequestId(request)),
+        );
+        return;
+      }
+
+      if (body.method === "platform") {
+        const payload = body.payload as unknown as LoginByPlatformRequest;
+        const provider =
+          typeof payload.provider === "string" ? payload.provider.trim() : "";
+        const providerToken =
+          typeof payload.providerToken === "string"
+            ? payload.providerToken.trim()
+            : "";
+
+        if (!provider || !providerToken) {
+          sendValidationError(
+            response,
+            request,
+            "provider and providerToken are required.",
+            "payload.provider/providerToken",
+          );
+          return;
+        }
+
+        await assertPlatformRateLimit(
+          "login",
+          `${request.ip}:${provider}`,
+        );
+        const result = await loginByPlatform({
+          provider,
+          providerToken,
+          device: readDeviceInfo(request),
+        });
+
+        response.json(
+          createSuccess<LoginResponse>(result, readRequestId(request)),
+        );
+        return;
+      }
+
+      if (body.method === "sms") {
+        const payload = body.payload as unknown as LoginBySmsRequest;
+        const countryCode =
+          typeof payload.countryCode === "string"
+            ? payload.countryCode.trim()
+            : "";
+        const mobile =
+          typeof payload.mobile === "string" ? payload.mobile.trim() : "";
+        const code =
+          typeof payload.code === "string" ? payload.code.trim() : "";
+
+        if (!countryCode || !mobile || !code) {
+          sendValidationError(
+            response,
+            request,
+            "countryCode, mobile and code are required.",
+            "payload.countryCode/mobile/code",
+          );
+          return;
+        }
+
+        await assertPlatformRateLimit(
+          "login",
+          `${request.ip}:sms:${countryCode}${mobile}`,
+        );
+        const result = await loginBySms({
+          countryCode,
+          mobile,
+          code,
+          device: payload.device ?? readDeviceInfo(request),
+        });
+
+        response.json(
+          createSuccess<LoginResponse>(result, readRequestId(request)),
+        );
+        return;
+      }
+
+      response.status(400).json(
+        createError(PROTOCOL_ERROR.INVALID_REQUEST, "Unsupported login method.", {
+          requestId: readRequestId(request),
+          details: { field: "method" },
+        }),
       );
     } catch (error) {
+      if (error instanceof PlatformServiceError) {
+        response.status(error.status).json(
+          createError(error.code as any, error.message, {
+            requestId: readRequestId(request),
+          }),
+        );
+        return;
+      }
+
       const message = error instanceof Error ? error.message : "login failed";
       if (message === "invalid credentials") {
         response.status(401).json(
@@ -236,6 +476,15 @@ router.post(
               requestId: readRequestId(request),
             },
           ),
+        );
+        return;
+      }
+      if (message === "unsupported platform provider") {
+        response.status(400).json(
+          createError(PROTOCOL_ERROR.INVALID_REQUEST, "Unsupported platform provider.", {
+            requestId: readRequestId(request),
+            details: { field: "payload.provider" },
+          }),
         );
         return;
       }
@@ -366,7 +615,7 @@ router.post(
   }),
 );
 
-router.post("/sms/send", (request, response) => {
+router.post("/sms/send", asyncHandler(async (request, response) => {
   const body = (request.body ?? {}) as Partial<SendSmsCodeRequest>;
   if (
     typeof body.countryCode !== "string" ||
@@ -381,16 +630,95 @@ router.post("/sms/send", (request, response) => {
     );
     return;
   }
+  if (!isVerificationPurpose(body.purpose)) {
+    sendValidationError(
+      response,
+      request,
+      "purpose is invalid.",
+      "purpose",
+    );
+    return;
+  }
 
-  const payload: SendSmsCodeResponse = {
-    success: true,
-    cooldownSeconds: 60,
-    serverTime: new Date().toISOString(),
-  };
-  response.json(createSuccess(payload, readRequestId(request)));
-});
+  try {
+    await assertPlatformRateLimit(
+      "login",
+      `${request.ip}:sms-send:${body.countryCode}:${body.mobile}:${body.purpose}`,
+    );
+    const result = await sendSmsCode({
+      countryCode: body.countryCode,
+      mobile: body.mobile,
+      purpose: body.purpose,
+    });
+    const payload: SendSmsCodeResponse = {
+      success: true,
+      cooldownSeconds: result.cooldownSeconds,
+      serverTime: new Date().toISOString(),
+    };
+    response.json(createSuccess(payload, readRequestId(request)));
+  } catch (error) {
+    if (error instanceof PlatformServiceError) {
+      response.status(error.status).json(
+        createError(error.code as any, error.message, {
+          requestId: readRequestId(request),
+        }),
+      );
+      return;
+    }
+    throw error;
+  }
+}));
 
-router.post("/password/request-reset", (request, response) => {
+router.post("/email/send", asyncHandler(async (request, response) => {
+  const body = (request.body ?? {}) as Partial<SendEmailCodeRequest>;
+  if (typeof body.email !== "string" || typeof body.purpose !== "string") {
+    sendValidationError(
+      response,
+      request,
+      "email and purpose are required.",
+      "email/purpose",
+    );
+    return;
+  }
+  if (!isVerificationPurpose(body.purpose)) {
+    sendValidationError(
+      response,
+      request,
+      "purpose is invalid.",
+      "purpose",
+    );
+    return;
+  }
+
+  try {
+    await assertPlatformRateLimit(
+      "login",
+      `${request.ip}:email-send:${body.email}:${body.purpose}`,
+    );
+    const result = await sendEmailCode({
+      email: body.email,
+      purpose: body.purpose,
+    });
+    const payload: SendEmailCodeResponse = {
+      success: true,
+      cooldownSeconds: result.cooldownSeconds,
+      serverTime: new Date().toISOString(),
+    };
+    response.json(createSuccess(payload, readRequestId(request)));
+  } catch (error) {
+    if (error instanceof PlatformServiceError) {
+      response.status(error.status).json(
+        createError(error.code as any, error.message, {
+          requestId: readRequestId(request),
+        }),
+      );
+      return;
+    }
+    throw error;
+  }
+}));
+
+router.post("/password/request-reset", asyncHandler(async (request, response) => {
   const body = (request.body ?? {}) as Partial<RequestPasswordResetRequest>;
   if (typeof body.account !== "string" || typeof body.verifyBy !== "string") {
     sendValidationError(
@@ -401,16 +729,41 @@ router.post("/password/request-reset", (request, response) => {
     );
     return;
   }
+  if (body.verifyBy !== "email" && body.verifyBy !== "sms") {
+    sendValidationError(
+      response,
+      request,
+      "verifyBy must be email or sms.",
+      "verifyBy",
+    );
+    return;
+  }
 
-  const payload: RequestPasswordResetResponse = {
-    success: true,
-    challengeId: `pwd_${Math.random().toString(36).slice(2, 10)}`,
-    serverTime: new Date().toISOString(),
-  };
-  response.json(createSuccess(payload, readRequestId(request)));
-});
+  try {
+    const result = await requestPasswordReset({
+      account: body.account.trim(),
+      verifyBy: body.verifyBy,
+    });
+    const payload: RequestPasswordResetResponse = {
+      success: true,
+      challengeId: result.challengeId,
+      serverTime: new Date().toISOString(),
+    };
+    response.json(createSuccess(payload, readRequestId(request)));
+  } catch (error) {
+    if (error instanceof PlatformServiceError) {
+      response.status(error.status).json(
+        createError(error.code as any, error.message, {
+          requestId: readRequestId(request),
+        }),
+      );
+      return;
+    }
+    throw error;
+  }
+}));
 
-router.post("/password/confirm-reset", (request, response) => {
+router.post("/password/confirm-reset", asyncHandler(async (request, response) => {
   const body = (request.body ?? {}) as Partial<ConfirmPasswordResetRequest>;
   if (
     typeof body.challengeId !== "string" ||
@@ -426,12 +779,38 @@ router.post("/password/confirm-reset", (request, response) => {
     return;
   }
 
+  try {
+    const challenge = await verifyPasswordResetChallenge({
+      challengeId: body.challengeId.trim(),
+      code: body.verificationCode.trim(),
+    });
+    if (!challenge.userId) {
+      throw new PlatformServiceError(
+        PROTOCOL_ERROR.AUTH_VERIFICATION_REQUIRED,
+        401,
+        "Password reset challenge is invalid.",
+      );
+    }
+    const passwordHash = await hashPassword(body.newPassword);
+    await updatePasswordHashForUser(challenge.userId, passwordHash);
+  } catch (error) {
+    if (error instanceof PlatformServiceError) {
+      response.status(error.status).json(
+        createError(error.code as any, error.message, {
+          requestId: readRequestId(request),
+        }),
+      );
+      return;
+    }
+    throw error;
+  }
+
   const payload: ConfirmPasswordResetResponse = {
     success: true,
     serverTime: new Date().toISOString(),
   };
   response.json(createSuccess(payload, readRequestId(request)));
-});
+}));
 
 router.post("/bind/mobile", asyncHandler(async (request, response) => {
   const auth = await requireAuth(request as AuthenticatedRequest, response);
@@ -451,15 +830,47 @@ router.post("/bind/mobile", asyncHandler(async (request, response) => {
       "countryCode, mobile, code are required.",
       "countryCode/mobile/code",
     );
-    return;
+      return;
   }
 
-  const payload: BindMobileResponse = {
-    success: true,
-    mobileMasked: `${body.countryCode}${body.mobile}`.replace(/(\d{3})\d+(\d{3})$/, "$1****$2"),
-    serverTime: new Date().toISOString(),
-  };
-  response.json(createSuccess(payload, readRequestId(request)));
+  try {
+    const verified = await consumeSmsChallengeByCode({
+      countryCode: body.countryCode,
+      mobile: body.mobile,
+      purpose: "bindMobile",
+      code: body.code,
+    });
+    await bindPhoneIdentityToUser({
+      userId: auth.userId,
+      phone: verified.normalizedPhone.phoneE164,
+    });
+
+    const payload: BindMobileResponse = {
+      success: true,
+      mobileMasked: maskPhoneForDisplay(body.countryCode, body.mobile),
+      serverTime: new Date().toISOString(),
+    };
+    response.json(createSuccess(payload, readRequestId(request)));
+  } catch (error) {
+    if (isPgUniqueViolation(error)) {
+      response.status(409).json(
+        createError(PROTOCOL_ERROR.CONFLICT, "mobile is already bound.", {
+          requestId: readRequestId(request),
+          details: { field: "mobile" },
+        }),
+      );
+      return;
+    }
+    if (error instanceof PlatformServiceError) {
+      response.status(error.status).json(
+        createError(error.code as any, error.message, {
+          requestId: readRequestId(request),
+        }),
+      );
+      return;
+    }
+    throw error;
+  }
 }));
 
 router.post("/bind/email", asyncHandler(async (request, response) => {
@@ -476,17 +887,46 @@ router.post("/bind/email", asyncHandler(async (request, response) => {
       "email and code are required.",
       "email/code",
     );
-    return;
+      return;
   }
 
-  const [name, domain] = body.email.split("@");
-  const payload: BindEmailResponse = {
-    success: true,
-    emailMasked:
-      name && domain ? `${name.slice(0, 2)}***@${domain}` : "***",
-    serverTime: new Date().toISOString(),
-  };
-  response.json(createSuccess(payload, readRequestId(request)));
+  try {
+    await consumeEmailChallengeByCode({
+      email: body.email,
+      purpose: "bindEmail",
+      code: body.code,
+    });
+    await bindEmailToUser({
+      userId: auth.userId,
+      email: body.email,
+    });
+
+    const payload: BindEmailResponse = {
+      success: true,
+      emailMasked: maskEmailForDisplay(body.email),
+      serverTime: new Date().toISOString(),
+    };
+    response.json(createSuccess(payload, readRequestId(request)));
+  } catch (error) {
+    if (isPgUniqueViolation(error)) {
+      response.status(409).json(
+        createError(PROTOCOL_ERROR.CONFLICT, "email is already bound.", {
+          requestId: readRequestId(request),
+          details: { field: "email" },
+        }),
+      );
+      return;
+    }
+    if (error instanceof PlatformServiceError) {
+      response.status(error.status).json(
+        createError(error.code as any, error.message, {
+          requestId: readRequestId(request),
+        }),
+      );
+      return;
+    }
+    throw error;
+  }
 }));
 
 export default router;

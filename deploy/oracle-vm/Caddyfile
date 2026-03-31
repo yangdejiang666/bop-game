@@ -1,3 +1,16 @@
+:80 {
+    encode gzip zstd
+
+    @ws path /ws /ws/*
+    handle @ws {
+        reverse_proxy game-server:8899
+    }
+
+    handle {
+        reverse_proxy api-server:8788
+    }
+}
+
 {$API_DOMAIN} {
     encode gzip zstd
     reverse_proxy api-server:8788
@@ -7,4 +20,3 @@
     encode gzip zstd
     reverse_proxy game-server:8899
 }
-

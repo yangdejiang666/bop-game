@@ -10,6 +10,9 @@ export class Controller {
     public displayName: string = 'Player';
     public movementSpeedMultiplier: number = 1;
     public decayRateMultiplier: number = 1;
+    public hazardShield: number = 0;
+    public hazardShieldMax: number = 0;
+    public hazardShieldTimer: number = 0;
 
     constructor() { }
 
@@ -30,6 +33,61 @@ export class Controller {
     setModeMultipliers(moveSpeedMultiplier: number, decayRateMultiplier: number) {
         this.movementSpeedMultiplier = Math.max(0.2, moveSpeedMultiplier);
         this.decayRateMultiplier = Math.max(0.1, decayRateMultiplier);
+    }
+
+    grantHazardShield(amount: number, durationSeconds: number) {
+        const safeAmount = Math.max(0, amount);
+        const safeDuration = Math.max(0, durationSeconds);
+        if (safeAmount <= 0 || safeDuration <= 0) {
+            return;
+        }
+
+        this.hazardShield = Math.max(this.hazardShield, safeAmount);
+        this.hazardShieldMax = Math.max(this.hazardShieldMax, safeAmount);
+        this.hazardShieldTimer = Math.max(this.hazardShieldTimer, safeDuration);
+    }
+
+    clearHazardShield() {
+        this.hazardShield = 0;
+        this.hazardShieldMax = 0;
+        this.hazardShieldTimer = 0;
+    }
+
+    absorbHazardDamage(amount: number): number {
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return 0;
+        }
+
+        if (this.hazardShieldTimer <= 0 || this.hazardShield <= 0) {
+            return amount;
+        }
+
+        const absorbed = Math.min(amount, this.hazardShield);
+        this.hazardShield = Math.max(0, this.hazardShield - absorbed);
+
+        if (this.hazardShield <= 0) {
+            this.clearHazardShield();
+        }
+
+        return amount - absorbed;
+    }
+
+    getHazardShieldRatio(): number {
+        if (this.hazardShieldMax <= 0) {
+            return 0;
+        }
+        return Math.min(1, Math.max(0, this.hazardShield / this.hazardShieldMax));
+    }
+
+    protected tickHazardShield(dt: number) {
+        if (dt <= 0 || this.hazardShieldTimer <= 0) {
+            return;
+        }
+
+        this.hazardShieldTimer = Math.max(0, this.hazardShieldTimer - dt);
+        if (this.hazardShieldTimer <= 0 || this.hazardShield <= 0) {
+            this.clearHazardShield();
+        }
     }
 
     removeCell(blob: Blob) {

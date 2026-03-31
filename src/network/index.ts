@@ -5,4 +5,5 @@ export * from "./matchmakingService";
 export * from "./roomService";
 export * from "./userService";
 export * from "./progressionService";
+export * from "./platformService";
 export * from "./wsGateway";

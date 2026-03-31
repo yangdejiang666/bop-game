@@ -1,13 +1,26 @@
 import type {
+  BindEmailRequest,
+  BindEmailResponse,
+  BindMobileRequest,
+  BindMobileResponse,
+  ConfirmPasswordResetRequest,
+  ConfirmPasswordResetResponse,
   DeviceInfo,
+  LoginMethod,
   LoginRequest,
   LoginResponse,
   LogoutRequest,
   LogoutResponse,
+  RequestPasswordResetRequest,
+  RequestPasswordResetResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
   RegisterByPasswordRequest,
   RegisterByPasswordResponse,
+  SendEmailCodeRequest,
+  SendEmailCodeResponse,
+  SendSmsCodeRequest,
+  SendSmsCodeResponse,
 } from "../../shared-protocol/src/auth";
 import type {
   GetMeResponse,
@@ -15,8 +28,10 @@ import type {
   UpdateProfileResponse,
 } from "../../shared-protocol/src/user";
 import type { ProtocolResponse } from "../../shared-protocol/src/errors";
+import { networkConfig } from "./config";
+import { clientPlatformConfig } from "../platform/config";
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:8788/api/v1";
+const DEFAULT_BASE_URL = networkConfig.apiBaseUrl;
 const DEVICE_STORAGE_KEY = "bop:device-id";
 
 export interface AuthServiceConfig {
@@ -31,7 +46,9 @@ export interface AuthSessionState {
   expiresAt: number;
   refreshExpiresAt: number;
   userId: string;
+  gameId: string;
   nickname: string;
+  method: LoginMethod;
 }
 
 export interface AuthHeadersOptions {
@@ -94,7 +111,9 @@ export class AuthService {
         refreshExpiresAt:
           Date.now() + response.data.tokens.refreshExpiresIn * 1000,
         userId: response.data.user.userId,
+        gameId: response.data.user.gameId,
         nickname: response.data.user.nickname,
+        method: "password",
       });
     }
 
@@ -103,6 +122,51 @@ export class AuthService {
 
   async login(payload: LoginRequest): Promise<ProtocolResponse<LoginResponse>> {
     const requestPayload = this.attachDeviceToLoginPayload(payload);
+    if (
+      clientPlatformConfig.enableLocalAuthBypass &&
+      requestPayload.method === "password"
+    ) {
+      const dummySession: AuthSessionState = {
+        accessToken: "mock-token",
+        refreshToken: "mock-refresh",
+        expiresAt: Date.now() + 86_400_000,
+        refreshExpiresAt: Date.now() + 86_400_000,
+        userId: "dev-local-999",
+        gameId: "123456",
+        nickname: "星际穿越测试员",
+        method: "password",
+      };
+
+      this.persistSession(dummySession);
+
+      return {
+        ok: true,
+        data: {
+          tokens: {
+            accessToken: "mock-token",
+            refreshToken: "mock-refresh",
+            expiresIn: 86400,
+            refreshExpiresIn: 86400,
+            tokenType: "Bearer",
+          },
+          user: {
+            userId: "dev-local-999",
+            accountId: "acc-dev",
+            gameId: "123456",
+            nickname: "星际穿越测试员",
+            avatarUrl: "",
+            banned: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          method: "password",
+          isNewUser: false,
+          serverTime: new Date().toISOString(),
+        } as LoginResponse,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     const response = await this.request<LoginResponse>("/auth/login", {
       method: "POST",
       body: requestPayload,
@@ -116,7 +180,9 @@ export class AuthService {
         refreshExpiresAt:
           Date.now() + response.data.tokens.refreshExpiresIn * 1000,
         userId: response.data.user.userId,
+        gameId: response.data.user.gameId,
         nickname: response.data.user.nickname,
+        method: response.data.method,
       });
     }
 
@@ -183,6 +249,7 @@ export class AuthService {
         expiresAt: Date.now() + response.data.tokens.expiresIn * 1000,
         refreshExpiresAt:
           Date.now() + response.data.tokens.refreshExpiresIn * 1000,
+        method: session.method,
       });
     } else if (
       response.error.code === "AUTH_REFRESH_TOKEN_INVALID" ||
@@ -224,7 +291,103 @@ export class AuthService {
     return response;
   }
 
+  async sendSmsCode(
+    payload: SendSmsCodeRequest,
+  ): Promise<ProtocolResponse<SendSmsCodeResponse>> {
+    return this.request<SendSmsCodeResponse>("/auth/sms/send", {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  async sendEmailCode(
+    payload: SendEmailCodeRequest,
+  ): Promise<ProtocolResponse<SendEmailCodeResponse>> {
+    return this.request<SendEmailCodeResponse>("/auth/email/send", {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  async requestPasswordReset(
+    payload: RequestPasswordResetRequest,
+  ): Promise<ProtocolResponse<RequestPasswordResetResponse>> {
+    return this.request<RequestPasswordResetResponse>("/auth/password/request-reset", {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  async confirmPasswordReset(
+    payload: ConfirmPasswordResetRequest,
+  ): Promise<ProtocolResponse<ConfirmPasswordResetResponse>> {
+    return this.request<ConfirmPasswordResetResponse>("/auth/password/confirm-reset", {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  async bindMobile(
+    payload: BindMobileRequest,
+  ): Promise<ProtocolResponse<BindMobileResponse>> {
+    await this.refreshToken();
+    return this.request<BindMobileResponse>("/auth/bind/mobile", {
+      method: "POST",
+      body: payload,
+      auth: true,
+    });
+  }
+
+  async bindEmail(
+    payload: BindEmailRequest,
+  ): Promise<ProtocolResponse<BindEmailResponse>> {
+    await this.refreshToken();
+    return this.request<BindEmailResponse>("/auth/bind/email", {
+      method: "POST",
+      body: payload,
+      auth: true,
+    });
+  }
+
   async getMe(): Promise<ProtocolResponse<GetMeResponse>> {
+    if (
+      clientPlatformConfig.enableLocalAuthBypass &&
+      this.inMemorySession?.userId === "dev-local-999"
+    ) {
+      return {
+        ok: true,
+        data: {
+          summary: {
+            user: {
+              id: "dev-local-999",
+              gameId: "123456",
+              status: "active",
+              lastLoginAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            profile: {
+              userId: "dev-local-999",
+              nickname: "星际穿越测试员",
+              level: 99,
+              currentXp: 12000,
+              totalXp: 99999,
+              coins: 8888,
+              totalMatches: 200,
+              totalWins: 180,
+              bestMass: 7777,
+              avatarUrl: null,
+              seasonScore: 10000,
+              updatedAt: new Date().toISOString(),
+            },
+            ban: null as any,
+            identities: [],
+          } as any,
+        },
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     await this.refreshToken();
     return this.request<GetMeResponse>("/user/me", {
       method: "GET",
@@ -302,6 +465,26 @@ export class AuthService {
       };
     }
 
+    if (payload.method === "platform") {
+      return {
+        ...payload,
+        payload: {
+          ...payload.payload,
+          device: payload.payload.device ?? this.getDeviceInfo(),
+        },
+      };
+    }
+
+    if (payload.method === "sms") {
+      return {
+        ...payload,
+        payload: {
+          ...payload.payload,
+          device: payload.payload.device ?? this.getDeviceInfo(),
+        },
+      };
+    }
+
     return payload;
   }
 
@@ -342,9 +525,20 @@ export class AuthService {
         typeof parsed.expiresAt !== "number" ||
         typeof parsed.refreshExpiresAt !== "number" ||
         typeof parsed.userId !== "string" ||
-        typeof parsed.nickname !== "string"
+        typeof parsed.gameId !== "string" ||
+        typeof parsed.nickname !== "string" ||
+        typeof parsed.method !== "string"
       ) {
-        return null;
+        if (
+          typeof parsed.accessToken !== "string" ||
+          typeof parsed.refreshToken !== "string" ||
+          typeof parsed.expiresAt !== "number" ||
+          typeof parsed.refreshExpiresAt !== "number" ||
+          typeof parsed.userId !== "string" ||
+          typeof parsed.nickname !== "string"
+        ) {
+          return null;
+        }
       }
       return {
         accessToken: parsed.accessToken,
@@ -352,7 +546,20 @@ export class AuthService {
         expiresAt: parsed.expiresAt,
         refreshExpiresAt: parsed.refreshExpiresAt,
         userId: parsed.userId,
+        gameId:
+          typeof parsed.gameId === "string" && parsed.gameId.trim()
+            ? parsed.gameId
+            : parsed.userId,
         nickname: parsed.nickname,
+        method:
+          parsed.method === "password" ||
+          parsed.method === "guest" ||
+          parsed.method === "sms" ||
+          parsed.method === "apple" ||
+          parsed.method === "wechat" ||
+          parsed.method === "platform"
+            ? parsed.method
+            : "password",
       };
     } catch {
       return null;
