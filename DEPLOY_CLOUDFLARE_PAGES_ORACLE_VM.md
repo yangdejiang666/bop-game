@@ -55,16 +55,16 @@ sudo bash deploy/oracle-vm/bootstrap-ubuntu.sh
 
 Point these records to the Oracle VM public IP:
 
-- `api.bop-game.com`
-- `ws.bop-game.com`
+- `api.bop-game.xyz`
+- `ws.bop-game.xyz`
 
 If you use another domain, replace these names everywhere below.
 
 Recommended production topology for a domestic cloud server:
 
 - Browser frontend stays on Cloudflare Pages
-- API requests go to `https://api.bop-game.com/api/v1`
-- WebSocket traffic goes to `wss://ws.bop-game.com/ws`
+- API requests go to `https://api.bop-game.xyz/api/v1`
+- WebSocket traffic goes to `wss://ws.bop-game.xyz/ws`
 - `api.*` and `ws.*` resolve to your domestic cloud server public IP
 
 Cloudflare Pages same-origin proxying to the backend is optional only. Keep it disabled unless you
@@ -128,9 +128,9 @@ For the current Pages domain, use:
 
 ```env
 CORS_ORIGIN=https://bop-game.pages.dev
-API_DOMAIN=api.bop-game.com
-WS_DOMAIN=ws.bop-game.com
-PUBLIC_GAME_WS_URL=wss://ws.bop-game.com/ws
+API_DOMAIN=api.bop-game.xyz
+WS_DOMAIN=ws.bop-game.xyz
+PUBLIC_GAME_WS_URL=wss://ws.bop-game.xyz/ws
 PUBLIC_SITE_URL=https://bop-game.pages.dev
 ```
 
@@ -145,7 +145,7 @@ curl http://<server-ip>/ws
 But before opening production traffic, set `PUBLIC_GAME_WS_URL` back to the final domain form:
 
 ```env
-PUBLIC_GAME_WS_URL=wss://ws.bop-game.com/ws
+PUBLIC_GAME_WS_URL=wss://ws.bop-game.xyz/ws
 ```
 
 The full template now lives in:
@@ -154,10 +154,10 @@ The full template now lives in:
 
 Provider notes:
 
-- `Stripe`: point your webhook to `https://api.bop-game.com/api/v1/platform/commerce/webhooks/stripe`
+- `Stripe`: point your webhook to `https://api.bop-game.xyz/api/v1/platform/commerce/webhooks/stripe`
 - `Supabase`: create the public bucket from `SUPABASE_AVATAR_BUCKET`
 - `Resend`: set `EMAIL_PROVIDER=resend`, `RESEND_ENABLED=true`, and use a verified `RESEND_FROM_EMAIL`
-- `Resend`: set `RESEND_WEBHOOK_SECRET` and point the webhook to `https://api.bop-game.com/api/v1/platform/communications/webhooks/resend` if you want inbound email reception
+- `Resend`: set `RESEND_WEBHOOK_SECRET` and point the webhook to `https://api.bop-game.xyz/api/v1/platform/communications/webhooks/resend` if you want inbound email reception
 - `Aliyun SMS`: set `SMS_PROVIDER=aliyun`, `ALIYUN_SMS_ENABLED=true`, `ALIYUN_SMS_SIGN_NAME`, and at least `ALIYUN_SMS_TEMPLATE_LOGIN`
 - `Aliyun SMS`: to cover all auth flows, also set `ALIYUN_SMS_TEMPLATE_REGISTER`, `ALIYUN_SMS_TEMPLATE_RESET_PASSWORD`, and `ALIYUN_SMS_TEMPLATE_BIND_MOBILE`
 - `Clerk`: `CLERK_AUTHORIZED_PARTIES` must include `https://bop-game.pages.dev`
@@ -182,7 +182,7 @@ If your VM already has an older persisted `postgres_data` volume, these init scr
 Check:
 
 ```bash
-curl https://api.bop-game.com/healthz
+curl https://api.bop-game.xyz/healthz
 ```
 
 Expected: JSON with `"ok": true`
@@ -193,8 +193,8 @@ Set these production environment variables in the Cloudflare Pages dashboard for
 
 ```env
 VITE_APP_ENV=production
-VITE_API_BASE_URL=https://api.bop-game.com/api/v1
-VITE_WS_BASE_URL=wss://ws.bop-game.com/ws
+VITE_API_BASE_URL=https://api.bop-game.xyz/api/v1
+VITE_WS_BASE_URL=wss://ws.bop-game.xyz/ws
 VITE_USE_BACKEND_MATCHING=true
 VITE_ENABLE_LOCAL_AUTH_BYPASS=false
 ```
@@ -256,14 +256,14 @@ Recommended GitHub variables:
 - `CLOUDFLARE_PAGES_URL=https://bop-game.pages.dev`
 - `CLOUDFLARE_PAGES_DEPLOY_ENABLED=true`
 - `ORACLE_VM_APP_DIR=/opt/bop-game`
-- `ORACLE_API_BASE_URL=https://api.bop-game.com/api/v1`
-- `ORACLE_WS_BASE_URL=wss://ws.bop-game.com/ws`
+- `ORACLE_API_BASE_URL=https://api.bop-game.xyz/api/v1`
+- `ORACLE_WS_BASE_URL=wss://ws.bop-game.xyz/ws`
 
 Useful local preflight commands:
 
 ```bash
 npm run deploy:check:split
-npm run smoke:cloud -- --site https://bop-game.pages.dev --api-base https://api.bop-game.com/api/v1 --ws-base wss://ws.bop-game.com/ws
+npm run smoke:cloud -- --site https://bop-game.pages.dev --api-base https://api.bop-game.xyz/api/v1 --ws-base wss://ws.bop-game.xyz/ws
 ```
 
 ## 7. Smoke test
@@ -285,7 +285,7 @@ After both sides are live:
 You can also run the repo smoke script from any machine that can reach the cloud endpoints:
 
 ```bash
-npm run smoke:cloud -- --site https://bop-game.pages.dev --api-base https://api.bop-game.com/api/v1 --ws-base wss://ws.bop-game.com/ws
+npm run smoke:cloud -- --site https://bop-game.pages.dev --api-base https://api.bop-game.xyz/api/v1 --ws-base wss://ws.bop-game.xyz/ws
 ```
 
 That script checks:
