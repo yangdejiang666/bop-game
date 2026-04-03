@@ -138,7 +138,7 @@ const skipSiteHealth = readFlag("--skip-site-health");
 
 if (!siteUrl && !apiBaseUrl) {
   console.error(
-    "Usage: node scripts/smoke-cloud-stack.mjs --site https://bop-game.pages.dev [--api-base https://api.bop-game.com/api/v1] [--ws-base wss://ws.bop-game.com/ws]",
+    "Usage: node scripts/smoke-cloud-stack.mjs --site https://bop-game.pages.dev [--api-base https://api.bop-game.xyz/api/v1] [--ws-base wss://ws.bop-game.xyz/ws]",
   );
   process.exit(1);
 }
