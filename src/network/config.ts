@@ -122,9 +122,8 @@ function deriveDefaultsByEnv(
 
   if (env === "production") {
     return {
-      apiBaseUrl:
-        sameOriginDefaults?.apiBaseUrl ?? "https://bop-game.pages.dev/api/v1",
-      wsBaseUrl: sameOriginDefaults?.wsBaseUrl ?? "wss://bop-game.pages.dev/ws",
+      apiBaseUrl: "https://api.bop-game.xyz/api/v1",
+      wsBaseUrl: "wss://ws.bop-game.xyz/ws",
     };
   }
 
