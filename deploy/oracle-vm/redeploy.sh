@@ -6,16 +6,28 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 cd "${ROOT_DIR}"
 
-if [[ -d .git ]]; then
-  git pull --ff-only
-fi
-
 cd "${SCRIPT_DIR}"
 
 if [[ ! -f .env ]]; then
   echo "缺少 deploy/oracle-vm/.env，请先从 .env.example 复制一份再填写。"
   exit 1
 fi
+
+read_env_value() {
+  local key="$1"
+  local value
+  value="$(sed -n "s/^${key}=//p" .env | tail -n 1 | tr -d '\r')"
+
+  if [[ -z "${value}" ]]; then
+    echo "deploy/oracle-vm/.env 缺少 ${key}" >&2
+    exit 1
+  fi
+
+  printf '%s' "${value}"
+}
+
+POSTGRES_USER="$(read_env_value POSTGRES_USER)"
+POSTGRES_DB="$(read_env_value POSTGRES_DB)"
 
 wait_for_postgres() {
   echo "等待 Postgres 就绪..."
