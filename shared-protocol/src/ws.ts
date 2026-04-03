@@ -39,6 +39,7 @@ export type WsServerEventType =
   | 'system.error'
   | 'auth.ok'
   | 'auth.expired'
+  | 'presence.update'
   | 'matchmaking.progress'
   | 'matchmaking.found'
   | 'matchmaking.cancelled'
@@ -47,11 +48,13 @@ export type WsServerEventType =
   | 'room.error'
   | 'game.snapshot'
   | 'game.event'
-  | 'social.notice';
+  | 'social.notice'
+  | 'ranking.update';
 
 export interface ClientHelloPayload {
   platform: 'web' | 'android' | 'ios' | 'unknown';
   appVersion: string;
+  apiVersion?: string;
   deviceId?: string;
   locale?: string;
   timezone?: string;
@@ -128,6 +131,8 @@ export interface ServerWelcomePayload {
   connectionId: string;
   heartbeatIntervalMs: number;
   serverTime: number;
+  apiVersion?: string;
+  wsVersion?: number;
 }
 
 export interface ServerPongPayload {
@@ -152,6 +157,7 @@ export interface MatchmakingProgressPayload {
   currentPlayers: number;
   targetPlayers: number;
   etaSeconds: number;
+  schemaVersion?: number;
 }
 
 export interface MatchmakingFoundPayload {
@@ -183,6 +189,7 @@ export interface RoomStatePayload {
   members: RoomMember[];
   maxMembers: number;
   canStart: boolean;
+  version?: number;
 }
 
 export interface RoomClosedPayload {
@@ -198,6 +205,7 @@ export interface GameSnapshotPayload {
   roomId: string;
   tick: number;
   ackInputSeq?: number;
+  serverTime?: number;
   state: Record<string, unknown>;
 }
 
@@ -219,6 +227,22 @@ export interface SocialNoticePayload {
   title: string;
   content: string;
   extra?: Record<string, unknown>;
+}
+
+export interface PresenceUpdatePayload {
+  userId: string;
+  gameId: string;
+  nickname: string;
+  isOnline: boolean;
+  lastSeenAt: string | null;
+}
+
+export interface RankingUpdatePayload {
+  queueId: MatchModeId;
+  rankScore: number;
+  tier: string;
+  division: number;
+  leaderboardPosition: number | null;
 }
 
 export type ClientHelloEvent = WsEnvelope<'system.hello', ClientHelloPayload>;
@@ -249,6 +273,8 @@ export type RoomErrorEvent = WsEnvelope<'room.error', RoomErrorPayload>;
 export type GameSnapshotEvent = WsEnvelope<'game.snapshot', GameSnapshotPayload>;
 export type GameEvent = WsEnvelope<'game.event', GameEventPayload>;
 export type SocialNoticeEvent = WsEnvelope<'social.notice', SocialNoticePayload>;
+export type PresenceUpdateEvent = WsEnvelope<'presence.update', PresenceUpdatePayload>;
+export type RankingUpdateEvent = WsEnvelope<'ranking.update', RankingUpdatePayload>;
 
 export type ClientEvent =
   | ClientHelloEvent
@@ -279,7 +305,9 @@ export type ServerEvent =
   | RoomErrorEvent
   | GameSnapshotEvent
   | GameEvent
-  | SocialNoticeEvent;
+  | SocialNoticeEvent
+  | PresenceUpdateEvent
+  | RankingUpdateEvent;
 
 export function createWsEnvelope<TType extends string, TPayload>(
   type: TType,

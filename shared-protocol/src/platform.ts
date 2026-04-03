@@ -2,6 +2,7 @@ export type PlatformProviderId =
   | "stripe"
   | "supabase"
   | "resend"
+  | "aliyun-sms"
   | "clerk"
   | "posthog"
   | "sentry"
@@ -31,6 +32,11 @@ export interface PlatformConfigResponse {
   providers: PlatformProviderStatus[];
   auth: {
     passwordEnabled: boolean;
+    emailVerificationEnabled: boolean;
+    emailProvider: "disabled" | "local" | "resend" | null;
+    smsVerificationEnabled: boolean;
+    smsProvider: "disabled" | "local" | "aliyun" | null;
+    defaultPhoneCountryCode: string | null;
     clerkEnabled: boolean;
     clerkPublishableKey: string | null;
     clerkSignInUrl: string | null;

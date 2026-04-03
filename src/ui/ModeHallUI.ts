@@ -21,6 +21,8 @@ import {
   buildQueueTabs,
   buildSidebarList,
   buildSidebarSummary,
+  buildStageBriefCards,
+  buildStageMeta,
   buildSidebarTabs,
   buildTrayContent,
   buildTrayTabs,
@@ -340,6 +342,8 @@ export class ModeHallUI {
     this.setText("[data-modehall-stage-overline]", mode.hall.sceneAccent.overline);
     this.setText("[data-modehall-stage-title]", mode.hall.sceneAccent.title);
     this.setText("[data-modehall-stage-subtitle]", mode.hall.sceneAccent.subtitle);
+    this.setHtml("[data-modehall-stage-meta]", buildStageMeta(mode));
+    this.setHtml("[data-modehall-stage-brief-grid]", buildStageBriefCards(mode, variant));
     this.setHtml("[data-modehall-stage-watermark]", mode.hall.sceneAccent.spotlight.map((item) => `<span>${item}</span>`).join(""));
     this.setHtml("[data-modehall-spotlights]", mode.hall.sceneAccent.spotlight.map((item) => `<span class="mode-hall-spotlight-chip">${item}</span>`).join(""));
     this.setHtml("[data-modehall-stage-notches]", mode.hall.sceneAccent.stageNotches.map((item) => `<span class="mode-hall-stage-notch">${item}</span>`).join(""));
@@ -349,7 +353,7 @@ export class ModeHallUI {
         ["当前状态", mode.hall.sceneAccent.statusLabel, variant?.hint ?? "准备进入队列"],
         ["预计匹配", `${this.getVariantEta(mode, variant).toFixed(1)} 秒`, `${mode.matching.minStartPlayers} 人可开局`],
         ["房间能力", mode.social.supportsRoom ? `${mode.social.roomSize} 人房间` : "不支持房间", mode.gameplay.teamMode ? "团队模式默认展开房间台" : "位于次级抽屉"],
-        ["模式节奏", this.getHudEmphasisLabel(mode), mode.gameplay.battleRoyale.enabled ? `圈外伤害 ${mode.gameplay.battleRoyale.outOfZoneDamagePerSecond}/秒` : `积分收益 ${this.formatMultiplier(mode.gameplay.rankPointMultiplier)}`],
+        ["模式节奏", this.getHudEmphasisLabel(mode), mode.gameplay.battleRoyale.enabled ? `圈外伤害 ${mode.gameplay.battleRoyale.damagePerSecond.phase1}/秒` : `积分收益 ${this.formatMultiplier(mode.gameplay.rankPointMultiplier)}`],
       ]
         .map(
           ([label, value, note]) => `
@@ -370,6 +374,10 @@ export class ModeHallUI {
     this.setText("[data-modehall-cta-kicker]", mode.hall.sceneAccent.statusLabel);
     this.setText("[data-modehall-cta-label]", mode.hall.sceneAccent.ctaLabel);
     this.setText("[data-modehall-cta-hint]", `${mode.hall.sceneAccent.ctaHint} · ${variant?.label ?? mode.name} · ${this.getVariantEta(mode, variant).toFixed(1)} 秒`);
+    this.setText(
+      "[data-modehall-cta-detail]",
+      `${mode.hall.sceneAccent.ctaDetail} · ${variant?.hint ?? "直接进入队列"}`,
+    );
     const button = this.query<HTMLButtonElement>("[data-modehall-start]");
     if (button) button.textContent = mode.hall.sceneAccent.ctaLabel;
   }

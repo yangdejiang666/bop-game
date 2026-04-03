@@ -155,6 +155,20 @@ function requireIfEnabled(results, scope, env, enabledKey, keys) {
   requireKeys(results, `${scope} (${enabledKey}=true)`, env, keys);
 }
 
+function requireProvider(results, scope, providerName, env, providerKey, expectedValue, keys) {
+  if (String(env[providerKey] ?? "").trim() !== expectedValue) {
+    pushResult(
+      results,
+      "skip",
+      `${scope} ${providerKey}`,
+      `${providerName} is not selected.`,
+    );
+    return;
+  }
+
+  requireKeys(results, `${scope} ${providerName}`, env, keys);
+}
+
 function resolveFile(...segments) {
   return path.join(rootDir, ...segments);
 }
@@ -314,6 +328,10 @@ if (mode === "split-stack") {
     "SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
   ]);
+  requireProvider(results, "oracle", "Resend email", oracleEnv, "EMAIL_PROVIDER", "resend", [
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+  ]);
   requireIfEnabled(results, "oracle", oracleEnv, "RESEND_ENABLED", [
     "RESEND_API_KEY",
     "RESEND_FROM_EMAIL",
@@ -326,6 +344,27 @@ if (mode === "split-stack") {
       isPresent(oracleEnv.RESEND_WEBHOOK_SECRET)
         ? "Inbound email webhook signing secret is present."
         : "Set RESEND_WEBHOOK_SECRET to enable inbound email reception via the Resend webhook endpoint.",
+    );
+  }
+  requireProvider(results, "oracle", "Aliyun SMS", oracleEnv, "SMS_PROVIDER", "aliyun", [
+    "ALIYUN_SMS_ACCESS_KEY_ID",
+    "ALIYUN_SMS_ACCESS_KEY_SECRET",
+    "ALIYUN_SMS_SIGN_NAME",
+    "ALIYUN_SMS_TEMPLATE_LOGIN",
+  ]);
+  if (String(oracleEnv.SMS_PROVIDER ?? "").trim() === "aliyun") {
+    const recommended = [
+      "ALIYUN_SMS_TEMPLATE_REGISTER",
+      "ALIYUN_SMS_TEMPLATE_RESET_PASSWORD",
+      "ALIYUN_SMS_TEMPLATE_BIND_MOBILE",
+    ].filter((key) => !isPresent(oracleEnv[key]));
+    pushResult(
+      results,
+      recommended.length === 0 ? "pass" : "warn",
+      "oracle Aliyun SMS optional templates",
+      recommended.length === 0
+        ? "Register/reset/bind templates are all present."
+        : `Missing optional but recommended template codes: ${recommended.join(", ")}`,
     );
   }
   requireIfEnabled(results, "oracle", oracleEnv, "CLERK_ENABLED", [

@@ -49,6 +49,11 @@ export interface RegisterByPasswordRequest {
   account: string;
   password: string;
   nickname?: string;
+  email?: string;
+  emailCode?: string;
+  mobileCountryCode?: string;
+  mobile?: string;
+  mobileCode?: string;
   device?: DeviceInfo;
 }
 
@@ -130,13 +135,31 @@ export interface LogoutResponse {
   serverTime: string;
 }
 
+export type VerificationPurpose =
+  | 'login'
+  | 'register'
+  | 'resetPassword'
+  | 'bindMobile'
+  | 'bindEmail';
+
 export interface SendSmsCodeRequest {
   countryCode: string;
   mobile: string;
-  purpose: 'login' | 'register' | 'resetPassword' | 'bindMobile';
+  purpose: VerificationPurpose;
 }
 
 export interface SendSmsCodeResponse {
+  success: true;
+  cooldownSeconds: number;
+  serverTime: string;
+}
+
+export interface SendEmailCodeRequest {
+  email: string;
+  purpose: VerificationPurpose;
+}
+
+export interface SendEmailCodeResponse {
   success: true;
   cooldownSeconds: number;
   serverTime: string;

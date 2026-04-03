@@ -16,6 +16,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../database/001_init.sql:/docker-entrypoint-initdb.d/010_schema.sql:ro
+      - ../../database/003_enterprise_app_foundation.sql:/docker-entrypoint-initdb.d/020_enterprise_app_foundation.sql:ro
+      - ../../database/004_auth_communications.sql:/docker-entrypoint-initdb.d/030_auth_communications.sql:ro
+      - ../../database/005_lobby_modes.sql:/docker-entrypoint-initdb.d/040_lobby_modes.sql:ro
 
   api-server:
     build:

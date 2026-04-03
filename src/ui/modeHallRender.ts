@@ -34,9 +34,11 @@ export function buildModeHallTemplate(): string {
               <span class="mode-hall-stage-overline" data-modehall-stage-overline></span>
               <h3 data-modehall-stage-title></h3>
               <p data-modehall-stage-subtitle></p>
+              <div class="mode-hall-stage-meta" data-modehall-stage-meta></div>
             </div>
             <div class="mode-hall-queue-tabs" data-modehall-queue-tabs></div>
           </div>
+          <div class="mode-hall-stage-brief-grid" data-modehall-stage-brief-grid></div>
 
           <div class="mode-hall-stage-shell mode-hall-surface-card">
             <div class="mode-hall-stage-watermark" data-modehall-stage-watermark></div>
@@ -58,6 +60,7 @@ export function buildModeHallTemplate(): string {
                   <span class="mode-hall-cta-kicker" data-modehall-cta-kicker></span>
                   <strong data-modehall-cta-label></strong>
                   <span data-modehall-cta-hint></span>
+                  <small class="mode-hall-cta-detail" data-modehall-cta-detail></small>
                 </div>
                 <button type="button" class="mode-hall-cta-button" data-modehall-start>开始</button>
               </div>
@@ -65,6 +68,11 @@ export function buildModeHallTemplate(): string {
           </div>
         </section>
       </div>
+
+      <section class="mode-hall-bottom-tray mode-hall-surface-card">
+        <div class="mode-hall-tray-tabs" data-modehall-tray-tabs></div>
+        <div class="mode-hall-tray-content" data-modehall-tray-content></div>
+      </section>
 
       <!-- 抽屉遮罩 -->
       <div class="mode-hall-drawer-backdrop" data-modehall-backdrop></div>
@@ -161,6 +169,48 @@ export function buildHudMarkup(mode: ModeDefinition): string {
         .join("")}
     </div>
   `;
+}
+
+export function buildStageMeta(mode: ModeDefinition): string {
+  const chips = [mode.hall.identityHud.badge, ...mode.hall.identityHud.chips.slice(0, 3)];
+  return chips
+    .map(
+      (chip) =>
+        `<span class="mode-hall-mini-chip mode-hall-mini-chip--accent">${escapeHtml(chip)}</span>`,
+    )
+    .join("");
+}
+
+export function buildStageBriefCards(
+  mode: ModeDefinition,
+  activeVariant: ModeQueueVariant | null,
+): string {
+  const statCards = mode.hall.identityHud.stats.slice(0, 3).map((stat) => ({
+    label: stat.label,
+    value: stat.value,
+    note: stat.note,
+  }));
+  const guideCard = mode.hall.traySections.guide.cards[0];
+  const cards = [
+    ...statCards,
+    {
+      label: activeVariant ? `${activeVariant.label} 节奏` : "玩法介绍",
+      value: activeVariant?.subtitle ?? guideCard.headline,
+      note: activeVariant?.hint ?? guideCard.copy,
+    },
+  ];
+
+  return cards
+    .map(
+      (card) => `
+        <article class="mode-hall-stage-brief-card">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.value)}</strong>
+          <small>${escapeHtml(card.note)}</small>
+        </article>
+      `,
+    )
+    .join("");
 }
 
 export function buildHeaderRibbon(

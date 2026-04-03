@@ -17,10 +17,14 @@ import {
 } from "../lib/jwt.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import {
+  bindEmailToUser,
+  bindPhoneIdentityToUser,
   createPasswordUser,
   createPlatformUser,
+  createPhoneUser,
   findIdentityByProviderUid,
   findPasswordIdentityByAccount,
+  findVerifiedPhoneIdentity,
   getActiveSessionById,
   getUserSummaryById,
   insertRefreshToken,
@@ -40,6 +44,10 @@ import {
   captureServerEvent,
   verifyClerkPlatformToken,
 } from "./platformService.js";
+import {
+  consumeEmailChallengeByCode,
+  consumeSmsChallengeByCode,
+} from "./authChallengeService.js";
 
 function buildAuthUser(summary: Awaited<ReturnType<typeof getUserSummaryById>>): AuthUser {
   if (!summary) {
@@ -142,13 +150,22 @@ export async function registerByPassword(params: {
   account: string;
   password: string;
   nickname?: string;
+  emailVerification?: {
+    email: string;
+    code: string;
+  };
+  mobileVerification?: {
+    countryCode: string;
+    mobile: string;
+    code: string;
+  };
   device: DeviceInfo;
 }): Promise<RegisterByPasswordResponse> {
   const account = normalizeAccount(params.account);
   const passwordHash = await hashPassword(params.password);
 
   const created = await withTransaction(async (client) => {
-    const { userId } = await createPasswordUser(
+    const createdUser = await createPasswordUser(
       {
         account,
         passwordHash,
@@ -156,7 +173,45 @@ export async function registerByPassword(params: {
       },
       client,
     );
-    const summary = await getUserSummaryById(userId, client);
+
+    if (params.emailVerification) {
+      await consumeEmailChallengeByCode(
+        {
+          email: params.emailVerification.email,
+          purpose: "register",
+          code: params.emailVerification.code,
+        },
+        client,
+      );
+      await bindEmailToUser(
+        {
+          userId: createdUser.userId,
+          email: params.emailVerification.email,
+        },
+        client,
+      );
+    }
+
+    if (params.mobileVerification) {
+      const verifiedMobile = await consumeSmsChallengeByCode(
+        {
+          countryCode: params.mobileVerification.countryCode,
+          mobile: params.mobileVerification.mobile,
+          purpose: "register",
+          code: params.mobileVerification.code,
+        },
+        client,
+      );
+      await bindPhoneIdentityToUser(
+        {
+          userId: createdUser.userId,
+          phone: verifiedMobile.normalizedPhone.phoneE164,
+        },
+        client,
+      );
+    }
+
+    const summary = await getUserSummaryById(createdUser.userId, client);
     if (!summary) {
       throw new Error("user summary not found");
     }
@@ -300,6 +355,79 @@ export async function loginByPlatform(params: {
       riskLevel: "low",
       requiresVerification: false,
       reasonCodes: [params.provider],
+    },
+  };
+}
+
+export async function loginBySms(params: {
+  countryCode: string;
+  mobile: string;
+  code: string;
+  device: DeviceInfo;
+}): Promise<LoginResponse> {
+  const verifiedCode = await consumeSmsChallengeByCode({
+    countryCode: params.countryCode,
+    mobile: params.mobile,
+    purpose: "login",
+    code: params.code,
+  });
+
+  const phoneIdentity = await findVerifiedPhoneIdentity(
+    verifiedCode.normalizedPhone.phoneE164,
+  );
+
+  let userId = phoneIdentity?.userId ?? null;
+  let isNewUser = false;
+
+  if (phoneIdentity && (phoneIdentity.userStatus !== "active" || phoneIdentity.banned)) {
+    throw new Error("account banned");
+  }
+
+  if (!userId) {
+    const created = await createPhoneUser({
+      phone: verifiedCode.normalizedPhone.phoneE164,
+    });
+    userId = created.userId;
+    isNewUser = true;
+  }
+
+  if (!userId) {
+    throw new Error("sms user resolution failed");
+  }
+
+  const summary = await withTransaction(async (client) => {
+    await touchUserLogin(userId, client);
+    const found = await getUserSummaryById(userId, client);
+    if (!found) {
+      throw new Error("user summary not found");
+    }
+    return found;
+  });
+
+  const issued = await issueTokenPair({
+    userId,
+    device: params.device,
+  });
+
+  await captureServerEvent({
+    event: "auth_sms_login_succeeded",
+    distinctId: userId,
+    properties: {
+      isNewUser,
+      phoneCountryCode: verifiedCode.normalizedPhone.countryCode,
+    },
+  });
+
+  return {
+    user: buildAuthUser(summary),
+    tokens: issued.tokens,
+    method: "sms",
+    isNewUser,
+    serverTime: new Date().toISOString(),
+    riskMeta: {
+      riskLevel: "low",
+      requiresVerification: false,
+      reasonCodes: ["sms"],
     },
   };
 }

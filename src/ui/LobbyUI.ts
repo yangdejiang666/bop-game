@@ -39,9 +39,47 @@ export interface LobbyRegisterPayload {
   account: string;
   password: string;
   nickname?: string;
+  email?: string;
+  emailCode?: string;
 }
 
 export type LobbyFeatureId = "shop" | "magic" | "friends";
+type AuthMode = "login" | "register" | "reset";
+type AuthBusyAction =
+  | "login"
+  | "register"
+  | "resetRequest"
+  | "resetConfirm"
+  | "logout"
+  | "clerk"
+  | "registerEmailCode"
+  | null;
+type AuthNoticeTone = "error" | "hint" | "busy";
+type AuthFieldTone = "error" | "hint";
+type AuthFieldName =
+  | "authLoginAccount"
+  | "authLoginPassword"
+  | "authRegisterNickname"
+  | "authRegisterAccount"
+  | "authRegisterEmail"
+  | "authRegisterEmailCode"
+  | "authRegisterPassword"
+  | "authRegisterConfirmPassword"
+  | "authResetAccount"
+  | "authResetCode"
+  | "authResetPassword"
+  | "authResetConfirmPassword";
+type AuthCodeCooldownKey = "registerEmail" | "resetEmail";
+
+export interface LobbyAuthCapabilities {
+  emailVerificationEnabled: boolean;
+  emailProvider: "disabled" | "local" | "resend" | null;
+}
+
+interface AuthFieldFeedback {
+  message: string;
+  tone: AuthFieldTone;
+}
 
 interface LobbyUIOptions {
   settings: GameSettings;
@@ -54,9 +92,21 @@ interface LobbyUIOptions {
   onLogoutSubmit?: () => Promise<void>;
   onRequestDeveloperOverview?: () => Promise<DeveloperAccountsOverview | null>;
   getAuthStatus?: () => LobbyAuthStatus;
+  getAuthCapabilities?: () => LobbyAuthCapabilities;
   clerkEnabled?: boolean;
   onClerkLoginStart?: () => Promise<void> | void;
   onFeatureAction?: (feature: LobbyFeatureId) => Promise<void> | void;
+  onSendRegisterEmailCode?: (payload: {
+    email: string;
+  }) => Promise<{ cooldownSeconds?: number }>;
+  onRequestPasswordReset?: (payload: {
+    account: string;
+  }) => Promise<{ challengeId: string; cooldownSeconds?: number }>;
+  onConfirmPasswordReset?: (payload: {
+    challengeId: string;
+    verificationCode: string;
+    newPassword: string;
+  }) => Promise<void>;
 }
 type StitchModeCardId =
   | "ranked"
@@ -70,15 +120,36 @@ interface StitchModeCard {
   kicker: string;
   name: string;
   subtitle: string;
+  intro: string;
+  metrics: Array<{
+    label: string;
+    value: string;
+  }>;
+  tags: string[];
   icon: string;
   theme: "cyan" | "violet" | "gold" | "neutral" | "red" | "amber" | "purple";
   status: "已开放" | "测试中" | "训练";
+  bgImage: string;
 }
 
 const MAX_PLAYER_NAME_LENGTH = 12;
 const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 const AUTH_ACCOUNT_MIN_LENGTH = 3;
 const AUTH_PASSWORD_MIN_LENGTH = 6;
+const AUTH_FIELD_NAMES: AuthFieldName[] = [
+  "authLoginAccount",
+  "authLoginPassword",
+  "authRegisterNickname",
+  "authRegisterAccount",
+  "authRegisterEmail",
+  "authRegisterEmailCode",
+  "authRegisterPassword",
+  "authRegisterConfirmPassword",
+  "authResetAccount",
+  "authResetCode",
+  "authResetPassword",
+  "authResetConfirmPassword",
+];
 
 const STITCH_MODE_CARDS: StitchModeCard[] = [
   {
@@ -87,9 +158,17 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     kicker: "竞技模式",
     name: "排位赛",
     subtitle: "向最高荣誉发起冲锋",
+    intro: "正式上分入口，节奏稳定，适合盯段位、盯晋级、盯赛季窗口。",
+    metrics: [
+      { label: "当前段位", value: "黄金 II" },
+      { label: "预计匹配", value: "7.2 秒" },
+      { label: "赛季", value: "S3" },
+    ],
+    tags: ["晋级保护", "单排优先", "连胜修正"],
     icon: "trophy",
     theme: "gold",
     status: "已开放",
+    bgImage: "/assets/images/ranked_bg.png"
   },
   {
     id: "peak",
@@ -97,9 +176,17 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     kicker: "精英模式",
     name: "巅峰赛",
     subtitle: "冷感冲榜，争夺更高席位",
+    intro: "榜位压力更强，收益更高，适合盯前百和冲资格窗口的人。",
+    metrics: [
+      { label: "当前榜位", value: "#178" },
+      { label: "巅峰分", value: "2164" },
+      { label: "开放时段", value: "20-24点" },
+    ],
+    tags: ["资格已开", "高压冲榜", "复盘优先"],
     icon: "military_tech",
     theme: "violet",
     status: "已开放",
+    bgImage: "/assets/images/peak_bg.png"
   },
   {
     id: "classic",
@@ -107,9 +194,17 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     kicker: "经典模式",
     name: "经典模式",
     subtitle: "主球体舞台，轻快又熟悉",
+    intro: "最稳的练手区，适合练球感、刷最佳质量、拉一位好友随时开球。",
+    metrics: [
+      { label: "今日推荐", value: "海潮遗迹" },
+      { label: "最佳纪录", value: "1324kg" },
+      { label: "预计匹配", value: "6.6 秒" },
+    ],
+    tags: ["球感最强", "自由开球", "成长稳定"],
     icon: "view_cozy",
     theme: "cyan",
     status: "已开放",
+    bgImage: "/assets/images/classic_bg.png"
   },
   {
     id: "battleRoyale",
@@ -117,9 +212,17 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     kicker: "生存模式",
     name: "大逃杀",
     subtitle: "缩圈压迫，活到最后",
+    intro: "危险圈、终圈运营和风险收益都被拉满，适合硬核求生和残局拉扯。",
+    metrics: [
+      { label: "首次缩圈", value: "40 秒" },
+      { label: "圈外伤害", value: "18 / 秒" },
+      { label: "预计匹配", value: "8.4 秒" },
+    ],
+    tags: ["危险热区", "终圈决策", "高风险收益"],
     icon: "local_fire_department",
     theme: "red",
     status: "已开放",
+    bgImage: "/assets/images/royale_bg.png"
   },
 ];
 
@@ -153,9 +256,21 @@ export class LobbyUI {
   private socialSearchResult: SocialSearchResult | null = null;
   private socialBusy = false;
   private socialError = "";
-  private authMode: "login" | "register" = "login";
+  private authMode: AuthMode = "login";
   private authBusy = false;
+  private authBusyAction: AuthBusyAction = null;
+  private authBusyMessage = "";
   private authError = "";
+  private authNoticeTone: AuthNoticeTone = "hint";
+  private authFieldFeedback: Partial<Record<AuthFieldName, AuthFieldFeedback>> = {};
+  private authFocusedField: AuthFieldName | null = null;
+  private authFeedbackResetTimer: number | null = null;
+  private authResetChallengeId = "";
+  private authCodeCooldowns: Record<AuthCodeCooldownKey, number> = {
+    registerEmail: 0,
+    resetEmail: 0,
+  };
+  private authCodeCooldownTimer: number | null = null;
   private fitLayoutFrame: number | null = null;
   private fitLayoutTimeout: number | null = null;
   private trayBottomAlignmentTimeout: number | null = null;
@@ -212,6 +327,14 @@ export class LobbyUI {
     if (this.tipTimer !== null) {
       window.clearTimeout(this.tipTimer);
       this.tipTimer = null;
+    }
+    if (this.authFeedbackResetTimer !== null) {
+      window.clearTimeout(this.authFeedbackResetTimer);
+      this.authFeedbackResetTimer = null;
+    }
+    if (this.authCodeCooldownTimer !== null) {
+      window.clearInterval(this.authCodeCooldownTimer);
+      this.authCodeCooldownTimer = null;
     }
     if (this.fitLayoutFrame !== null) {
       window.cancelAnimationFrame(this.fitLayoutFrame);
@@ -428,10 +551,6 @@ export class LobbyUI {
                 <div class="stitch-scale-frame" data-lobby-scale-frame>
                     <header class="stitch-topbar stitch-hud-top">
                         <div class="stitch-brand stitch-hud-brand">
-                            <div class="stitch-hud-server-ping">
-                                <span class="ping-dot"></span>
-                                <span class="ping-ms">18ms</span>
-                            </div>
                             <strong class="stitch-brand-title">球球实验室</strong>
                         </div>
 
@@ -478,7 +597,7 @@ export class LobbyUI {
                     </header>
 
                     <main class="stitch-main">
-                        <aside class="stitch-left-col stitch-tac-sidebar">
+                        <aside class="stitch-left-col stitch-tac-sidebar glass-panel">
                             <div class="stitch-tac-drawer">
                                 <!-- 窄身常驻监控区 -->
                                 <div class="stitch-tac-collapsed">
@@ -566,6 +685,16 @@ export class LobbyUI {
                                             <small>峰值质量 / PI PEAK</small>
                                             <strong data-progression-best-mass>0 kg</strong>
                                         </article>
+                                        <article class="stitch-tac-radar stitch-tac-badge-showcase">
+                                            <div class="stitch-badge-container">
+                                                <img src="/assets/images/rank_badge.png" class="stitch-rank-badge-img" alt="段位" />
+                                                <img src="/assets/images/trophy_icon.png" class="stitch-trophy-icon-img" alt="荣誉杯" />
+                                            </div>
+                                            <div class="stitch-badge-info">
+                                                <small>当前战区名分</small>
+                                                <strong>不屈青铜 III</strong>
+                                            </div>
+                                        </article>
                                     </div>
 
                                     <button type="button" class="stitch-tac-action-btn btn-sweep" data-toggle-skins aria-expanded="false">
@@ -601,13 +730,36 @@ export class LobbyUI {
 
                             <div class="stitch-spacer" style="flex:1;"></div>
 
-                            <section class="stitch-core-launch-stage">
+                            <section class="stitch-core-launch-stage glass-panel">
+                                <section class="stitch-launch-brief">
+                                    <span class="stitch-launch-brief-kicker">当前入口 / 准备就绪</span>
+                                    <div class="stitch-launch-brief-head">
+                                        <strong data-selected-mode-name>排位赛</strong>
+                                        <span class="stitch-launch-brief-status" data-mode-status>已开放</span>
+                                    </div>
+                                    <p data-selected-mode-subtitle>向最高荣誉发起冲锋</p>
+                                    <div class="stitch-launch-brief-stats">
+                                        <article class="stitch-launch-brief-stat">
+                                            <span>主轴情报</span>
+                                            <strong data-selected-mode-metric-a>黄金 II</strong>
+                                        </article>
+                                        <article class="stitch-launch-brief-stat">
+                                            <span>排队焦点</span>
+                                            <strong data-selected-mode-metric-b>7.2 秒</strong>
+                                        </article>
+                                    </div>
+                                    <div class="stitch-launch-brief-tags" data-selected-mode-tags>
+                                        <span class="stitch-launch-brief-tag">晋级保护</span>
+                                        <span class="stitch-launch-brief-tag">单排优先</span>
+                                        <span class="stitch-launch-brief-tag">连胜修正</span>
+                                    </div>
+                                </section>
                                 <button type="button" class="stitch-launch-btn" data-start-game>
                                     <div class="stitch-launch-pulse"></div>
                                     <div class="stitch-launch-border"></div>
                                     <div class="stitch-launch-inner">
-                                        <span class="stitch-launch-text">引擎启动</span>
-                                        <small class="stitch-launch-ms">// START</small>
+                                        <span class="stitch-launch-text" data-launch-label>进入排位分厅</span>
+                                        <small class="stitch-launch-ms" data-launch-code>// 排位赛频道就绪</small>
                                     </div>
                                     <div class="stitch-launch-flare"></div>
                                 </button>
@@ -620,22 +772,26 @@ export class LobbyUI {
                     
                     <footer class="stitch-base-tray">
                         <div class="stitch-tray-plate"></div>
+                        <div class="stitch-hud-server-ping stitch-hud-server-ping--bottom">
+                            <span class="ping-dot"></span>
+                            <span class="ping-ms">网络延迟: 18ms | 系统在线</span>
+                        </div>
                         <nav class="stitch-tray-nav">
                             <button type="button" class="stitch-tray-btn" data-toggle-drawer="tasks" aria-label="任务中心">
                                 ${renderMaterialSymbol("library_add_check", "stitch-tray-symbol")}
-                                <span>指令站 / TASK</span>
+                                <span>指令站</span>
                             </button>
                             <button type="button" class="stitch-tray-btn" data-toggle-drawer="friends" aria-label="好友列表">
                                 ${renderMaterialSymbol("groups", "stitch-tray-symbol")}
-                                <span>通讯栈 / SOCIAL</span>
+                                <span>通讯栈</span>
                             </button>
                             <button type="button" class="stitch-tray-btn" data-feature="shop" aria-label="商城">
                                 ${renderMaterialSymbol("storefront", "stitch-tray-symbol")}
-                                <span>黑市交易 / MARKET</span>
+                                <span>黑市交易</span>
                             </button>
                             <button type="button" class="stitch-tray-btn" data-feature="magic" aria-label="魔法屋">
                                 ${renderMaterialSymbol("auto_awesome", "stitch-tray-symbol")}
-                                <span>量子祈愿 / WISH</span>
+                                <span>量子祈愿</span>
                             </button>
                         </nav>
                         <div class="stitch-tray-glowline"></div>
@@ -644,7 +800,7 @@ export class LobbyUI {
                     <!-- 左侧战术抽屉：系统任务 -->
                     <aside class="stitch-z4-drawer is-left" data-drawer-name="tasks">
                         <div class="stitch-z4-glow-edge"></div>
-                        <div class="stitch-z4-content">
+                        <div class="stitch-z4-content glass-panel" style="margin: 20px; border-radius: 20px;">
                             <div class="stitch-z4-head">
                                 <div class="stitch-z4-headline">
                                     <span class="stitch-z4-kicker">/ MISSION LOG</span>
@@ -662,7 +818,7 @@ export class LobbyUI {
 
                     <!-- 右侧情报抽屉：星港通讯录 -->
                     <aside class="stitch-z4-drawer is-right" data-drawer-name="friends">
-                        <div class="stitch-z4-content">
+                        <div class="stitch-z4-content glass-panel" style="margin: 20px; border-radius: 20px;">
                             <div class="stitch-z4-head">
                                 <div class="stitch-z4-headline">
                                     <span class="stitch-z4-kicker">/ SOCIAL LINK</span>
@@ -803,70 +959,15 @@ export class LobbyUI {
             </div>
 
             <div class="stitch-auth-overlay" data-auth-overlay>
-                <div class="stitch-auth-shell">
-                    <section class="stitch-auth-showcase" aria-hidden="true">
-                        <div class="stitch-auth-showcase-top">
-                            <span class="stitch-auth-scene-badge" data-auth-scene-badge>星港准入通道</span>
-                            <strong class="stitch-auth-showcase-brand">球球实验室</strong>
-                            <p class="stitch-auth-showcase-copy" data-auth-scene-copy>
-                                注册后开启云存档、战绩同步和私人房联机入口，先把你的作战身份接进来。
-                            </p>
-                        </div>
-
-                        <div class="stitch-auth-stage">
-                            <span class="stitch-auth-stage-glow"></span>
-                            <span class="stitch-auth-orbit stitch-auth-orbit--outer"></span>
-                            <span class="stitch-auth-orbit stitch-auth-orbit--mid"></span>
-                            <span class="stitch-auth-orbit stitch-auth-orbit--inner"></span>
-                            <span class="stitch-auth-spark stitch-auth-spark--one"></span>
-                            <span class="stitch-auth-spark stitch-auth-spark--two"></span>
-                            <span class="stitch-auth-spark stitch-auth-spark--three"></span>
-
-                            <div class="stitch-auth-core">
-                                <span class="stitch-auth-core-surface"></span>
-                                <span class="stitch-auth-core-highlight"></span>
-                                <span class="stitch-auth-core-grid"></span>
-                            </div>
-
-                            <article class="stitch-auth-signal-card">
-                                <small>银河指挥频道</small>
-                                <strong data-auth-scene-title>作战身份校验中</strong>
-                                <span data-auth-scene-subtitle>账号接入后即可进入大厅、匹配与私人模式</span>
-                            </article>
-                        </div>
-
-                        <div class="stitch-auth-feature-grid">
-                            <article class="stitch-auth-feature-card">
-                                <span class="stitch-auth-feature-icon">
-                                    ${renderMaterialSymbol("cloud_sync", "stitch-auth-feature-symbol")}
-                                </span>
-                                <small>云端资料</small>
-                                <strong>本地进度自动接管</strong>
-                            </article>
-                            <article class="stitch-auth-feature-card">
-                                <span class="stitch-auth-feature-icon">
-                                    ${renderMaterialSymbol("sports_esports", "stitch-auth-feature-symbol")}
-                                </span>
-                                <small>作战大厅</small>
-                                <strong>登录后直达模式分厅</strong>
-                            </article>
-                            <article class="stitch-auth-feature-card">
-                                <span class="stitch-auth-feature-icon">
-                                    ${renderMaterialSymbol("shield_lock", "stitch-auth-feature-symbol")}
-                                </span>
-                                <small>安全接入</small>
-                                <strong>账号密码链路先行</strong>
-                            </article>
-                        </div>
-                    </section>
-
+                <div class="stitch-auth-shell stitch-auth-shell--compact">
                     <div class="stitch-auth-panel" role="dialog" aria-modal="true" aria-labelledby="stitch-auth-title">
                         <span class="stitch-auth-panel-topline" aria-hidden="true"></span>
 
                         <div class="stitch-auth-head">
                             <div class="stitch-auth-head-copy">
                                 <small data-auth-head-kicker>账号中心</small>
-                                <h2 id="stitch-auth-title" data-auth-head-title>登录与云存档</h2>
+                                <h2 id="stitch-auth-title" data-auth-head-title>账号登录</h2>
+                                <span class="stitch-auth-brand-mark">球球实验室</span>
                             </div>
                             <button
                                 type="button"
@@ -880,36 +981,15 @@ export class LobbyUI {
 
                         <section class="stitch-auth-intro" data-auth-intro>
                             <div class="stitch-auth-intro-copy-wrap">
-                                <strong data-auth-intro-title>注册账号后才能开始游戏</strong>
-                                <p data-auth-intro-copy>先完成账号和密码注册，账号资料会保存下来，之后再进入大厅、私人模式和开发者工具箱。</p>
-                            </div>
-                            <div class="stitch-auth-intro-chips">
-                                <span>账号密码直连</span>
-                                <span>战绩自动同步</span>
-                                <span>大厅快速接入</span>
+                                <strong data-auth-intro-title>用账号直接进入大厅</strong>
+                                <p data-auth-intro-copy>输入账号和密码，继续你的当前云端进度。</p>
                             </div>
                         </section>
 
-                        <div class="stitch-auth-tabs" data-auth-tabs>
-                            <button type="button" class="stitch-auth-tab is-active" data-auth-tab="login">已有账号登录</button>
-                            <button type="button" class="stitch-auth-tab" data-auth-tab="register">创建新账号</button>
-                        </div>
-
-                        <div class="stitch-auth-error" data-auth-error aria-live="polite"></div>
-                        <div class="stitch-auth-provider-row" data-auth-provider-row>
-                            <button
-                                type="button"
-                                class="stitch-ghost-btn"
-                                data-auth-clerk
-                            >
-                                使用 Clerk 登录
-                            </button>
-                        </div>
-
                         <section class="stitch-auth-account-view" data-auth-account-view>
-                            <span class="stitch-auth-account-chip">云端身份在线</span>
+                            <span class="stitch-auth-account-chip">当前账号</span>
                             <strong data-auth-account-name>未登录</strong>
-                            <small data-auth-account-label>登录后可同步资料与进度</small>
+                            <small data-auth-account-label>云存档未接入</small>
                             <button
                                 type="button"
                                 class="stitch-main-cta stitch-main-cta--small stitch-auth-logout-btn"
@@ -919,12 +999,19 @@ export class LobbyUI {
                             </button>
                         </section>
 
+                        <div class="stitch-auth-tabs" data-auth-tabs>
+                            <button type="button" class="stitch-auth-tab is-active" data-auth-tab="login">登录</button>
+                            <button type="button" class="stitch-auth-tab" data-auth-tab="register">注册</button>
+                        </div>
+
+                        <div class="stitch-auth-error" data-auth-error aria-live="polite"></div>
+
                         <form class="stitch-auth-form" data-auth-form="login">
                             <div class="stitch-auth-form-grid">
-                                <label class="stitch-auth-field">
+                                <label class="stitch-auth-field" data-auth-field="authLoginAccount">
                                     <span class="stitch-auth-field-label">
                                         ${renderMaterialSymbol("person", "stitch-auth-field-symbol")}
-                                        <span>账号 ID</span>
+                                        <span>账号</span>
                                     </span>
                                     <input
                                         type="text"
@@ -934,11 +1021,16 @@ export class LobbyUI {
                                         autocomplete="username"
                                         placeholder="输入已注册账号"
                                     />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authLoginAccount"
+                                        aria-live="polite"
+                                    ></span>
                                 </label>
-                                <label class="stitch-auth-field">
+                                <label class="stitch-auth-field" data-auth-field="authLoginPassword">
                                     <span class="stitch-auth-field-label">
                                         ${renderMaterialSymbol("lock", "stitch-auth-field-symbol")}
-                                        <span>安全密码</span>
+                                        <span>密码</span>
                                     </span>
                                     <input
                                         type="password"
@@ -948,13 +1040,29 @@ export class LobbyUI {
                                         autocomplete="current-password"
                                         placeholder="输入登录密码"
                                     />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authLoginPassword"
+                                        aria-live="polite"
+                                    ></span>
                                 </label>
                             </div>
+                            <div class="stitch-auth-secondary-link-row">
+                                <span class="stitch-auth-secondary-link-line" aria-hidden="true"></span>
+                                <button
+                                    type="button"
+                                    class="stitch-auth-secondary-link"
+                                    data-auth-link="forgot"
+                                >
+                                    忘记密码
+                                </button>
+                                <span class="stitch-auth-secondary-link-line" aria-hidden="true"></span>
+                            </div>
                             <div class="stitch-auth-form-foot">
-                                <p class="stitch-auth-form-note">登录成功后会自动接管当前本地进度，并同步昵称、战绩与后续开发者链路。</p>
+                                <p class="stitch-auth-form-note" data-auth-form-note="login">登录后自动接管当前本地进度。</p>
                                 <button
                                     type="submit"
-                                    class="stitch-main-cta stitch-main-cta--small stitch-auth-submit-btn"
+                                    class="stitch-main-cta stitch-auth-submit-btn"
                                     data-auth-submit="login"
                                 >
                                     进入作战大厅
@@ -964,7 +1072,7 @@ export class LobbyUI {
 
                         <form class="stitch-auth-form" data-auth-form="register">
                             <div class="stitch-auth-form-grid stitch-auth-form-grid--register">
-                                <label class="stitch-auth-field">
+                                <label class="stitch-auth-field" data-auth-field="authRegisterNickname">
                                     <span class="stitch-auth-field-label">
                                         ${renderMaterialSymbol("badge", "stitch-auth-field-symbol")}
                                         <span>昵称（可选）</span>
@@ -976,11 +1084,16 @@ export class LobbyUI {
                                         autocomplete="nickname"
                                         placeholder="例如：银河球长"
                                     />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authRegisterNickname"
+                                        aria-live="polite"
+                                    ></span>
                                 </label>
-                                <label class="stitch-auth-field">
+                                <label class="stitch-auth-field" data-auth-field="authRegisterAccount">
                                     <span class="stitch-auth-field-label">
                                         ${renderMaterialSymbol("alternate_email", "stitch-auth-field-symbol")}
-                                        <span>新账号</span>
+                                        <span>账号</span>
                                     </span>
                                     <input
                                         type="text"
@@ -990,11 +1103,63 @@ export class LobbyUI {
                                         autocomplete="username"
                                         placeholder="至少 3 位账号"
                                     />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authRegisterAccount"
+                                        aria-live="polite"
+                                    ></span>
                                 </label>
-                                <label class="stitch-auth-field">
+                                <div class="stitch-auth-verify-block" data-auth-verify-block="register-email">
+                                    <label class="stitch-auth-field" data-auth-field="authRegisterEmail">
+                                        <span class="stitch-auth-field-label">
+                                            ${renderMaterialSymbol("mail", "stitch-auth-field-symbol")}
+                                            <span>邮箱</span>
+                                        </span>
+                                        <input
+                                            type="email"
+                                            name="authRegisterEmail"
+                                            autocomplete="email"
+                                            placeholder="用于接收注册验证码"
+                                        />
+                                        <span
+                                            class="stitch-auth-field-popover"
+                                            data-auth-field-popover="authRegisterEmail"
+                                            aria-live="polite"
+                                        ></span>
+                                    </label>
+                                    <div class="stitch-auth-verify-row" data-auth-verify-row="register-email">
+                                        <label class="stitch-auth-field" data-auth-field="authRegisterEmailCode">
+                                            <span class="stitch-auth-field-label">
+                                                ${renderMaterialSymbol("mark_email_read", "stitch-auth-field-symbol")}
+                                                <span>验证码</span>
+                                            </span>
+                                            <input
+                                                type="text"
+                                                name="authRegisterEmailCode"
+                                                inputmode="numeric"
+                                                maxlength="6"
+                                                autocomplete="one-time-code"
+                                                placeholder="输入 6 位验证码"
+                                            />
+                                            <span
+                                                class="stitch-auth-field-popover"
+                                                data-auth-field-popover="authRegisterEmailCode"
+                                                aria-live="polite"
+                                            ></span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            class="stitch-auth-send-code-btn"
+                                            data-auth-send-code="register-email"
+                                        >
+                                            发送邮箱验证码
+                                        </button>
+                                    </div>
+                                </div>
+                                <label class="stitch-auth-field" data-auth-field="authRegisterPassword">
                                     <span class="stitch-auth-field-label">
                                         ${renderMaterialSymbol("vpn_key", "stitch-auth-field-symbol")}
-                                        <span>登录密码</span>
+                                        <span>密码</span>
                                     </span>
                                     <input
                                         type="password"
@@ -1004,8 +1169,13 @@ export class LobbyUI {
                                         autocomplete="new-password"
                                         placeholder="至少 6 位密码"
                                     />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authRegisterPassword"
+                                        aria-live="polite"
+                                    ></span>
                                 </label>
-                                <label class="stitch-auth-field">
+                                <label class="stitch-auth-field" data-auth-field="authRegisterConfirmPassword">
                                     <span class="stitch-auth-field-label">
                                         ${renderMaterialSymbol("verified_user", "stitch-auth-field-symbol")}
                                         <span>确认密码</span>
@@ -1018,13 +1188,18 @@ export class LobbyUI {
                                         autocomplete="new-password"
                                         placeholder="再次输入密码"
                                     />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authRegisterConfirmPassword"
+                                        aria-live="polite"
+                                    ></span>
                                 </label>
                             </div>
                             <div class="stitch-auth-form-foot">
-                                <p class="stitch-auth-form-note">建议先创建正式账号，后续大厅、匹配和私人模式都将沿用同一份云端身份。</p>
+                                <p class="stitch-auth-form-note" data-auth-form-note="register">创建完成后会自动登录。</p>
                                 <button
                                     type="submit"
-                                    class="stitch-main-cta stitch-main-cta--small stitch-auth-submit-btn"
+                                    class="stitch-main-cta stitch-auth-submit-btn"
                                     data-auth-submit="register"
                                 >
                                     注册并开启云档案
@@ -1032,9 +1207,133 @@ export class LobbyUI {
                             </div>
                         </form>
 
+                        <form class="stitch-auth-form" data-auth-form="reset">
+                            <div class="stitch-auth-form-grid">
+                                <label class="stitch-auth-field" data-auth-field="authResetAccount">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("person_search", "stitch-auth-field-symbol")}
+                                        <span>账号</span>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        name="authResetAccount"
+                                        minlength="${AUTH_ACCOUNT_MIN_LENGTH}"
+                                        maxlength="64"
+                                        autocomplete="username"
+                                        placeholder="输入已注册账号"
+                                    />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authResetAccount"
+                                        aria-live="polite"
+                                    ></span>
+                                </label>
+                                <div class="stitch-auth-verify-block" data-auth-verify-block="reset-email">
+                                    <div class="stitch-auth-verify-row" data-auth-verify-row="reset-email">
+                                        <label class="stitch-auth-field" data-auth-field="authResetCode">
+                                            <span class="stitch-auth-field-label">
+                                                ${renderMaterialSymbol("mail_lock", "stitch-auth-field-symbol")}
+                                                <span>邮箱验证码</span>
+                                            </span>
+                                            <input
+                                                type="text"
+                                                name="authResetCode"
+                                                inputmode="numeric"
+                                                maxlength="6"
+                                                autocomplete="one-time-code"
+                                                placeholder="输入 6 位验证码"
+                                            />
+                                            <span
+                                                class="stitch-auth-field-popover"
+                                                data-auth-field-popover="authResetCode"
+                                                aria-live="polite"
+                                            ></span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            class="stitch-auth-send-code-btn"
+                                            data-auth-send-code="reset-email"
+                                        >
+                                            发送找回验证码
+                                        </button>
+                                    </div>
+                                </div>
+                                <label class="stitch-auth-field" data-auth-field="authResetPassword">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("lock_reset", "stitch-auth-field-symbol")}
+                                        <span>新密码</span>
+                                    </span>
+                                    <input
+                                        type="password"
+                                        name="authResetPassword"
+                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                        maxlength="64"
+                                        autocomplete="new-password"
+                                        placeholder="输入新的登录密码"
+                                    />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authResetPassword"
+                                        aria-live="polite"
+                                    ></span>
+                                </label>
+                                <label class="stitch-auth-field" data-auth-field="authResetConfirmPassword">
+                                    <span class="stitch-auth-field-label">
+                                        ${renderMaterialSymbol("task_alt", "stitch-auth-field-symbol")}
+                                        <span>确认新密码</span>
+                                    </span>
+                                    <input
+                                        type="password"
+                                        name="authResetConfirmPassword"
+                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                        maxlength="64"
+                                        autocomplete="new-password"
+                                        placeholder="再次输入新密码"
+                                    />
+                                    <span
+                                        class="stitch-auth-field-popover"
+                                        data-auth-field-popover="authResetConfirmPassword"
+                                        aria-live="polite"
+                                    ></span>
+                                </label>
+                            </div>
+                            <div class="stitch-auth-secondary-link-row">
+                                <span class="stitch-auth-secondary-link-line" aria-hidden="true"></span>
+                                <button
+                                    type="button"
+                                    class="stitch-auth-secondary-link"
+                                    data-auth-link="back-login"
+                                >
+                                    返回登录
+                                </button>
+                                <span class="stitch-auth-secondary-link-line" aria-hidden="true"></span>
+                            </div>
+                            <div class="stitch-auth-form-foot">
+                                <p class="stitch-auth-form-note" data-auth-form-note="reset">输入账号后发送验证码，邮件会发到该账号绑定邮箱。</p>
+                                <button
+                                    type="submit"
+                                    class="stitch-main-cta stitch-auth-submit-btn"
+                                    data-auth-submit="reset"
+                                >
+                                    重置密码并返回登录
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="stitch-auth-provider-row" data-auth-provider-row>
+                            <span class="stitch-auth-provider-note">其他登录方式</span>
+                            <button
+                                type="button"
+                                class="stitch-ghost-btn"
+                                data-auth-clerk
+                            >
+                                使用 Clerk 登录
+                            </button>
+                        </div>
+
                         <div class="stitch-auth-bottom-note">
                             <span class="stitch-auth-bottom-note-dot"></span>
-                            <span data-auth-bottom-note>当前阶段先开放账号密码接入，后续可继续扩展更多登录方式。</span>
+                            <span data-auth-bottom-note>没有账号时切到注册，首屏即可完成接入。</span>
                         </div>
                     </div>
                 </div>
@@ -1046,12 +1345,7 @@ export class LobbyUI {
     return STITCH_MODE_CARDS.map((card) => {
       const activeClass = card.id === this.selectedCardId ? " is-active" : "";
       const themeClass = ` is-theme-${card.theme}`;
-      const statusClass =
-        card.status === "已开放"
-          ? " is-open"
-          : card.status === "测试中"
-            ? " is-testing"
-            : " is-training";
+
 
       return `
                 <article
@@ -1062,17 +1356,41 @@ export class LobbyUI {
                     role="button"
                     aria-label="选择${card.name}"
                 >
-                    <div class="stitch-mode-card-bg">
-                        <span class="stitch-mode-bg-icon">${renderMaterialSymbol(card.icon, "stitch-mode-bg-symbol")}</span>
+                    <div class="stitch-mode-card-bg" style="background-image: url('${card.bgImage}'); background-size: cover; background-position: center; border-radius: 20px;">
+                        <div class="stitch-mode-bg-overlay" style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.2)); border-radius: 20px;"></div>
+                        <span class="stitch-mode-bg-icon" style="opacity: 0.15; filter: blur(4px);">${renderMaterialSymbol(card.icon, "stitch-mode-bg-symbol")}</span>
                         <div class="stitch-mode-bg-pattern"></div>
                         <div class="stitch-mode-glow-orb"></div>
                     </div>
                     
                     <span class="stitch-mode-icon">${renderMaterialSymbol(card.icon, "stitch-mode-icon-symbol")}</span>
-                    <span class="stitch-mode-card-status${statusClass}">${card.status}</span>
-                    <span class="stitch-mode-card-kicker">${card.kicker}</span>
-                    <strong>${card.name}</strong>
-                    <p>${card.subtitle}</p>
+                    <div class="stitch-mode-text-content">
+                        <span class="stitch-mode-card-kicker">${card.kicker}</span>
+                        <strong class="stitch-mode-card-title">${card.name}</strong>
+                        <p class="stitch-mode-card-subtitle">${card.subtitle}</p>
+                        <div class="stitch-mode-card-brief">${card.intro}</div>
+                        <div class="stitch-mode-card-metrics">
+                            ${card.metrics
+                              .map(
+                                (metric) => `
+                                    <article class="stitch-mode-card-metric">
+                                        <span>${this.escapeHtml(metric.label)}</span>
+                                        <strong>${this.escapeHtml(metric.value)}</strong>
+                                    </article>
+                                `,
+                              )
+                              .join("")}
+                        </div>
+                        <div class="stitch-mode-card-tags">
+                            ${card.tags
+                              .map(
+                                (tag) =>
+                                  `<span class="stitch-mode-card-tag">${this.escapeHtml(tag)}</span>`,
+                              )
+                              .join("")}
+                        </div>
+                    </div>
+
                 </article>
             `;
     }).join("");
@@ -1513,10 +1831,85 @@ export class LobbyUI {
       .querySelectorAll<HTMLElement>("[data-auth-tab]")
       .forEach((element) => {
         element.addEventListener("click", () => {
-          const mode = element.dataset.authTab === "register" ? "register" : "login";
+          const nextMode = element.dataset.authTab;
+          const mode: AuthMode =
+            nextMode === "register"
+              ? "register"
+              : nextMode === "reset"
+                ? "reset"
+                : "login";
           this.setAuthMode(mode);
         });
       });
+
+    this.root
+      .querySelectorAll<HTMLElement>("[data-auth-link]")
+      .forEach((element) => {
+        element.addEventListener("click", () => {
+          if (this.authBusy) {
+            return;
+          }
+
+          const nextAction = element.dataset.authLink ?? "";
+          if (nextAction === "forgot") {
+            this.setAuthMode("reset");
+            return;
+          }
+
+          if (nextAction === "back-login") {
+            this.setAuthMode("login");
+          }
+        });
+      });
+
+    this.root
+      .querySelectorAll<HTMLInputElement>("[data-auth-form] input")
+      .forEach((input) => {
+        input.addEventListener("focus", () => {
+          if (this.isAuthFieldName(input.name)) {
+            this.authFocusedField = input.name;
+            this.renderAuthPanel();
+          }
+        });
+
+        input.addEventListener("blur", () => {
+          if (this.authFocusedField === input.name) {
+            this.authFocusedField = null;
+            this.renderAuthPanel();
+          }
+        });
+
+        input.addEventListener("input", () => {
+          if (!this.isAuthFieldName(input.name)) {
+            return;
+          }
+
+          if (input.name === "authResetAccount") {
+            this.authResetChallengeId = "";
+          }
+          delete this.authFieldFeedback[input.name];
+          if (this.authError) {
+            this.authError = "";
+            this.authNoticeTone = "hint";
+          }
+          this.renderAuthPanel();
+        });
+      });
+
+    this.root
+      .querySelectorAll<HTMLButtonElement>("[data-auth-send-code]")
+      .forEach((button) => {
+        button.addEventListener("click", async () => {
+          const mode = button.dataset.authSendCode ?? "";
+          if (mode === "reset-email") {
+            await this.handleSendPasswordResetCode();
+            return;
+          }
+          await this.handleSendRegisterVerificationCode();
+        });
+      });
+
+    this.bindAuthShowcaseMotion();
 
     this.root
       .querySelector<HTMLElement>("[data-auth-clerk]")
@@ -1525,7 +1918,10 @@ export class LobbyUI {
           return;
         }
         this.authBusy = true;
-        this.authError = "";
+        this.authBusyAction = "clerk";
+        this.authBusyMessage = "正在打开 Clerk 登录面板...";
+        this.resetAuthFeedbackState();
+        this.authNoticeTone = "busy";
         this.renderAuthPanel();
         try {
           await this.options.onClerkLoginStart?.();
@@ -1535,8 +1931,12 @@ export class LobbyUI {
             error instanceof Error ? error.message : "Clerk 登录启动失败。",
             "login",
           );
+          this.authNoticeTone = "error";
+          this.triggerAuthFeedbackMotion();
         } finally {
           this.authBusy = false;
+          this.authBusyAction = null;
+          this.authBusyMessage = "";
           this.renderAuthPanel();
         }
       });
@@ -1548,7 +1948,10 @@ export class LobbyUI {
           return;
         }
         this.authBusy = true;
-        this.authError = "";
+        this.authBusyAction = "logout";
+        this.authBusyMessage = "正在退出当前账号...";
+        this.resetAuthFeedbackState();
+        this.authNoticeTone = "busy";
         this.renderAuthPanel();
         try {
           await this.options.onLogoutSubmit?.();
@@ -1559,8 +1962,12 @@ export class LobbyUI {
             error instanceof Error ? error.message : "退出登录失败，请重试。",
             "logout",
           );
+          this.authNoticeTone = "error";
+          this.triggerAuthFeedbackMotion();
         } finally {
           this.authBusy = false;
+          this.authBusyAction = null;
+          this.authBusyMessage = "";
           this.applyAuthStatusToView();
           this.renderAuthPanel();
         }
@@ -1584,30 +1991,44 @@ export class LobbyUI {
         const password = passwordInput?.value ?? "";
 
         if (account.length < AUTH_ACCOUNT_MIN_LENGTH) {
-          this.authError = "账号至少 3 位。";
-          this.renderAuthPanel();
+          this.showAuthValidationError(
+            ["authLoginAccount"],
+            "账号至少 3 位。",
+          );
           return;
         }
         if (password.length < AUTH_PASSWORD_MIN_LENGTH) {
-          this.authError = "密码至少 6 位。";
-          this.renderAuthPanel();
+          this.showAuthValidationError(
+            ["authLoginPassword"],
+            "密码至少 6 位。",
+          );
           return;
         }
 
+        this.resetAuthFeedbackState();
         this.authBusy = true;
-        this.authError = "";
+        this.authBusyAction = "login";
+        this.authBusyMessage = "正在接入账号...";
+        this.authNoticeTone = "busy";
         this.renderAuthPanel();
         try {
           await this.options.onLoginSubmit?.({ account, password });
           this.clearAuthForms();
           this.showFeatureTip("账号登录成功，云存档已接管当前大厅。");
         } catch (error) {
-          this.authError = this.formatAuthErrorMessage(
-            error instanceof Error ? error.message : "登录失败，请重试。",
+          const rawMessage =
+            error instanceof Error ? error.message : "登录失败，请重试。";
+          this.authError = this.formatAuthErrorMessage(rawMessage, "login");
+          this.authNoticeTone = "error";
+          this.authFieldFeedback = this.resolveAuthFieldFeedback(
+            rawMessage,
             "login",
           );
+          this.triggerAuthFeedbackMotion(Object.keys(this.authFieldFeedback) as AuthFieldName[]);
         } finally {
           this.authBusy = false;
+          this.authBusyAction = null;
+          this.authBusyMessage = "";
           this.applyAuthStatusToView();
           this.renderAuthPanel();
         }
@@ -1627,6 +2048,12 @@ export class LobbyUI {
         const account = this.root
           .querySelector<HTMLInputElement>('input[name="authRegisterAccount"]')
           ?.value.trim() ?? "";
+        const email = this.root
+          .querySelector<HTMLInputElement>('input[name="authRegisterEmail"]')
+          ?.value.trim() ?? "";
+        const emailCode = this.root
+          .querySelector<HTMLInputElement>('input[name="authRegisterEmailCode"]')
+          ?.value.trim() ?? "";
         const password = this.root
           .querySelector<HTMLInputElement>('input[name="authRegisterPassword"]')
           ?.value ?? "";
@@ -1635,40 +2062,188 @@ export class LobbyUI {
           ?.value ?? "";
 
         if (account.length < AUTH_ACCOUNT_MIN_LENGTH) {
-          this.authError = "账号至少 3 位。";
-          this.renderAuthPanel();
+          this.showAuthValidationError(
+            ["authRegisterAccount"],
+            "账号至少 3 位。",
+          );
           return;
         }
         if (password.length < AUTH_PASSWORD_MIN_LENGTH) {
-          this.authError = "密码至少 6 位。";
-          this.renderAuthPanel();
+          this.showAuthValidationError(
+            ["authRegisterPassword"],
+            "密码至少 6 位。",
+          );
           return;
         }
+        if (email || emailCode) {
+          if (!this.isValidEmail(email)) {
+            this.showAuthValidationError(
+              ["authRegisterEmail"],
+              "邮箱格式不正确，请检查后再发送验证码。",
+            );
+            return;
+          }
+          if (!/^\d{6}$/.test(emailCode)) {
+            this.showAuthValidationError(
+              ["authRegisterEmailCode"],
+              "请输入 6 位邮箱验证码。",
+            );
+            return;
+          }
+        }
         if (password !== confirmPassword) {
-          this.authError = "两次输入的密码不一致。";
-          this.renderAuthPanel();
+          this.showAuthValidationError(
+            ["authRegisterConfirmPassword"],
+            "两次输入的密码不一致。",
+          );
           return;
         }
 
+        this.resetAuthFeedbackState();
         this.authBusy = true;
-        this.authError = "";
+        this.authBusyAction = "register";
+        this.authBusyMessage = "正在创建账号并校验验证码...";
+        this.authNoticeTone = "busy";
         this.renderAuthPanel();
         try {
           await this.options.onRegisterSubmit?.({
             account,
             password,
             nickname: nickname && nickname.length > 0 ? nickname : undefined,
+            email: email || undefined,
+            emailCode: emailCode || undefined,
           });
           this.clearAuthForms();
           this.showFeatureTip("账号注册成功，已自动登录并接管云存档。");
         } catch (error) {
-          this.authError = this.formatAuthErrorMessage(
-            error instanceof Error ? error.message : "注册失败，请重试。",
+          const rawMessage =
+            error instanceof Error ? error.message : "注册失败，请重试。";
+          this.authError = this.formatAuthErrorMessage(rawMessage, "register");
+          this.authNoticeTone = "error";
+          this.authFieldFeedback = this.resolveAuthFieldFeedback(
+            rawMessage,
             "register",
+          );
+          this.triggerAuthFeedbackMotion(Object.keys(this.authFieldFeedback) as AuthFieldName[]);
+        } finally {
+          this.authBusy = false;
+          this.authBusyAction = null;
+          this.authBusyMessage = "";
+          this.applyAuthStatusToView();
+          this.renderAuthPanel();
+        }
+      });
+
+    this.root
+      .querySelector<HTMLFormElement>('[data-auth-form="reset"]')
+      ?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (this.authBusy) {
+          return;
+        }
+
+        const account = this.root
+          .querySelector<HTMLInputElement>('input[name="authResetAccount"]')
+          ?.value.trim() ?? "";
+        const verificationCode = this.root
+          .querySelector<HTMLInputElement>('input[name="authResetCode"]')
+          ?.value.trim() ?? "";
+        const newPassword = this.root
+          .querySelector<HTMLInputElement>('input[name="authResetPassword"]')
+          ?.value ?? "";
+        const confirmPassword = this.root
+          .querySelector<HTMLInputElement>('input[name="authResetConfirmPassword"]')
+          ?.value ?? "";
+
+        if (account.length < AUTH_ACCOUNT_MIN_LENGTH) {
+          this.showAuthValidationError(
+            ["authResetAccount"],
+            "先输入要找回的账号。",
+          );
+          return;
+        }
+        if (!this.authResetChallengeId.trim()) {
+          this.showAuthValidationError(
+            ["authResetAccount"],
+            "先发送邮箱验证码，再填写新密码。",
+          );
+          return;
+        }
+        if (!/^\d{6}$/.test(verificationCode)) {
+          this.showAuthValidationError(
+            ["authResetCode"],
+            "请输入 6 位邮箱验证码。",
+          );
+          return;
+        }
+        if (newPassword.length < AUTH_PASSWORD_MIN_LENGTH) {
+          this.showAuthValidationError(
+            ["authResetPassword"],
+            "新密码至少 6 位。",
+          );
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          this.showAuthValidationError(
+            ["authResetConfirmPassword"],
+            "两次输入的新密码不一致。",
+          );
+          return;
+        }
+
+        this.resetAuthFeedbackState();
+        this.authBusy = true;
+        this.authBusyAction = "resetConfirm";
+        this.authBusyMessage = "正在校验邮箱验证码并重置密码...";
+        this.authNoticeTone = "busy";
+        this.renderAuthPanel();
+
+        try {
+          if (!this.options.onConfirmPasswordReset) {
+            throw new Error("邮箱找回服务尚未接入。");
+          }
+
+          await this.options.onConfirmPasswordReset({
+            challengeId: this.authResetChallengeId,
+            verificationCode,
+            newPassword,
+          });
+
+          const loginAccountInput = this.root.querySelector<HTMLInputElement>(
+            'input[name="authLoginAccount"]',
+          );
+          if (loginAccountInput) {
+            loginAccountInput.value = account;
+          }
+
+          this.authResetChallengeId = "";
+          this.setAuthMode("login");
+          this.authError = "密码已重置，请使用新密码登录。";
+          this.authNoticeTone = "hint";
+          this.renderAuthPanel();
+          this.focusAuthField("authLoginPassword");
+        } catch (error) {
+          const rawMessage =
+            error instanceof Error ? error.message : "密码重置失败，请稍后重试。";
+          this.authError = this.formatAuthErrorMessage(rawMessage, "reset");
+          this.authNoticeTone = "error";
+          this.authFieldFeedback = this.resolveAuthFieldFeedback(
+            rawMessage,
+            "reset",
+          );
+          if (!Object.keys(this.authFieldFeedback).length) {
+            this.authFieldFeedback.authResetCode = {
+              message: this.authError,
+              tone: "error",
+            };
+          }
+          this.triggerAuthFeedbackMotion(
+            Object.keys(this.authFieldFeedback) as AuthFieldName[],
           );
         } finally {
           this.authBusy = false;
-          this.applyAuthStatusToView();
+          this.authBusyAction = null;
+          this.authBusyMessage = "";
           this.renderAuthPanel();
         }
       });
@@ -1960,10 +2535,37 @@ export class LobbyUI {
         el.textContent = selectedCard.subtitle;
       });
     this.root
+      .querySelectorAll<HTMLElement>("[data-selected-mode-metric-a]")
+      .forEach((el) => {
+        el.textContent = selectedCard.metrics[0]?.value ?? "待同步";
+      });
+    this.root
+      .querySelectorAll<HTMLElement>("[data-selected-mode-metric-b]")
+      .forEach((el) => {
+        el.textContent = selectedCard.metrics[1]?.value ?? "待同步";
+      });
+    this.root
       .querySelectorAll<HTMLElement>("[data-mode-status]")
       .forEach((el) => {
         el.textContent = selectedCard.status;
       });
+    this.root
+      .querySelectorAll<HTMLElement>("[data-launch-label]")
+      .forEach((el) => {
+        el.textContent = `进入${selectedCard.name}`;
+      });
+    this.root
+      .querySelectorAll<HTMLElement>("[data-launch-code]")
+      .forEach((el) => {
+        el.textContent = `// ${selectedCard.name}频道就绪`;
+      });
+
+    const launchTags = this.root.querySelector<HTMLElement>("[data-selected-mode-tags]");
+    if (launchTags) {
+      launchTags.innerHTML = selectedCard.tags
+        .map((tag) => `<span class="stitch-launch-brief-tag">${this.escapeHtml(tag)}</span>`)
+        .join("");
+    }
 
     this.root.dataset.modeTheme = selectedCard.theme;
   }
@@ -1978,9 +2580,11 @@ export class LobbyUI {
     this.options.onSettingsClosed();
   }
 
-  private openAuthModal(mode: "login" | "register", required = false) {
-    this.authError = "";
+  private openAuthModal(mode: AuthMode, required = false) {
+    this.resetAuthFeedbackState();
     this.authBusy = false;
+    this.authBusyAction = null;
+    this.authBusyMessage = "";
     this.root.classList.add("is-auth-open");
     this.root.classList.toggle("is-auth-required", required);
     this.setAuthMode(mode);
@@ -1994,15 +2598,21 @@ export class LobbyUI {
     }
     this.root.classList.remove("is-auth-open");
     this.root.classList.remove("is-auth-required");
-    this.authError = "";
+    this.resetAuthFeedbackState(true);
     this.authBusy = false;
+    this.authBusyAction = null;
+    this.authBusyMessage = "";
     this.renderAuthPanel();
     this.syncDocumentScrollLock();
   }
 
-  private setAuthMode(mode: "login" | "register") {
+  private setAuthMode(mode: AuthMode) {
     this.authMode = mode;
+    this.resetAuthFeedbackState();
     this.renderAuthPanel();
+    if (this.root.classList.contains("is-auth-open")) {
+      window.setTimeout(() => this.focusAuthField(), 0);
+    }
   }
 
   private renderAuthPanel() {
@@ -2010,19 +2620,25 @@ export class LobbyUI {
       loggedIn: false,
       userLabel: "游客",
     };
+    const capabilities = this.getAuthCapabilities();
     const authLocked = this.isAuthGateLocked();
     const usingRegisterMode = !status.loggedIn && this.authMode === "register";
+    const usingResetMode = !status.loggedIn && this.authMode === "reset";
     const sceneBadge = authLocked
-      ? "星港准入校验"
+      ? "账号验证"
       : status.loggedIn
-        ? "云端身份已连接"
+        ? "云存档在线"
+        : usingResetMode
+          ? "邮箱找回"
         : usingRegisterMode
-          ? "新兵登记通道"
-          : "老兵回归通道";
+          ? "创建账号"
+          : "账号登录";
     const sceneTitle = authLocked
       ? "完成验证后解锁作战大厅"
       : status.loggedIn
         ? `${status.userLabel} 已接入星港网络`
+        : usingResetMode
+          ? "通过绑定邮箱找回密码"
         : usingRegisterMode
           ? "创建你的球球作战身份"
           : "使用已有账号返回战场";
@@ -2030,6 +2646,8 @@ export class LobbyUI {
       ? "账号是进入大厅、匹配和私人模式的前置条件"
       : status.loggedIn
         ? "当前账号正在托管你的资料、战绩与本地进度"
+        : usingResetMode
+          ? "验证码会发到账号绑定邮箱，验证通过后即可设置新密码"
         : usingRegisterMode
           ? "注册成功后自动登录，并立即接管当前本地档案"
           : "输入账号与密码，继续你的上一段作战记录";
@@ -2037,30 +2655,48 @@ export class LobbyUI {
       ? "先完成账号注册或登录，后面的大厅、匹配、私人模式和开发者链路才会全部点亮。"
       : status.loggedIn
         ? "账号已经在线，接下来可以直接进入模式大厅，也能继续查看当前账号的云端标签。"
+        : usingResetMode
+          ? "输入账号后发送邮箱验证码，收到验证码后设置新密码，再返回登录继续大厅流程。"
         : usingRegisterMode
           ? "建议先注册一个稳定账号，后续昵称、战绩、私人房和功能联调都会挂在这份身份上。"
           : "如果你已经有账号，直接输入账号和密码即可回到上一次的云端作战进度。";
     const introTitleText = authLocked
-      ? "先完成账号准入，再解锁整个大厅"
+      ? "先完成账号验证"
       : status.loggedIn
-        ? "当前账号已接入云端身份中心"
+        ? "当前账号已接入"
+        : usingResetMode
+          ? "邮箱验证码找回密码"
         : usingRegisterMode
-          ? "先登记新身份，再正式进入战场"
-          : "已有账号可以直接快速登录";
+          ? "注册后立即进入大厅"
+          : "账号密码直接进入";
     const introCopyText = authLocked
-      ? "账号、密码和基础资料保存成功后，才能进入大厅、匹配和私人模式。"
+      ? "登录或注册后即可进入大厅。"
       : status.loggedIn
-        ? "你可以继续使用当前账号，也可以退出后重新切换别的测试账号。"
+        ? "当前账号已在线，可直接继续。"
+        : usingResetMode
+          ? "只需账号、邮箱验证码和新密码，不改账号资料。"
         : usingRegisterMode
-          ? "注册完成后会自动登录，并把当前本地资料同步到你的新账号下面。"
-          : "登录后可继续同步昵称、战绩和开发者工具箱里的账号信息。";
+          ? "只保留必要字段，注册完成后自动登录。"
+          : "输入账号和密码，继续当前进度。";
     const bottomNoteText = authLocked
-      ? "先做完账号接入，整个初始主界面才会完全解锁。"
+      ? "完成账号验证后即可进入大厅。"
       : status.loggedIn
-        ? "当前账号已经接管本地资料，你可以随时进入模式大厅继续测试。"
+        ? "当前账号已接管本地资料。"
+        : usingResetMode
+          ? "忘记密码时可直接用绑定邮箱找回。"
         : usingRegisterMode
-          ? "注册账号后会直接进入大厅，无需二次登录。"
-          : "如果没有账号，可以直接切到“创建新账号”完成首次接入。";
+          ? "注册成功后会自动登录。"
+          : "没有账号时切到注册即可。";
+    const registerNoteText = usingRegisterMode
+      ? [
+          capabilities.emailVerificationEnabled
+            ? `邮箱验证已开启，填写邮箱与验证码后完成注册。`
+            : "当前只需账号、密码和确认密码。",
+        ].join(" ")
+      : "登录后自动接管当前本地进度。";
+    const resetNoteText = this.authResetChallengeId
+      ? "验证码已发出，输入邮箱验证码与新密码后即可完成找回。"
+      : "输入账号后发送验证码，邮件会发到该账号绑定邮箱。";
 
     this.root.dataset.authMode = this.authMode;
     this.root.classList.toggle("is-auth-busy", this.authBusy);
@@ -2076,7 +2712,9 @@ export class LobbyUI {
       headTitle.textContent = authLocked
         ? "完成账号验证后才能开始游戏"
         : status.loggedIn
-          ? "当前账号与云存档"
+          ? "当前账号"
+          : usingResetMode
+            ? "邮箱找回密码"
           : usingRegisterMode
             ? "创建新账号"
             : "账号登录";
@@ -2144,10 +2782,44 @@ export class LobbyUI {
         (element as HTMLElement).style.display = visible ? "grid" : "none";
       });
 
+    AUTH_FIELD_NAMES.forEach((fieldName) => {
+      const fieldHost = this.root.querySelector<HTMLElement>(
+        `[data-auth-field="${fieldName}"]`,
+      );
+      const fieldPopover = this.root.querySelector<HTMLElement>(
+        `[data-auth-field-popover="${fieldName}"]`,
+      );
+      const input = fieldHost?.querySelector<HTMLInputElement>("input");
+      const feedback = this.getAuthFieldFeedback(fieldName, status.loggedIn);
+      const hasFeedback = Boolean(feedback.message);
+
+      if (fieldHost) {
+        fieldHost.classList.toggle("has-popover", hasFeedback);
+        fieldHost.classList.toggle("is-invalid", feedback.tone === "error");
+        fieldHost.classList.toggle("is-hinting", feedback.tone === "hint" && hasFeedback);
+        fieldHost.dataset.state = feedback.tone;
+      }
+
+      if (fieldPopover) {
+        fieldPopover.textContent = feedback.message;
+        fieldPopover.classList.toggle("is-visible", hasFeedback);
+        fieldPopover.dataset.tone = feedback.tone;
+      }
+
+      if (input) {
+        input.setAttribute("aria-invalid", feedback.tone === "error" ? "true" : "false");
+      }
+    });
+
+    const authNotice = this.authBusy
+      ? this.authBusyMessage || "正在提交账号请求..."
+      : this.authError;
+    const authNoticeTone = this.authBusy ? "busy" : this.authNoticeTone;
     const errorEl = this.root.querySelector<HTMLElement>("[data-auth-error]");
     if (errorEl) {
-      errorEl.textContent = this.authError || (this.authBusy ? "正在提交账号请求..." : "");
-      errorEl.classList.toggle("is-visible", Boolean(this.authError || this.authBusy));
+      errorEl.textContent = authNotice;
+      errorEl.classList.toggle("is-visible", Boolean(authNotice));
+      errorEl.dataset.tone = authNoticeTone;
     }
 
     const clerkProviderRow = this.root.querySelector<HTMLElement>(
@@ -2155,13 +2827,13 @@ export class LobbyUI {
     );
     if (clerkProviderRow) {
       clerkProviderRow.style.display =
-        !status.loggedIn && this.options.clerkEnabled ? "block" : "none";
+        !status.loggedIn && this.options.clerkEnabled ? "flex" : "none";
     }
 
     const clerkButton = this.root.querySelector<HTMLButtonElement>("[data-auth-clerk]");
     if (clerkButton) {
       clerkButton.disabled = this.authBusy;
-      clerkButton.textContent = this.authBusy
+      clerkButton.textContent = this.authBusyAction === "clerk"
         ? "正在打开 Clerk..."
         : "使用 Clerk 登录";
     }
@@ -2185,12 +2857,34 @@ export class LobbyUI {
       bottomNote.textContent = bottomNoteText;
     }
 
+    const loginNote = this.root.querySelector<HTMLElement>(
+      '[data-auth-form-note="login"]',
+    );
+    if (loginNote) {
+      loginNote.textContent =
+        "登录后自动接管当前本地进度。";
+    }
+
+    const registerNote = this.root.querySelector<HTMLElement>(
+      '[data-auth-form-note="register"]',
+    );
+    if (registerNote) {
+      registerNote.textContent = registerNoteText;
+    }
+
+    const resetNote = this.root.querySelector<HTMLElement>(
+      '[data-auth-form-note="reset"]',
+    );
+    if (resetNote) {
+      resetNote.textContent = resetNoteText;
+    }
+
     const loginSubmitButton = this.root.querySelector<HTMLButtonElement>(
       '[data-auth-submit="login"]',
     );
     if (loginSubmitButton) {
       loginSubmitButton.textContent =
-        this.authBusy && !status.loggedIn && !usingRegisterMode
+        this.authBusyAction === "login" && !status.loggedIn && !usingRegisterMode
           ? "正在接入账号..."
           : "进入作战大厅";
     }
@@ -2200,19 +2894,65 @@ export class LobbyUI {
     );
     if (registerSubmitButton) {
       registerSubmitButton.textContent =
-        this.authBusy && !status.loggedIn && usingRegisterMode
-          ? "正在创建身份..."
-          : "注册并开启云档案";
+        this.authBusyAction === "register" && !status.loggedIn && usingRegisterMode
+          ? "正在创建账号..."
+          : "注册并进入大厅";
+    }
+
+    const resetSubmitButton = this.root.querySelector<HTMLButtonElement>(
+      '[data-auth-submit="reset"]',
+    );
+    if (resetSubmitButton) {
+      resetSubmitButton.textContent =
+        this.authBusyAction === "resetConfirm" && !status.loggedIn && usingResetMode
+          ? "正在重置密码..."
+          : "重置密码并返回登录";
     }
 
     const logoutButton = this.root.querySelector<HTMLButtonElement>("[data-auth-logout]");
     if (logoutButton) {
-      logoutButton.textContent = this.authBusy ? "正在退出..." : "退出当前账号";
+      logoutButton.textContent =
+        this.authBusyAction === "logout" ? "正在退出..." : "退出当前账号";
     }
 
     this.root
+      .querySelectorAll<HTMLElement>("[data-auth-verify-block]")
+      .forEach((element) => {
+        const blockType = element.dataset.authVerifyBlock ?? "";
+        const enabled = capabilities.emailVerificationEnabled;
+        const visible =
+          !status.loggedIn &&
+          enabled &&
+          ((blockType === "register-email" && usingRegisterMode) ||
+            (blockType === "reset-email" && usingResetMode));
+        element.style.display = visible ? "grid" : "none";
+      });
+
+    this.root
+      .querySelectorAll<HTMLButtonElement>("[data-auth-send-code]")
+      .forEach((button) => {
+        const sendMode = button.dataset.authSendCode ?? "";
+        const cooldown =
+          sendMode === "reset-email"
+            ? this.authCodeCooldowns.resetEmail
+            : this.authCodeCooldowns.registerEmail;
+        button.disabled = this.authBusy || cooldown > 0;
+        button.textContent =
+          this.authBusyAction === "registerEmailCode" &&
+            sendMode === "register-email"
+            ? "发送中..."
+            : this.authBusyAction === "resetRequest" && sendMode === "reset-email"
+              ? "发送中..."
+            : cooldown > 0
+              ? `${cooldown}s 后重发`
+              : sendMode === "reset-email"
+                ? "发送找回验证码"
+                : "发送邮箱验证码";
+      });
+
+    this.root
       .querySelectorAll<HTMLButtonElement>(
-        "[data-auth-submit], [data-auth-logout], [data-auth-clerk]",
+        "[data-auth-submit], [data-auth-logout], [data-auth-clerk], [data-auth-link]",
       )
       .forEach((button) => {
         button.disabled = this.authBusy;
@@ -2731,16 +3471,10 @@ export class LobbyUI {
   }
 
   private clearAuthForms() {
-    const inputNames = [
-      "authLoginAccount",
-      "authLoginPassword",
-      "authRegisterNickname",
-      "authRegisterAccount",
-      "authRegisterPassword",
-      "authRegisterConfirmPassword",
-    ] as const;
+    this.resetAuthFeedbackState(true);
+    this.authResetChallengeId = "";
 
-    inputNames.forEach((name) => {
+    AUTH_FIELD_NAMES.forEach((name) => {
       const input = this.root.querySelector<HTMLInputElement>(
         `input[name="${name}"]`,
       );
@@ -2750,15 +3484,476 @@ export class LobbyUI {
     });
   }
 
+  private resetAuthFeedbackState(clearFocus = false) {
+    this.authError = "";
+    this.authNoticeTone = "hint";
+    this.authFieldFeedback = {};
+    if (clearFocus) {
+      this.authFocusedField = null;
+    }
+  }
+
+  private showAuthValidationError(
+    fieldNames: AuthFieldName[],
+    message: string,
+  ) {
+    this.resetAuthFeedbackState();
+    this.authError = message;
+    this.authNoticeTone = "error";
+    fieldNames.forEach((fieldName) => {
+      this.authFieldFeedback[fieldName] = {
+        message,
+        tone: "error",
+      };
+    });
+
+    const primaryField = fieldNames[0];
+    if (primaryField) {
+      this.authFocusedField = primaryField;
+    }
+
+    this.renderAuthPanel();
+    if (primaryField) {
+      this.focusAuthField(primaryField);
+    }
+    this.triggerAuthFeedbackMotion(fieldNames);
+  }
+
+  private async handleSendRegisterVerificationCode() {
+    if (this.authBusy) {
+      return;
+    }
+
+    const capabilities = this.getAuthCapabilities();
+    if (!capabilities.emailVerificationEnabled) {
+      this.showAuthValidationError(
+        ["authRegisterEmail"],
+        "邮箱验证码服务暂时还没开启。",
+      );
+      return;
+    }
+    if (this.authCodeCooldowns.registerEmail > 0) {
+      return;
+    }
+
+    const email = this.root
+      .querySelector<HTMLInputElement>('input[name="authRegisterEmail"]')
+      ?.value.trim() ?? "";
+    if (!this.isValidEmail(email)) {
+      this.showAuthValidationError(
+        ["authRegisterEmail"],
+        "先输入一个有效邮箱，再发送验证码。",
+      );
+      return;
+    }
+
+    this.resetAuthFeedbackState();
+    this.authBusy = true;
+    this.authBusyAction = "registerEmailCode";
+    this.authBusyMessage = "正在发送邮箱验证码...";
+    this.authNoticeTone = "busy";
+    this.renderAuthPanel();
+
+    try {
+      const result = this.options.onSendRegisterEmailCode
+        ? await this.options.onSendRegisterEmailCode({
+            email,
+          })
+        : (() => {
+            throw new Error("邮箱验证码服务尚未接入。");
+          })();
+
+      this.startAuthCodeCooldown(
+        "registerEmail",
+        Math.max(1, Math.ceil(result?.cooldownSeconds ?? 60)),
+      );
+      this.authError = "邮箱验证码已发出，请去收件箱或垃圾邮件里查看。";
+      this.authNoticeTone = "hint";
+      this.renderAuthPanel();
+      this.focusAuthField("authRegisterEmailCode");
+    } catch (error) {
+      const rawMessage =
+        error instanceof Error ? error.message : "验证码发送失败，请稍后重试。";
+      this.authError = this.formatAuthErrorMessage(rawMessage, "register");
+      this.authNoticeTone = "error";
+      this.authFieldFeedback = this.resolveAuthFieldFeedback(
+        rawMessage,
+        "register",
+      );
+      if (!Object.keys(this.authFieldFeedback).length) {
+        this.authFieldFeedback.authRegisterEmail = {
+          message: this.authError,
+          tone: "error",
+        };
+      }
+      this.triggerAuthFeedbackMotion(
+        Object.keys(this.authFieldFeedback) as AuthFieldName[],
+      );
+    } finally {
+      this.authBusy = false;
+      this.authBusyAction = null;
+      this.authBusyMessage = "";
+      this.renderAuthPanel();
+    }
+  }
+
+  private async handleSendPasswordResetCode() {
+    if (this.authBusy) {
+      return;
+    }
+
+    const capabilities = this.getAuthCapabilities();
+    if (!capabilities.emailVerificationEnabled) {
+      this.showAuthValidationError(
+        ["authResetAccount"],
+        "邮箱找回功能暂时还没开启。",
+      );
+      return;
+    }
+    if (this.authCodeCooldowns.resetEmail > 0) {
+      return;
+    }
+
+    const account = this.root
+      .querySelector<HTMLInputElement>('input[name="authResetAccount"]')
+      ?.value.trim() ?? "";
+    if (account.length < AUTH_ACCOUNT_MIN_LENGTH) {
+      this.showAuthValidationError(
+        ["authResetAccount"],
+        "先输入已注册账号，再发送找回验证码。",
+      );
+      return;
+    }
+
+    this.resetAuthFeedbackState();
+    this.authResetChallengeId = "";
+    this.authBusy = true;
+    this.authBusyAction = "resetRequest";
+    this.authBusyMessage = "正在发送找回验证码...";
+    this.authNoticeTone = "busy";
+    this.renderAuthPanel();
+
+    try {
+      if (!this.options.onRequestPasswordReset) {
+        throw new Error("邮箱找回服务尚未接入。");
+      }
+
+      const result = await this.options.onRequestPasswordReset({
+        account,
+      });
+
+      this.authResetChallengeId = result.challengeId;
+      this.startAuthCodeCooldown(
+        "resetEmail",
+        Math.max(1, Math.ceil(result.cooldownSeconds ?? 60)),
+      );
+      this.authError =
+        "如果该账号已绑定邮箱，验证码已发送，请检查收件箱或垃圾邮件。";
+      this.authNoticeTone = "hint";
+      this.renderAuthPanel();
+      this.focusAuthField("authResetCode");
+    } catch (error) {
+      const rawMessage =
+        error instanceof Error ? error.message : "找回验证码发送失败，请稍后重试。";
+      this.authError = this.formatAuthErrorMessage(rawMessage, "reset");
+      this.authNoticeTone = "error";
+      this.authFieldFeedback = this.resolveAuthFieldFeedback(
+        rawMessage,
+        "reset",
+      );
+      if (!Object.keys(this.authFieldFeedback).length) {
+        this.authFieldFeedback.authResetAccount = {
+          message: this.authError,
+          tone: "error",
+        };
+      }
+      this.triggerAuthFeedbackMotion(
+        Object.keys(this.authFieldFeedback) as AuthFieldName[],
+      );
+    } finally {
+      this.authBusy = false;
+      this.authBusyAction = null;
+      this.authBusyMessage = "";
+      this.renderAuthPanel();
+    }
+  }
+
+  private startAuthCodeCooldown(kind: AuthCodeCooldownKey, seconds: number) {
+    this.authCodeCooldowns[kind] = Math.max(0, Math.floor(seconds));
+    if (
+      this.authCodeCooldownTimer === null &&
+      Object.values(this.authCodeCooldowns).some((value) => value > 0)
+    ) {
+      this.authCodeCooldownTimer = window.setInterval(() => {
+        (Object.keys(this.authCodeCooldowns) as AuthCodeCooldownKey[]).forEach(
+          (cooldownKey) => {
+            this.authCodeCooldowns[cooldownKey] = Math.max(
+              0,
+              this.authCodeCooldowns[cooldownKey] - 1,
+            );
+          },
+        );
+
+        if (
+          !Object.values(this.authCodeCooldowns).some((value) => value > 0) &&
+          this.authCodeCooldownTimer !== null
+        ) {
+          window.clearInterval(this.authCodeCooldownTimer);
+          this.authCodeCooldownTimer = null;
+        }
+        this.renderAuthPanel();
+      }, 1000);
+    }
+    this.renderAuthPanel();
+  }
+
+  private getAuthCapabilities(): LobbyAuthCapabilities {
+    return (
+      this.options.getAuthCapabilities?.() ?? {
+        emailVerificationEnabled: false,
+        emailProvider: null,
+      }
+    );
+  }
+
+  private isValidEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  }
+
+  private resolveAuthFieldFeedback(
+    message: string,
+    mode: "login" | "register" | "reset" | "logout",
+  ): Partial<Record<AuthFieldName, AuthFieldFeedback>> {
+    const lower = message.trim().toLowerCase();
+
+    if (
+      mode === "login" &&
+      (lower.includes("invalid credentials") ||
+        lower.includes("auth_invalid_credentials"))
+    ) {
+      return {
+        authLoginAccount: {
+          message: "账号不存在，或者和这组密码不匹配。",
+          tone: "error",
+        },
+        authLoginPassword: {
+          message: "密码错误，或者与当前账号不对应。",
+          tone: "error",
+        },
+      };
+    }
+
+    if (mode === "register" && lower.includes("account already exists")) {
+      return {
+        authRegisterAccount: {
+          message: "这个账号已经被注册了，换一个新的账号 ID。",
+          tone: "error",
+        },
+      };
+    }
+
+    if (mode === "register" && lower.includes("email is already bound")) {
+      return {
+        authRegisterEmail: {
+          message: "这个邮箱已经绑定过其他账号了。",
+          tone: "error",
+        },
+      };
+    }
+
+    if (mode === "register" && lower.includes("email address is invalid")) {
+      return {
+        authRegisterEmail: {
+          message: "邮箱格式不正确，请重新检查。",
+          tone: "error",
+        },
+      };
+    }
+
+    if (
+      (mode === "register" || mode === "reset") &&
+      (lower.includes("verification code is invalid") ||
+        lower.includes("verification code is missing") ||
+        lower.includes("verification code is expired") ||
+        lower.includes("already been used") ||
+        lower.includes("password reset challenge is invalid"))
+    ) {
+      if (mode === "reset") {
+        return {
+          authResetCode: {
+            message: "邮箱验证码不正确、已过期，或者已经被使用。",
+            tone: "error",
+          },
+        };
+      }
+      const emailFilled = Boolean(
+        this.root
+          .querySelector<HTMLInputElement>('input[name="authRegisterEmail"]')
+          ?.value.trim(),
+      );
+      if (emailFilled) {
+        return {
+          authRegisterEmailCode: {
+            message: "邮箱验证码不正确、已过期，或者已经被使用。",
+            tone: "error",
+          },
+        };
+      }
+    }
+
+    return {};
+  }
+
+  private getAuthFieldFeedback(fieldName: AuthFieldName, loggedIn: boolean) {
+    const emptyState: AuthFieldFeedback = { message: "", tone: "hint" };
+    if (loggedIn || this.getAuthModeForField(fieldName) !== this.authMode) {
+      return emptyState;
+    }
+
+    const explicitFeedback = this.authFieldFeedback[fieldName];
+    if (explicitFeedback) {
+      return explicitFeedback;
+    }
+
+    return emptyState;
+  }
+
+  private getAuthModeForField(fieldName: AuthFieldName): AuthMode {
+    if (fieldName.startsWith("authLogin")) {
+      return "login";
+    }
+    if (fieldName.startsWith("authReset")) {
+      return "reset";
+    }
+    return "register";
+  }
+
+  private isAuthFieldName(value: string): value is AuthFieldName {
+    return AUTH_FIELD_NAMES.includes(value as AuthFieldName);
+  }
+
+  private triggerAuthFeedbackMotion(fieldNames: AuthFieldName[] = []) {
+    const panel = this.root.querySelector<HTMLElement>(".stitch-auth-panel");
+    const fields = fieldNames
+      .map((fieldName) =>
+        this.root.querySelector<HTMLElement>(`[data-auth-field="${fieldName}"]`),
+      )
+      .filter((field): field is HTMLElement => Boolean(field));
+
+    panel?.classList.remove("is-feedback-error");
+    fields.forEach((field) => field.classList.remove("is-feedback-bump"));
+
+    void panel?.offsetWidth;
+    fields.forEach((field) => {
+      void field.offsetWidth;
+    });
+
+    panel?.classList.add("is-feedback-error");
+    fields.forEach((field) => field.classList.add("is-feedback-bump"));
+
+    if (this.authFeedbackResetTimer !== null) {
+      window.clearTimeout(this.authFeedbackResetTimer);
+    }
+
+    this.authFeedbackResetTimer = window.setTimeout(() => {
+      panel?.classList.remove("is-feedback-error");
+      fields.forEach((field) => field.classList.remove("is-feedback-bump"));
+      this.authFeedbackResetTimer = null;
+    }, 620);
+  }
+
+  private bindAuthShowcaseMotion() {
+    const showcase = this.root.querySelector<HTMLElement>("[data-auth-showcase]");
+    if (!showcase) {
+      return;
+    }
+
+    const resetMotion = () => {
+      showcase.classList.remove("is-pointer-active");
+      showcase.style.setProperty("--stitch-auth-tilt-x", "0deg");
+      showcase.style.setProperty("--stitch-auth-tilt-y", "0deg");
+      showcase.style.setProperty("--stitch-auth-stage-shift-x", "0px");
+      showcase.style.setProperty("--stitch-auth-stage-shift-y", "0px");
+      showcase.style.setProperty("--stitch-auth-signal-shift-x", "0px");
+      showcase.style.setProperty("--stitch-auth-signal-shift-y", "0px");
+      showcase.style.setProperty("--stitch-auth-glint-x", "50%");
+      showcase.style.setProperty("--stitch-auth-glint-y", "50%");
+    };
+
+    const updateMotion = (clientX: number, clientY: number) => {
+      const rect = showcase.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+
+      const ratioX = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      const ratioY = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+      const normalizedX = (ratioX - 0.5) * 2;
+      const normalizedY = (ratioY - 0.5) * 2;
+
+      showcase.classList.add("is-pointer-active");
+      showcase.style.setProperty(
+        "--stitch-auth-tilt-x",
+        `${(-normalizedY * 7).toFixed(2)}deg`,
+      );
+      showcase.style.setProperty(
+        "--stitch-auth-tilt-y",
+        `${(normalizedX * 9).toFixed(2)}deg`,
+      );
+      showcase.style.setProperty(
+        "--stitch-auth-stage-shift-x",
+        `${(normalizedX * 10).toFixed(2)}px`,
+      );
+      showcase.style.setProperty(
+        "--stitch-auth-stage-shift-y",
+        `${(normalizedY * -8).toFixed(2)}px`,
+      );
+      showcase.style.setProperty(
+        "--stitch-auth-signal-shift-x",
+        `${(normalizedX * -6).toFixed(2)}px`,
+      );
+      showcase.style.setProperty(
+        "--stitch-auth-signal-shift-y",
+        `${(normalizedY * -10).toFixed(2)}px`,
+      );
+      showcase.style.setProperty(
+        "--stitch-auth-glint-x",
+        `${(ratioX * 100).toFixed(2)}%`,
+      );
+      showcase.style.setProperty(
+        "--stitch-auth-glint-y",
+        `${(ratioY * 100).toFixed(2)}%`,
+      );
+    };
+
+    resetMotion();
+
+    showcase.addEventListener("pointermove", (event) => {
+      if (
+        event.pointerType &&
+        event.pointerType !== "mouse" &&
+        event.pointerType !== "pen"
+      ) {
+        return;
+      }
+      updateMotion(event.clientX, event.clientY);
+    });
+    showcase.addEventListener("pointerleave", resetMotion);
+    showcase.addEventListener("pointercancel", resetMotion);
+  }
+
   private formatAuthErrorMessage(
     message: string,
-    mode: "login" | "register" | "logout",
+    mode: "login" | "register" | "reset" | "logout",
   ) {
     const raw = message.trim();
 
     if (!raw) {
       if (mode === "register") {
         return "注册失败，请重试。";
+      }
+      if (mode === "reset") {
+        return "密码找回失败，请重试。";
       }
       if (mode === "login") {
         return "登录失败，请重试。";
@@ -2770,11 +3965,32 @@ export class LobbyUI {
     if (lower.includes("account already exists")) {
       return "这个账号已经注册过了，请直接登录或换一个新账号。";
     }
+    if (lower.includes("email is already bound")) {
+      return "这个邮箱已经绑定到其他账号了，换一个邮箱再试。";
+    }
     if (
       lower.includes("invalid credentials") ||
       lower.includes("auth_invalid_credentials")
     ) {
       return "账号或密码不对，请检查后重试。";
+    }
+    if (
+      lower.includes("verification code is invalid") ||
+      lower.includes("verification code is missing") ||
+      lower.includes("verification code is expired") ||
+      lower.includes("already been used") ||
+      lower.includes("password reset challenge is invalid")
+    ) {
+      return "验证码不正确、已过期，或者已经被使用。";
+    }
+    if (lower.includes("email address is invalid")) {
+      return "邮箱格式不正确，请重新检查。";
+    }
+    if (lower.includes("requested too frequently")) {
+      return "发送太频繁了，稍等一会儿再重试。";
+    }
+    if (lower.includes("email delivery is not configured")) {
+      return "邮箱服务还没配置完成，当前无法发送邮件验证码。";
     }
     if (
       lower.includes("failed to fetch") ||
@@ -2787,11 +4003,15 @@ export class LobbyUI {
     return raw;
   }
 
-  private focusAuthField() {
+  private focusAuthField(fieldName?: AuthFieldName) {
     const selector =
-      this.authMode === "register"
-        ? 'input[name="authRegisterAccount"]'
-        : 'input[name="authLoginAccount"]';
+      fieldName
+        ? `input[name="${fieldName}"]`
+        : this.authMode === "reset"
+          ? 'input[name="authResetAccount"]'
+        : this.authMode === "register"
+          ? 'input[name="authRegisterAccount"]'
+          : 'input[name="authLoginAccount"]';
     this.root.querySelector<HTMLInputElement>(selector)?.focus();
   }
 

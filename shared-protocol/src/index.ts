@@ -8,6 +8,8 @@ export * from "./room.js";
 export * from "./progression.js";
 export * from "./matchmaking.js";
 export * from "./social.js";
+export * from "./preferences.js";
+export * from "./ranking.js";
 export * from "./platform.js";
 
 export * as MatchmakingProtocol from "./matchmaking.js";

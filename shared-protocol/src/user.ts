@@ -5,7 +5,13 @@ export type DeviceId = string;
 export type ISODateTimeString = string;
 
 export type UserStatus = 'active' | 'banned' | 'deleted';
-export type AccountProvider = 'guest' | 'password' | 'phone' | 'apple' | 'wechat';
+export type AccountProvider =
+  | 'guest'
+  | 'password'
+  | 'phone'
+  | 'apple'
+  | 'wechat'
+  | 'platform';
 
 export interface UserBase {
   id: UserId;

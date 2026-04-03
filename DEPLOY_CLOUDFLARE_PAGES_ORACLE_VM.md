@@ -18,7 +18,9 @@ Right now it is also the only path that can carry the current `Stripe / Supabase
 
 - Password registration and login
 - Clerk platform login
-- Password reset by email
+- Password reset by email or SMS
+- Email verification code send / email binding
+- SMS verification send / SMS login / mobile binding
 - Resend inbound email webhook reception
 - Stripe checkout + webhook fulfillment
 - Supabase avatar upload
@@ -113,6 +115,9 @@ If you want the full provider stack, also fill:
 - `STRIPE_*`
 - `SUPABASE_*`
 - `RESEND_*`
+- `EMAIL_PROVIDER`
+- `SMS_PROVIDER`
+- `ALIYUN_SMS_*`
 - `CLERK_*`
 - `POSTHOG_*`
 - `SENTRY_*`
@@ -151,8 +156,10 @@ Provider notes:
 
 - `Stripe`: point your webhook to `https://api.bop-game.com/api/v1/platform/commerce/webhooks/stripe`
 - `Supabase`: create the public bucket from `SUPABASE_AVATAR_BUCKET`
-- `Resend`: `RESEND_FROM_EMAIL` must be a verified sender identity
+- `Resend`: set `EMAIL_PROVIDER=resend`, `RESEND_ENABLED=true`, and use a verified `RESEND_FROM_EMAIL`
 - `Resend`: set `RESEND_WEBHOOK_SECRET` and point the webhook to `https://api.bop-game.com/api/v1/platform/communications/webhooks/resend` if you want inbound email reception
+- `Aliyun SMS`: set `SMS_PROVIDER=aliyun`, `ALIYUN_SMS_ENABLED=true`, `ALIYUN_SMS_SIGN_NAME`, and at least `ALIYUN_SMS_TEMPLATE_LOGIN`
+- `Aliyun SMS`: to cover all auth flows, also set `ALIYUN_SMS_TEMPLATE_REGISTER`, `ALIYUN_SMS_TEMPLATE_RESET_PASSWORD`, and `ALIYUN_SMS_TEMPLATE_BIND_MOBILE`
 - `Clerk`: `CLERK_AUTHORIZED_PARTIES` must include `https://bop-game.pages.dev`
 - `Upstash`: the REST URL + token are required for rate limit persistence
 - `Pinecone`: use the index host, not only the project name
@@ -163,6 +170,14 @@ Provider notes:
 docker compose build --pull
 docker compose up -d
 ```
+
+For a brand new database volume, the current compose file now applies:
+
+- `001_init.sql`
+- `003_enterprise_app_foundation.sql`
+- `004_auth_communications.sql`
+
+If your VM already has an older persisted `postgres_data` volume, these init scripts will not re-run automatically. In that case, apply `003` and `004` manually inside Postgres before you switch on the new auth communications stack.
 
 Check:
 
@@ -263,8 +278,9 @@ After both sides are live:
 6. Confirm account count increases and the current account appears
 7. Create / join a private room to confirm room API flow
 8. If Stripe is enabled, create a test checkout and confirm the callback lands on `?checkout=success`
-9. If Resend is enabled, request a password reset and verify the email is received
-10. If inbound email is enabled, send a test email into the Resend domain and confirm the webhook hits `POST /api/v1/platform/communications/webhooks/resend`
+9. If Resend is enabled, send an email verification code and request a password reset
+10. If Aliyun SMS is enabled, send a China mobile verification code and confirm SMS login works
+11. If inbound email is enabled, send a test email into the Resend domain and confirm the webhook hits `POST /api/v1/platform/communications/webhooks/resend`
 
 You can also run the repo smoke script from any machine that can reach the cloud endpoints:
 

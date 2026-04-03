@@ -321,6 +321,11 @@ button {
     color: rgba(255, 202, 173, 0.86);
 }
 
+.hud-zone-alert-shield {
+    font-size: 11px;
+    color: rgba(255, 225, 198, 0.8);
+}
+
 .match-result-overlay {
     position: absolute;
     inset: 0;
@@ -10768,7 +10773,8 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
 
 .lobby-overlay.lobby-stitch-exact .stitch-auth-tabs {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 10px;
 }
 
@@ -10827,8 +10833,64 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
     gap: 12px;
 }
 
+.lobby-overlay.lobby-stitch-exact .stitch-auth-secondary-link-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-secondary-link-line {
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        rgba(111, 180, 224, 0),
+        rgba(111, 180, 224, 0.3),
+        rgba(111, 180, 224, 0)
+    );
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-secondary-link {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: rgba(149, 236, 255, 0.88);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition:
+        color 160ms ease,
+        text-shadow 160ms ease,
+        opacity 160ms ease;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-secondary-link:hover:not(:disabled) {
+    color: #ecfbff;
+    text-shadow: 0 0 16px rgba(110, 235, 255, 0.28);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-secondary-link:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .lobby-overlay.lobby-stitch-exact .stitch-auth-form-grid--register {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-verify-block {
+    display: grid;
+    gap: 12px;
+    grid-column: 1 / -1;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-verify-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: end;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-auth-field {
@@ -10852,7 +10914,11 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-auth-field input[type="text"],
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field input[type="email"],
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field input[type="tel"],
 .lobby-overlay.lobby-stitch-exact .stitch-auth-field input[type="password"] {
+    width: 100%;
+    box-sizing: border-box;
     min-height: 52px;
     border-radius: 16px;
     border: 1px solid rgba(137, 235, 255, 0.16);
@@ -10881,6 +10947,44 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
     box-shadow:
         0 0 0 4px rgba(79, 234, 255, 0.12),
         inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-send-code-btn {
+    min-width: 164px;
+    min-height: 52px;
+    padding: 0 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(129, 236, 255, 0.18);
+    background:
+        linear-gradient(
+            180deg,
+            rgba(12, 36, 66, 0.96),
+            rgba(8, 24, 46, 0.92)
+        );
+    color: #dff9ff;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 18px 36px rgba(4, 13, 28, 0.28);
+    transition:
+        transform 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-send-code-btn:hover:not(:disabled) {
+    transform: translateY(-1px) scale(1.01);
+    border-color: rgba(145, 236, 255, 0.42);
+    box-shadow:
+        0 0 0 4px rgba(79, 234, 255, 0.08),
+        0 18px 34px rgba(7, 17, 30, 0.3);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-send-code-btn:disabled {
+    opacity: 0.58;
+    cursor: not-allowed;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-auth-form-foot {
@@ -10960,6 +11064,216 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
     background: linear-gradient(135deg, #63eeff, #ffcf74);
     box-shadow: 0 0 14px rgba(95, 235, 255, 0.42);
     flex: 0 0 auto;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact {
+    width: min(560px, 100%);
+    height: auto;
+    max-height: calc(100dvh - 48px);
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-panel {
+    padding: 28px 24px 22px;
+    gap: 16px;
+    border-radius: 28px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-brand-mark {
+    color: rgba(158, 214, 239, 0.86);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-head {
+    align-items: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-head-copy {
+    gap: 6px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-head h2 {
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.04;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-intro {
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-intro-copy-wrap {
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-intro strong {
+    font-size: 20px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-intro p {
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-tabs {
+    gap: 8px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-tab {
+    min-height: 46px;
+    font-size: 14px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field {
+    gap: 6px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field-popover {
+    display: none;
+    min-height: 16px;
+    color: rgba(166, 190, 223, 0.78);
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field-popover.is-visible {
+    display: block;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field-popover[data-tone="error"] {
+    color: #ffb7b2;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-invalid input[type="text"],
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-invalid input[type="email"],
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-invalid input[type="tel"],
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-invalid input[type="password"] {
+    border-color: rgba(255, 137, 137, 0.7);
+    box-shadow: 0 0 0 3px rgba(255, 89, 89, 0.08);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-hinting input[type="text"],
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-hinting input[type="email"],
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-hinting input[type="tel"],
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-hinting input[type="password"] {
+    border-color: rgba(114, 228, 255, 0.32);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-form-grid {
+    gap: 14px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-form-foot {
+    gap: 10px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-form-note {
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-submit-btn {
+    width: 100%;
+    min-height: 54px;
+    border-radius: 16px;
+    font-size: 21px;
+    letter-spacing: 0.04em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-account-view {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px 14px;
+    padding: 14px 16px;
+    border-radius: 18px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-account-chip {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-account-view strong {
+    font-size: 16px;
+    line-height: 1.15;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-account-view small {
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-logout-btn {
+    width: auto;
+    min-width: 108px;
+    min-height: 40px;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-provider-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: rgba(166, 190, 223, 0.78);
+    font-size: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-provider-note {
+    color: rgba(166, 190, 223, 0.78);
+    font-size: 12px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-shell.stitch-auth-shell--compact .stitch-auth-bottom-note {
+    gap: 8px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-error[data-tone="error"] {
+    color: #ffb7b2;
+    border-color: rgba(255, 118, 118, 0.34);
+    background: rgba(78, 15, 23, 0.42);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-error[data-tone="busy"] {
+    color: #d8f8ff;
+    border-color: rgba(111, 231, 255, 0.22);
+    background: rgba(12, 32, 52, 0.56);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-panel.is-feedback-error {
+    box-shadow:
+        0 26px 70px rgba(0, 0, 0, 0.44),
+        0 0 0 1px rgba(255, 125, 125, 0.12);
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-auth-field.is-feedback-bump {
+    animation: authFieldBump 0.34s ease;
+}
+
+@keyframes authFieldBump {
+    0% {
+        transform: translateX(0);
+    }
+    30% {
+        transform: translateX(-3px);
+    }
+    70% {
+        transform: translateX(3px);
+    }
+    100% {
+        transform: translateX(0);
+    }
 }
 
 .lobby-overlay.lobby-stitch-exact.is-auth-busy .stitch-auth-panel {
@@ -11042,6 +11356,10 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
         padding: 18px;
     }
 
+    .lobby-overlay.lobby-stitch-exact .stitch-auth-panel {
+        overflow-y: auto;
+    }
+
     .lobby-overlay.lobby-stitch-exact .stitch-auth-showcase-brand {
         font-size: 34px;
     }
@@ -11084,6 +11402,14 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
     .lobby-overlay.lobby-stitch-exact .stitch-auth-feature-grid,
     .lobby-overlay.lobby-stitch-exact .stitch-auth-form-grid--register {
         grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-auth-verify-row {
+        grid-template-columns: 1fr;
+    }
+
+    .lobby-overlay.lobby-stitch-exact .stitch-auth-send-code-btn {
+        width: 100%;
     }
 
     .lobby-overlay.lobby-stitch-exact .stitch-auth-tab {

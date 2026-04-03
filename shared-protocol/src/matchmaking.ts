@@ -30,6 +30,7 @@ export interface StartMatchmakingResponse {
     estimatedWaitSeconds: number;
     minStartPlayers: number;
     targetPlayers: number;
+    serverTime?: string;
 }
 
 export interface CancelMatchmakingRequest {
@@ -72,6 +73,7 @@ export interface MatchmakingTicketState {
     targetPlayers: number;
     minStartPlayers: number;
     region?: string;
+    clientVersion?: string;
     failureCode?: string;
     failureMessage?: string;
     matchFound?: MatchFoundPayload;

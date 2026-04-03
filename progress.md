@@ -258,6 +258,26 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
 - 2026-03-21: Lobby data mapping now uses real local progression fields in the new dashboard layout (`coins`, `currentXp/requiredXp`, win rate, best mass) and keeps avatar/name/skin persistence unchanged.
 - 2026-03-21: Added Stitch-style dashboard support content without changing flows: season card under hero, CTA-side friend invite cluster, and three bottom highlight cards driven by existing placeholder feature actions.
 - 2026-03-21: `src/style.css` Stitch migration was upgraded into a full component layer: segmented resource chips, compact hero card, tighter mode-card rhythm, liquid CTA, info-strip cards, dock-style nav, and lighter follow-through styles for `ModeHallUI`.
+- 2026-03-31: Completed four-mode runtime map V1 wiring already staged in the repo and stabilized the gameplay runtime: `createGameSession` now consumes mode map blueprints for world size/spawn/resource placement, snapshots expose `mapSignature/worldSize`, battle royale snapshots expose square `safeRect`, damage phase, no-respawn, and shield telemetry, and minimap/world rendering honor the mode-sized map.
+- 2026-03-31: Fixed TypeScript/runtime cleanup for the new mode-map + battle royale implementation in `src/game/createGameSession.ts` by restoring `Vector` imports, removing stale random-clamp helpers, aligning controller typing, and keeping the new square-zone runtime build-green.
+- 2026-03-31: Upgraded match timing to a deterministic runtime clock (`elapsedMatchMs`) so `window.advanceTime(ms)` now advances HUD timers and battle-royale zone logic, not just physics. `debug_set_zone()` also accepts exact elapsed seconds for stable BR snapshot verification.
+- 2026-03-31: Tightened the compact auth panel flow in `src/ui/LobbyUI.ts`: removed leftover verbose field-hint code, shortened copy, kept logged-in state as a compact row, and ensured the Clerk/provider row stays a lightweight secondary entry (`flex` row only when enabled).
+- 2026-03-31: Validation:
+  - `npm run build` passed after the runtime/auth cleanup.
+  - Real-browser auth checks passed on desktop `1440x900` and mobile `390x844`; account/password/primary CTA remain in first screen, and logged-in state renders as a compact account strip.
+  - Email verification toggle behavior verified in browser by mocking platform config: register mode hides email fields when disabled and expands `邮箱 + 验证码` when `emailVerificationEnabled=true`.
+  - Four-mode runtime snapshot check passed with unique signatures:
+    - `ranked -> ranked-honor-cross-v1`
+    - `peak -> peak-funnel-bridge-v1`
+    - `classic -> classic-growth-ring-v1`
+    - `battleRoyale -> battle-square-survival-v1`
+  - Battle royale square safe-zone snapshots verified at `0s / 100s / 180s / 300s / 350s` via `debug_set_zone(seconds)`:
+    - `0s -> 7600`
+    - `100s -> 5320`
+    - `180s -> 2850`
+    - `300s -> 633.33`
+    - `350s -> 0 (无安全区)`
+  - Remaining browser console noise is still limited to expected local-backend-unreachable requests (`127.0.0.1:8788`) and follow-up sync failures caused by that missing backend.
 - 2026-03-21: Mobile Stitch layout was corrected to prioritize entry usability: collapsed hero card, hidden heavy preview/highlight blocks, CTA moved ahead of the full mode list, and bottom dock changed from sticky overlay to normal flow so it no longer blocks mode cards.
 - 2026-03-21: Validation: `npm run build` passed after the dashboard reconstruction; Playwright screenshots verified the new desktop lobby (`current-stitch-lobby-v4.png`), mode-hall visual follow (`mode-hall-stitch-follow.png`), and mobile lobby with visible CTA (`lobby-mobile-stitch-follow-v4.png`).
 - 2026-03-21: Runtime/state regression check passed: `render_game_to_text()` still reports unchanged business semantics (`phase=lobby`, progression/settings intact, modeHall snapshot unchanged except expected `breakpointBucket=mobile` on mobile test).
@@ -553,7 +573,56 @@ Original prompt: 现在我在模仿球球大作战做一个相似的游戏现在
     - `npm run build` passed in frontend root.
     - `develop-web-game` Playwright client script was attempted and still fails on this machine with the existing `browserType.launch: spawn EPERM`.
     - In-session browser verification on `http://127.0.0.1:4180/?modehall-clean=6` confirmed for a 929x965 browser viewport:
-      - `mode-hall-footer` is absent,
-      - `shellScrollH === shellClientH` (`947 === 947`),
-      - `mainScrollH === mainClientH` (`719 === 719`),
-      - the hall UI fits within the visible browser shell without hall scrolling.
+    - `mode-hall-footer` is absent,
+    - `shellScrollH === shellClientH` (`947 === 947`),
+    - `mainScrollH === mainClientH` (`719 === 719`),
+    - the hall UI fits within the visible browser shell without hall scrolling.
+- 2026-03-31: Wired real auth communications into the first-screen register flow and verified both outbound email readiness and SMS-backed UI registration.
+  - Shared + backend auth contracts now allow password registration with optional verified contacts in the same submit:
+    - `shared-protocol/src/auth.ts` adds optional `email/emailCode/mobileCountryCode/mobile/mobileCode` on `RegisterByPasswordRequest`.
+    - `api-server/src/services/authService.ts` now consumes `register` challenges and binds email/phone inside the registration transaction.
+    - `api-server/src/modules/auth.ts` validates partial verification payloads and returns field-aware conflict errors for duplicate `account/email/mobile`.
+    - `api-server/src/services/authChallengeService.ts` now accepts an optional DB executor when consuming verification challenges, so challenge consumption rolls back together with registration on failure.
+  - Local API env was updated to use the user-supplied Resend credentials in `api-server/.env.local`, and `api-server/src/loadEnv.ts` + `api-server/src/index.ts` now ensure `.env.local` is loaded even on direct `node dist/index.js` / `npm run dev` startup.
+  - Manual backend verification against `http://127.0.0.1:8788`:
+    - `/api/v1/platform/config` now reports `emailProvider: resend` with `resend.enabled=true`.
+    - `/api/v1/platform/communications/webhooks/resend` returns `401 UNAUTHORIZED` for a fake signed payload instead of `503`, confirming the webhook secret is loaded and verification is active.
+    - Sending to a non-owned address fails with the expected Resend sandbox restriction: only the account owner mailbox can receive until a custom domain + sender are verified.
+    - Sending to the account owner mailbox succeeds at provider level (`send_status='sent'` and `provider_message_id` present in `auth_verification_challenges`).
+  - Register UI on `src/ui/LobbyUI.ts` + `src/style.css` now includes:
+    - email address + email code fields with a cooldown send button,
+    - China mobile + SMS code fields with a cooldown send button,
+    - capability-aware copy sourced from runtime platform config,
+    - busy-state handling and inline feedback for duplicate account/contact and invalid/expired verification codes.
+  - `src/main.ts` now passes runtime auth capabilities to the lobby, exposes `onSendRegisterEmailCode/onSendRegisterSmsCode`, and submits optional verification fields through `authService.register(...)`.
+  - Frontend verification status:
+    - Follow-up hardening fixed the pre-existing `src/game/createGameSession.ts` TypeScript breakpoints by wiring battle-royale HUD shield state and snapshot typing, so root `npm run build` now passes again.
+    - After building the frontend bundle with `node scripts/build-frontend.mjs` and serving `dist`, Playwright confirmed the register tab now shows email + SMS verification controls and provider-aware note text.
+    - Playwright end-to-end registration succeeded through the new first-screen UI using the local SMS provider:
+      - account `ui_sms_0331163343` registered successfully,
+      - the lobby auto-switched to logged-in state,
+      - DB verification showed a separate `phone` identity with `phone='+8613931163343'` and `phone_verified=true`.
+    - `scripts/smoke-auth-communications.mjs` now tolerates Resend sandbox mode: it fully verifies SMS bind/login/reset by default, and skips real email-delivery assertions unless `SMOKE_EMAIL` is explicitly provided for a real inbox.
+    - Validation refresh:
+      - `npm run build` passed in the frontend root project.
+      - `npm run smoke:auth` passed against `http://127.0.0.1:8788/api/v1`, with `emailProvider='resend'`, `smsProvider='local'`, `phoneBound=true`, and email smoke intentionally skipped because no real `SMOKE_EMAIL` inbox was supplied.
+  - Resend follow-up on 2026-03-31:
+    - Queried the live Resend account and confirmed a custom domain exists for `bop-game.xyz`; local dev config now uses a domain sender instead of `onboarding@resend.dev`.
+    - Because an older high-privilege process was still monopolizing `127.0.0.1:8788`, a parallel acceptance stack was started at `http://127.0.0.1:4181` with API `http://127.0.0.1:8790/api/v1` and WS `ws://127.0.0.1:8900/ws`.
+    - Added `scripts/smoke-auth-real-email.mjs` plus root script `npm run smoke:auth:email-real` to perform a true outbound-email verification against a temporary external inbox.
+    - Real email delivery was verified end-to-end on the new stack:
+      - Resend direct API accepted mail to an arbitrary external temp inbox.
+      - `npm run smoke:auth:email-real` passed against `http://127.0.0.1:8790/api/v1`.
+      - The temp inbox received `BOP 邮箱绑定验证码`, the script extracted the live code, and `/auth/bind/email` completed successfully.
+    - Remaining production blocker is SMS provider credentials only: runtime still reports `smsProvider='local'` because no `ALIYUN_SMS_*` credentials, sign name, or template codes are present on this machine.
+- 2026-03-31: Switched the first-screen register flow to email-only and removed phone verification from the local acceptance path.
+  - `src/ui/LobbyUI.ts` now renders only the email verification block on register; China mobile / SMS code fields, cooldowns, hints, and error branches were removed from the first-screen auth UI.
+  - `src/main.ts` no longer wires SMS send callbacks or mobile verification fields into password registration.
+  - `api-server/.env.local` now disables the SMS provider for local development and opens CORS for cross-port local acceptance (`CORS_ORIGIN=*`, `SMS_PROVIDER=disabled`).
+  - `scripts/smoke-auth-communications.mjs` now passes cleanly when SMS is disabled, while `scripts/smoke-auth-real-email.mjs` remains the true end-to-end outbound email acceptance check.
+  - Acceptance status on the clean local stack:
+    - frontend `http://127.0.0.1:4185`
+    - API `http://127.0.0.1:8794/api/v1`
+    - `/api/v1/platform/config` reports `emailProvider='resend'` and `smsVerificationEnabled=false`
+    - Playwright confirmed the register panel now shows `邮箱地址` + `邮箱验证码` only, with no mobile or SMS fields
+    - `node ./scripts/smoke-auth-real-email.mjs --api-base http://127.0.0.1:8794/api/v1` passed end-to-end

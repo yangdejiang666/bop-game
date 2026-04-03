@@ -38,6 +38,7 @@ export interface CreateRoomRequest {
     maxMembers?: number;
     minStartMembers?: number;
     teamMode?: RoomTeamMode;
+    clientVersion?: string;
 }
 
 export interface CreateRoomResponse {
@@ -48,6 +49,7 @@ export interface JoinRoomRequest {
     roomId?: string;
     inviteCode?: string;
     joinType?: RoomJoinType;
+    clientVersion?: string;
 }
 
 export interface JoinRoomResponse {

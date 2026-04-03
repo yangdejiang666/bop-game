@@ -87,6 +87,18 @@ export interface ProviderIdentityRecord {
   emailVerified: boolean;
 }
 
+export interface PhoneIdentityRecord {
+  userId: string;
+  provider: "guest" | "password" | "phone" | "apple" | "wechat" | "platform";
+  providerUid: string;
+  phone: string;
+  phoneVerified: boolean;
+  userStatus: "active" | "banned" | "deleted";
+  banned: boolean;
+  banReason: string | null;
+  banUntil: string | null;
+}
+
 export interface SessionRecord {
   sessionId: string;
   userId: string;
@@ -177,7 +189,7 @@ function toGameIdSeed(identities: UserIdentity[]): string | null {
   return null;
 }
 
-function deriveGameId(seed: string): string {
+export function deriveGameId(seed: string): string {
   let hash = 0;
   for (const char of seed) {
     hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
@@ -519,6 +531,41 @@ export async function findIdentityByProviderUid(
   return result.rows[0] ?? null;
 }
 
+export async function findVerifiedPhoneIdentity(
+  phone: string,
+  executor?: Executor,
+): Promise<PhoneIdentityRecord | null> {
+  const db = getExecutor(executor);
+  const result = await db.query<
+    PhoneIdentityRecord & QueryResultRow
+  >(
+    `
+      SELECT
+        ui.user_id AS "userId",
+        ui.provider::text AS provider,
+        ui.provider_uid AS "providerUid",
+        ui.phone AS phone,
+        ui.phone_verified AS "phoneVerified",
+        u.status AS "userStatus",
+        COALESCE(b.is_banned, FALSE) AS banned,
+        b.reason AS "banReason",
+        b.banned_until AS "banUntil"
+      FROM user_identities ui
+      INNER JOIN users u ON u.id = ui.user_id
+      LEFT JOIN user_bans b ON b.user_id = ui.user_id
+      WHERE ui.phone = $1
+        AND ui.phone_verified = TRUE
+      ORDER BY
+        CASE WHEN ui.provider = 'phone' THEN 0 ELSE 1 END,
+        ui.created_at ASC
+      LIMIT 1
+    `,
+    [phone],
+  );
+
+  return result.rows[0] ?? null;
+}
+
 export async function createPasswordUser(
   params: {
     account: string;
@@ -597,6 +644,87 @@ export async function createPasswordUser(
       VALUES ($1, 'password', $2, $2, $3, 'bcrypt', NOW(), NOW())
     `,
     [userId, account, params.passwordHash],
+  );
+
+  return { userId };
+}
+
+export async function createPhoneUser(
+  params: {
+    phone: string;
+    nickname?: string;
+  },
+  executor?: Executor,
+): Promise<{ userId: string }> {
+  const db = getExecutor(executor);
+  const nickname = normalizeNickname(params.nickname, "手机玩家");
+  const phone = params.phone.trim();
+
+  const userResult = await db.query<{ id: string }>(
+    `
+      INSERT INTO users (status, created_at, updated_at, last_login_at)
+      VALUES ('active', NOW(), NOW(), NOW())
+      RETURNING id
+    `,
+  );
+  const userId = userResult.rows[0]?.id;
+  if (!userId) {
+    throw new Error("failed to create phone user");
+  }
+
+  await db.query(
+    `
+      INSERT INTO user_profiles (
+        user_id,
+        nickname,
+        avatar_url,
+        level,
+        current_xp,
+        total_xp,
+        coins,
+        season_score,
+        best_mass,
+        total_matches,
+        total_wins,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, NULL, 1, 0, 0, 0, 0, 0, 0, 0, NOW(), NOW())
+    `,
+    [userId, nickname],
+  );
+
+  await db.query(
+    `
+      INSERT INTO user_bans (
+        user_id,
+        is_banned,
+        reason,
+        banned_until,
+        operator_note,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, FALSE, NULL, NULL, NULL, NOW(), NOW())
+      ON CONFLICT (user_id) DO NOTHING
+    `,
+    [userId],
+  );
+
+  await db.query(
+    `
+      INSERT INTO user_identities (
+        user_id,
+        provider,
+        provider_uid,
+        phone,
+        phone_verified,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, 'phone', $2, $2, TRUE, NOW(), NOW())
+    `,
+    [userId, phone],
   );
 
   return { userId };
@@ -750,6 +878,90 @@ export async function syncPlatformIdentity(
       `,
       [params.userId, sanitizeNullableText(params.avatarUrl)],
     );
+  }
+}
+
+export async function bindPhoneIdentityToUser(
+  params: {
+    userId: string;
+    phone: string;
+  },
+  executor?: Executor,
+): Promise<void> {
+  const db = getExecutor(executor);
+  const phone = params.phone.trim();
+
+  const updated = await db.query(
+    `
+      UPDATE user_identities
+      SET
+        phone = $2,
+        phone_verified = TRUE,
+        updated_at = NOW()
+      WHERE user_id = $1
+        AND provider = 'phone'
+    `,
+    [params.userId, phone],
+  );
+
+  if ((updated.rowCount ?? 0) > 0) {
+    return;
+  }
+
+  await db.query(
+    `
+      INSERT INTO user_identities (
+        user_id,
+        provider,
+        provider_uid,
+        phone,
+        phone_verified,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, 'phone', $2, $2, TRUE, NOW(), NOW())
+    `,
+    [params.userId, phone],
+  );
+}
+
+export async function bindEmailToUser(
+  params: {
+    userId: string;
+    email: string;
+  },
+  executor?: Executor,
+): Promise<void> {
+  const db = getExecutor(executor);
+  const email = params.email.trim().toLowerCase();
+  const result = await db.query(
+    `
+      WITH target_identity AS (
+        SELECT id
+        FROM user_identities
+        WHERE user_id = $1
+        ORDER BY
+          CASE
+            WHEN provider = 'password' THEN 0
+            WHEN provider = 'phone' THEN 1
+            ELSE 2
+          END,
+          created_at ASC
+        LIMIT 1
+      )
+      UPDATE user_identities ui
+      SET
+        email = $2,
+        email_verified = TRUE,
+        updated_at = NOW()
+      FROM target_identity ti
+      WHERE ui.id = ti.id
+    `,
+    [params.userId, email],
+  );
+
+  if ((result.rowCount ?? 0) === 0) {
+    throw new Error("no identity available for email binding");
   }
 }
 

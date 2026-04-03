@@ -361,6 +361,7 @@
   gap: 12px;
   min-height: 0;
   height: 100%;
+  overflow-y: auto;
 }
 
 .mode-hall-overlay--v2 .mode-hall-stage-topline {
@@ -368,6 +369,77 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
   align-items: end;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-mini-chip--accent {
+  background: color-mix(in srgb, var(--mode-accent-soft) 70%, rgba(255, 255, 255, 0.06));
+  border-color: color-mix(in srgb, var(--mode-accent) 26%, rgba(255, 255, 255, 0.12));
+  color: var(--mode-accent-strong);
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-brief-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-brief-card {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--mode-accent-soft) 70%, transparent), transparent 42%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    transform 240ms cubic-bezier(0.22, 1.4, 0.36, 1),
+    border-color 240ms ease,
+    background 240ms ease,
+    box-shadow 240ms ease;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-brief-card span {
+  display: block;
+  color: var(--mode-text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-brief-card strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--mode-text);
+  font-size: 18px;
+  line-height: 1.18;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-brief-card small {
+  display: block;
+  margin-top: 6px;
+  color: var(--mode-text-soft);
+  line-height: 1.42;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-brief-card:hover {
+  transform: translateY(-4px) scale(1.016, 1.01);
+  border-color: color-mix(in srgb, var(--mode-accent) 30%, rgba(255, 255, 255, 0.14));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--mode-accent-soft) 28%, rgba(255, 255, 255, 0.06)), rgba(255, 255, 255, 0.025)),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--mode-accent-soft) 80%, transparent), transparent 40%);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
 }
 
 .mode-hall-overlay--v2 .mode-hall-stage-shell {
@@ -400,7 +472,7 @@
 
 .mode-hall-overlay--v2 .mode-hall-stage-hero {
   position: relative;
-  min-height: 286px;
+  min-height: clamp(188px, 32vh, 272px);
   border-radius: 26px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -573,6 +645,17 @@
   background: linear-gradient(180deg, var(--mode-accent-soft), rgba(255, 255, 255, 0.05));
   color: var(--mode-accent-strong);
   font-weight: 800;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1.34, 0.36, 1),
+    box-shadow 220ms ease,
+    filter 220ms ease;
+}
+
+.mode-hall-overlay--v2 .mode-hall-list-row:hover .mode-hall-list-orb,
+.mode-hall-overlay--v2 .mode-hall-party-member:hover .mode-hall-list-orb {
+  transform: translateY(-1px) scale(1.08);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--mode-accent-soft) 55%, transparent);
+  filter: saturate(1.12);
 }
 
 .mode-hall-overlay--v2 .mode-hall-party-member.is-ready,
@@ -931,3 +1014,283 @@ html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-cta-button {
     pointer-events: none;
 }
 
+/* =======================================================
+   Mode Hall Compact + Jelly Pass
+   ======================================================= */
+.mode-hall-overlay--v2 .mode-hall-shell--scene {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 12px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-scene-grid {
+  gap: 12px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-hud-left,
+.mode-hall-overlay--v2 .mode-hall-sidebar-right,
+.mode-hall-overlay--v2 .mode-hall-stage-shell,
+.mode-hall-overlay--v2 .mode-hall-party-panel,
+.mode-hall-overlay--v2 .mode-hall-bottom-tray {
+  padding: 12px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-area,
+.mode-hall-overlay--v2 .mode-hall-hud-left,
+.mode-hall-overlay--v2 .mode-hall-sidebar-right {
+  gap: 12px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-topline,
+.mode-hall-overlay--v2 .mode-hall-stage-statusbar {
+  gap: 10px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-view {
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 10px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-stage-hero {
+  min-height: 248px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-hud-stat,
+.mode-hall-overlay--v2 .mode-hall-stage-stat,
+.mode-hall-overlay--v2 .mode-hall-tray-card,
+.mode-hall-overlay--v2 .mode-hall-party-chip {
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-party-actions button,
+.mode-hall-overlay--v2 .mode-hall-list-row {
+  min-height: 52px;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-tray-tabs {
+  gap: 8px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-bottom-tray {
+  min-height: 164px;
+  gap: 10px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-tray-content {
+  display: grid;
+  gap: 10px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-tray-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-tray-cards {
+  gap: 10px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-tray-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-tray-card p {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.48;
+}
+
+.mode-hall-overlay--v2 .mode-hall-cta-copy {
+  gap: 3px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-cta-detail {
+  color: var(--mode-text-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mode-hall-overlay--v2 .mode-hall-cta-button {
+  min-width: 164px;
+  min-height: 52px;
+}
+
+.mode-hall-overlay--v2 .mode-hall-ribbon-chip,
+.mode-hall-overlay--v2 .mode-hall-mini-chip,
+.mode-hall-overlay--v2 .mode-hall-stage-notch,
+.mode-hall-overlay--v2 .mode-hall-spotlight-chip,
+.mode-hall-overlay--v2 .mode-hall-hud-stat,
+.mode-hall-overlay--v2 .mode-hall-stage-stat,
+.mode-hall-overlay--v2 .mode-hall-tray-card,
+.mode-hall-overlay--v2 .mode-hall-party-chip {
+  transition:
+    transform 240ms cubic-bezier(0.22, 1.4, 0.36, 1),
+    border-color 240ms ease,
+    background 240ms ease,
+    box-shadow 240ms ease;
+  transform-origin: center;
+}
+
+.mode-hall-overlay--v2 .mode-hall-ribbon-chip:hover,
+.mode-hall-overlay--v2 .mode-hall-mini-chip:hover,
+.mode-hall-overlay--v2 .mode-hall-stage-notch:hover,
+.mode-hall-overlay--v2 .mode-hall-spotlight-chip:hover,
+.mode-hall-overlay--v2 .mode-hall-hud-stat:hover,
+.mode-hall-overlay--v2 .mode-hall-stage-stat:hover,
+.mode-hall-overlay--v2 .mode-hall-tray-card:hover,
+.mode-hall-overlay--v2 .mode-hall-party-chip:hover {
+  transform: translateY(-4px) scale(1.018, 1.01);
+  border-color: color-mix(in srgb, var(--mode-accent) 28%, rgba(255, 255, 255, 0.14));
+  background: color-mix(in srgb, var(--mode-accent-soft) 34%, rgba(255, 255, 255, 0.05));
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
+}
+
+.mode-hall-overlay--v2 .mode-hall-ribbon-chip:active,
+.mode-hall-overlay--v2 .mode-hall-mini-chip:active,
+.mode-hall-overlay--v2 .mode-hall-stage-notch:active,
+.mode-hall-overlay--v2 .mode-hall-spotlight-chip:active,
+.mode-hall-overlay--v2 .mode-hall-hud-stat:active,
+.mode-hall-overlay--v2 .mode-hall-stage-stat:active,
+.mode-hall-overlay--v2 .mode-hall-tray-card:active,
+.mode-hall-overlay--v2 .mode-hall-party-chip:active {
+  transform: translateY(2px) scale(0.97, 0.94);
+  transition-duration: 90ms;
+}
+
+.mode-hall-overlay--v2 .mode-hall-header-btn,
+.mode-hall-overlay--v2 .mode-hall-segment,
+.mode-hall-overlay--v2 .mode-hall-cta-button,
+.mode-hall-overlay--v2 .mode-hall-room-copy,
+.mode-hall-overlay--v2 .mode-hall-party-actions button,
+.mode-hall-overlay--v2 .mode-hall-list-row {
+  transition:
+    transform 220ms cubic-bezier(0.22, 1.34, 0.36, 1),
+    border-color 220ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease,
+    color 220ms ease;
+}
+
+.mode-hall-overlay--v2 .mode-hall-header-btn:hover,
+.mode-hall-overlay--v2 .mode-hall-segment:hover,
+.mode-hall-overlay--v2 .mode-hall-room-copy:hover,
+.mode-hall-overlay--v2 .mode-hall-party-actions button:hover,
+.mode-hall-overlay--v2 .mode-hall-list-row:hover {
+  transform: translateY(-3px) scale(1.015, 1.01);
+  border-color: color-mix(in srgb, var(--mode-accent) 35%, rgba(255, 255, 255, 0.16));
+  background: color-mix(in srgb, var(--mode-accent-soft) 38%, rgba(255, 255, 255, 0.06));
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.22);
+}
+
+.mode-hall-overlay--v2 .mode-hall-header-btn:active,
+.mode-hall-overlay--v2 .mode-hall-segment:active,
+.mode-hall-overlay--v2 .mode-hall-room-copy:active,
+.mode-hall-overlay--v2 .mode-hall-party-actions button:active,
+.mode-hall-overlay--v2 .mode-hall-list-row:active {
+  transform: translateY(2px) scale(0.968, 0.935);
+  transition-duration: 90ms;
+}
+
+.mode-hall-overlay--v2 .mode-hall-cta-button:hover {
+  transform: translateY(-4px) scale(1.028, 1.018);
+  box-shadow: 0 22px 42px color-mix(in srgb, var(--mode-accent-soft) 80%, rgba(0, 0, 0, 0.12));
+}
+
+.mode-hall-overlay--v2 .mode-hall-cta-button:active {
+  transform: translateY(2px) scale(0.955, 0.925);
+}
+
+@media (max-width: 1279px) {
+  .mode-hall-overlay--v2 .mode-hall-stage-view {
+    grid-template-columns: minmax(0, 1fr) 170px;
+  }
+
+  .mode-hall-overlay--v2 .mode-hall-bottom-tray {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 1023px) {
+  .mode-hall-overlay--v2 .mode-hall-shell--scene {
+    padding: 12px;
+  }
+
+  .mode-hall-overlay--v2 .mode-hall-bottom-tray {
+    min-height: 0;
+  }
+
+  .mode-hall-overlay--v2 .mode-hall-tray-head {
+    display: grid;
+  }
+}
+
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-ribbon-chip,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-ribbon-chip,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-mini-chip,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-mini-chip,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-stage-notch,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-stage-notch,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-spotlight-chip,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-spotlight-chip,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-hud-stat,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-hud-stat,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-stage-stat,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-stage-stat,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-tray-card,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-tray-card,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-party-chip,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-party-chip,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-header-btn,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-header-btn,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-segment,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-segment,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-cta-button,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-cta-button,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-room-copy,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-room-copy,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-party-actions button,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-party-actions button,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-list-row,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-list-row {
+  animation: none !important;
+  transition-duration: 0.01ms !important;
+}
+
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-ribbon-chip:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-ribbon-chip:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-mini-chip:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-mini-chip:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-stage-notch:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-stage-notch:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-spotlight-chip:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-spotlight-chip:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-hud-stat:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-hud-stat:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-stage-stat:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-stage-stat:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-tray-card:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-tray-card:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-party-chip:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-party-chip:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-header-btn:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-header-btn:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-segment:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-segment:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-cta-button:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-cta-button:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-room-copy:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-room-copy:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-party-actions button:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-party-actions button:hover,
+[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-list-row:hover,
+html[data-reduced-motion="true"] .mode-hall-overlay--v2 .mode-hall-list-row:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}

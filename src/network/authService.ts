@@ -1,14 +1,26 @@
 import type {
+  BindEmailRequest,
+  BindEmailResponse,
+  BindMobileRequest,
+  BindMobileResponse,
+  ConfirmPasswordResetRequest,
+  ConfirmPasswordResetResponse,
   DeviceInfo,
   LoginMethod,
   LoginRequest,
   LoginResponse,
   LogoutRequest,
   LogoutResponse,
+  RequestPasswordResetRequest,
+  RequestPasswordResetResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
   RegisterByPasswordRequest,
   RegisterByPasswordResponse,
+  SendEmailCodeRequest,
+  SendEmailCodeResponse,
+  SendSmsCodeRequest,
+  SendSmsCodeResponse,
 } from "../../shared-protocol/src/auth";
 import type {
   GetMeResponse,
@@ -74,6 +86,10 @@ export class AuthService {
     } catch {
       // ignore storage errors
     }
+  }
+
+  installDebugSession(session: AuthSessionState): void {
+    this.persistSession(session);
   }
 
   async register(
@@ -279,6 +295,64 @@ export class AuthService {
     return response;
   }
 
+  async sendSmsCode(
+    payload: SendSmsCodeRequest,
+  ): Promise<ProtocolResponse<SendSmsCodeResponse>> {
+    return this.request<SendSmsCodeResponse>("/auth/sms/send", {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  async sendEmailCode(
+    payload: SendEmailCodeRequest,
+  ): Promise<ProtocolResponse<SendEmailCodeResponse>> {
+    return this.request<SendEmailCodeResponse>("/auth/email/send", {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  async requestPasswordReset(
+    payload: RequestPasswordResetRequest,
+  ): Promise<ProtocolResponse<RequestPasswordResetResponse>> {
+    return this.request<RequestPasswordResetResponse>("/auth/password/request-reset", {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  async confirmPasswordReset(
+    payload: ConfirmPasswordResetRequest,
+  ): Promise<ProtocolResponse<ConfirmPasswordResetResponse>> {
+    return this.request<ConfirmPasswordResetResponse>("/auth/password/confirm-reset", {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  async bindMobile(
+    payload: BindMobileRequest,
+  ): Promise<ProtocolResponse<BindMobileResponse>> {
+    await this.refreshToken();
+    return this.request<BindMobileResponse>("/auth/bind/mobile", {
+      method: "POST",
+      body: payload,
+      auth: true,
+    });
+  }
+
+  async bindEmail(
+    payload: BindEmailRequest,
+  ): Promise<ProtocolResponse<BindEmailResponse>> {
+    await this.refreshToken();
+    return this.request<BindEmailResponse>("/auth/bind/email", {
+      method: "POST",
+      body: payload,
+      auth: true,
+    });
+  }
+
   async getMe(): Promise<ProtocolResponse<GetMeResponse>> {
     if (
       clientPlatformConfig.enableLocalAuthBypass &&
@@ -396,6 +470,16 @@ export class AuthService {
     }
 
     if (payload.method === "platform") {
+      return {
+        ...payload,
+        payload: {
+          ...payload.payload,
+          device: payload.payload.device ?? this.getDeviceInfo(),
+        },
+      };
+    }
+
+    if (payload.method === "sms") {
       return {
         ...payload,
         payload: {

@@ -5,6 +5,37 @@ export type ModeSidebarTabId = "friends" | "leaderboard" | "spectate";
 export type ModeTheme = "gold" | "violet" | "cyan" | "amber" | "purple" | "red";
 export type ModeHallLayoutId = LobbyModeId;
 
+export interface BattleRoyalePhaseTimings {
+  safeUntilSeconds: number;
+  firstShrinkEndSeconds: number;
+  secondShrinkEndSeconds: number;
+  collapseEndSeconds: number;
+  suddenDeathStartSeconds: number;
+}
+
+export interface BattleRoyaleSafeRectProfile {
+  initialSize: number;
+  phaseOneSize: number;
+  phaseTwoSize: number;
+  finalSize: number;
+}
+
+export interface BattleRoyaleDamageProfile {
+  phase1: number;
+  phase2: number;
+  phase3: number;
+  suddenDeath: number;
+}
+
+export interface BattleRoyaleRules {
+  enabled: boolean;
+  shape: "square";
+  phaseTimings: BattleRoyalePhaseTimings;
+  safeRect: BattleRoyaleSafeRectProfile;
+  damagePerSecond: BattleRoyaleDamageProfile;
+  suddenDeath: boolean;
+}
+
 export interface ModeGameplayRules {
   timed: boolean;
   durationSeconds: number;
@@ -15,14 +46,7 @@ export interface ModeGameplayRules {
   scoreMultiplier: number;
   rankPointMultiplier: number;
   teamMode: boolean;
-  battleRoyale: {
-    enabled: boolean;
-    initialRadius: number;
-    finalRadius: number;
-    shrinkStartSeconds: number;
-    shrinkDurationSeconds: number;
-    outOfZoneDamagePerSecond: number;
-  };
+  battleRoyale: BattleRoyaleRules;
 }
 
 export interface ModeHudProfile {
@@ -96,6 +120,7 @@ export interface ModeSidebarEntry {
   title: string;
   meta: string;
   badge: string;
+  detail?: string;
 }
 
 export interface ModeTrayCard {
@@ -202,6 +227,31 @@ const tray = (
 
 const hall = (config: ModeHallContent): ModeHallContent => config;
 
+const DISABLED_BATTLE_ROYALE_RULES: BattleRoyaleRules = {
+  enabled: false,
+  shape: "square",
+  phaseTimings: {
+    safeUntilSeconds: 0,
+    firstShrinkEndSeconds: 0,
+    secondShrinkEndSeconds: 0,
+    collapseEndSeconds: 0,
+    suddenDeathStartSeconds: 0,
+  },
+  safeRect: {
+    initialSize: 0,
+    phaseOneSize: 0,
+    phaseTwoSize: 0,
+    finalSize: 0,
+  },
+  damagePerSecond: {
+    phase1: 0,
+    phase2: 0,
+    phase3: 0,
+    suddenDeath: 0,
+  },
+  suddenDeath: false,
+};
+
 export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
   ranked: {
     id: "ranked",
@@ -294,7 +344,7 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
       scoreMultiplier: 1.2,
       rankPointMultiplier: 1.25,
       teamMode: false,
-      battleRoyale: { enabled: false, initialRadius: 0, finalRadius: 0, shrinkStartSeconds: 0, shrinkDurationSeconds: 0, outOfZoneDamagePerSecond: 0 },
+      battleRoyale: DISABLED_BATTLE_ROYALE_RULES,
     },
     matching: { targetPlayers: 50, minStartPlayers: 16, expectedSeconds: 7.2 },
     layout: { id: "ranked", stageStyle: "honor", ctaAnchor: "bottom-right" },
@@ -392,7 +442,7 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
       scoreMultiplier: 1.35,
       rankPointMultiplier: 1.5,
       teamMode: false,
-      battleRoyale: { enabled: false, initialRadius: 0, finalRadius: 0, shrinkStartSeconds: 0, shrinkDurationSeconds: 0, outOfZoneDamagePerSecond: 0 },
+      battleRoyale: DISABLED_BATTLE_ROYALE_RULES,
     },
     matching: { targetPlayers: 50, minStartPlayers: 18, expectedSeconds: 7.8 },
     layout: { id: "peak", stageStyle: "elite", ctaAnchor: "bottom-right" },
@@ -491,7 +541,7 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
       scoreMultiplier: 1,
       rankPointMultiplier: 1,
       teamMode: false,
-      battleRoyale: { enabled: false, initialRadius: 0, finalRadius: 0, shrinkStartSeconds: 0, shrinkDurationSeconds: 0, outOfZoneDamagePerSecond: 0 },
+      battleRoyale: DISABLED_BATTLE_ROYALE_RULES,
     },
     matching: { targetPlayers: 50, minStartPlayers: 14, expectedSeconds: 6.6 },
     layout: { id: "classic", stageStyle: "orb", ctaAnchor: "center-right" },
@@ -511,10 +561,10 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
         title: "危险圈已闭合",
         subtitle: "更紧张、更压迫、更强调风险与收益。",
         badge: "高危模式",
-        chips: ["缩圈开启", "圈外掉血", "高风险高奖励"],
+        chips: ["方形安全区", "终圈拼盾", "高风险高奖励"],
         stats: [
-          { label: "初始安全区", value: "2800", note: "40 秒后首次缩圈" },
-          { label: "圈外伤害", value: "18 / 秒", note: "后半局处罚更致命" },
+          { label: "初始边长", value: "7600", note: "40 秒后进入第一段收缩" },
+          { label: "终圈伤害", value: "60 / 秒", note: "无安全区后只剩拼盾和残局" },
           { label: "预计时间", value: "8.4 秒", note: "高峰时段更容易成局" },
         ],
       },
@@ -541,8 +591,8 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
       ],
       traySections: {
         rules: tray("规则", "生存规则", "缩圈与圈外伤害是底层压力。", [
-          ["缩圈节奏", "40 秒后开始缩圈", "拖延和站位错误都会被放大。"],
-          ["伤害规则", "圈外每秒持续掉血", "后半局绝不能把圈外当缓冲区。"],
+          ["缩圈节奏", "两段半缩后进入无安全区", "拖延和站位错误都会被持续放大。"],
+          ["伤害规则", "圈外持续掉体重", "最后 20 秒全图危险，只能靠护盾和残局处理。"],
           ["胜利条件", "活到最后", "更看位置、风控和终圈决策。"],
         ]),
         rewards: tray("奖励", "生存奖励", "越危险，越值得被强调。", [
@@ -558,7 +608,7 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
         guide: tray("教学", "热区与教学", "把危险提示和路线教学放在托盘里。", [
           ["开局落点", "避开第一波最热区", "先拿稳定发育空间。"],
           ["圈边运营", "边圈更适合做信息差", "高名次局不一定靠硬冲中心。"],
-          ["终圈重点", "保命优先于贪质量", "最后一分钟别做多余碰撞。"],
+          ["终圈重点", "保命优先于贪质量", "最后 20 秒会进入无安全区，提前准备护盾。"],
         ]),
       },
       sceneAccent: {
@@ -590,7 +640,30 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
       scoreMultiplier: 1.25,
       rankPointMultiplier: 1.2,
       teamMode: false,
-      battleRoyale: { enabled: true, initialRadius: 2800, finalRadius: 580, shrinkStartSeconds: 40, shrinkDurationSeconds: 220, outOfZoneDamagePerSecond: 18 },
+      battleRoyale: {
+        enabled: true,
+        shape: "square",
+        phaseTimings: {
+          safeUntilSeconds: 40,
+          firstShrinkEndSeconds: 140,
+          secondShrinkEndSeconds: 220,
+          collapseEndSeconds: 340,
+          suddenDeathStartSeconds: 340,
+        },
+        safeRect: {
+          initialSize: 7600,
+          phaseOneSize: 3800,
+          phaseTwoSize: 1900,
+          finalSize: 0,
+        },
+        damagePerSecond: {
+          phase1: 18,
+          phase2: 28,
+          phase3: 42,
+          suddenDeath: 60,
+        },
+        suddenDeath: true,
+      },
     },
     matching: { targetPlayers: 60, minStartPlayers: 20, expectedSeconds: 8.4 },
     layout: { id: "battleRoyale", stageStyle: "survival", ctaAnchor: "bottom-right" },

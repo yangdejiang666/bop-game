@@ -185,6 +185,7 @@ export class Bot extends Controller {
         for (const cell of this.cells) {
             cell.update(dt);
         }
+        this.tickHazardShield(dt);
         this.applyNaturalMassDecay(dt);
     }
 

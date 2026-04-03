@@ -30,6 +30,11 @@ export interface ApiServerConfig {
     enabled: boolean;
   };
   integrations: {
+    communications: {
+      emailProvider: "disabled" | "local" | "resend";
+      smsProvider: "disabled" | "local" | "aliyun";
+      defaultPhoneCountryCode: string;
+    };
     stripe: {
       enabled: boolean;
       secretKey: string;
@@ -57,6 +62,20 @@ export interface ApiServerConfig {
       fromEmail: string;
       replyTo: string;
       webhookSecret: string;
+    };
+    aliyunSms: {
+      enabled: boolean;
+      accessKeyId: string;
+      accessKeySecret: string;
+      endpoint: string;
+      regionId: string;
+      signName: string;
+      templateCodes: {
+        login: string;
+        register: string;
+        resetPassword: string;
+        bindMobile: string;
+      };
     };
     clerk: {
       enabled: boolean;
@@ -132,6 +151,11 @@ const DEFAULTS = {
     enabled: false,
   },
   integrations: {
+    communications: {
+      emailProvider: "local" as const,
+      smsProvider: "local" as const,
+      defaultPhoneCountryCode: "+86",
+    },
     stripe: {
       secretKey: "",
       publishableKey: "",
@@ -156,6 +180,19 @@ const DEFAULTS = {
       fromEmail: "BOP <onboarding@resend.dev>",
       replyTo: "",
       webhookSecret: "",
+    },
+    aliyunSms: {
+      accessKeyId: "",
+      accessKeySecret: "",
+      endpoint: "dysmsapi.aliyuncs.com",
+      regionId: "cn-hangzhou",
+      signName: "",
+      templateCodes: {
+        login: "",
+        register: "",
+        resetPassword: "",
+        bindMobile: "",
+      },
     },
     clerk: {
       publishableKey: "",
@@ -250,6 +287,34 @@ function toLogLevel(value: string | undefined): ApiServerConfig["logLevel"] {
   return DEFAULTS.logLevel;
 }
 
+function toEmailProvider(
+  value: string | undefined,
+  env: ApiNodeEnv,
+  resendApiKey: string,
+): ApiServerConfig["integrations"]["communications"]["emailProvider"] {
+  if (value === "disabled" || value === "local" || value === "resend") {
+    return value;
+  }
+  if (resendApiKey.trim().length > 0) {
+    return "resend";
+  }
+  return env === "production" ? "disabled" : "local";
+}
+
+function toSmsProvider(
+  value: string | undefined,
+  env: ApiNodeEnv,
+  hasAliyunCredentials: boolean,
+): ApiServerConfig["integrations"]["communications"]["smsProvider"] {
+  if (value === "disabled" || value === "local" || value === "aliyun") {
+    return value;
+  }
+  if (hasAliyunCredentials) {
+    return "aliyun";
+  }
+  return env === "production" ? "disabled" : "local";
+}
+
 function toFraction(value: string | undefined, fallback: number): number {
   if (!value) {
     return fallback;
@@ -328,6 +393,14 @@ export function loadApiServerConfig(
     env.CLERK_PUBLISHABLE_KEY,
     DEFAULTS.integrations.clerk.publishableKey,
   );
+  const aliyunSmsAccessKeyId = readString(
+    env.ALIYUN_SMS_ACCESS_KEY_ID,
+    DEFAULTS.integrations.aliyunSms.accessKeyId,
+  );
+  const aliyunSmsAccessKeySecret = readString(
+    env.ALIYUN_SMS_ACCESS_KEY_SECRET,
+    DEFAULTS.integrations.aliyunSms.accessKeySecret,
+  );
   const clerkSecretKey = readString(
     env.CLERK_SECRET_KEY,
     DEFAULTS.integrations.clerk.secretKey,
@@ -359,6 +432,16 @@ export function loadApiServerConfig(
   const pineconeIndexHost = readString(
     env.PINECONE_INDEX_HOST,
     DEFAULTS.integrations.pinecone.indexHost,
+  );
+  const emailProvider = toEmailProvider(
+    env.EMAIL_PROVIDER,
+    nodeEnv,
+    resendApiKey,
+  );
+  const smsProvider = toSmsProvider(
+    env.SMS_PROVIDER,
+    nodeEnv,
+    aliyunSmsAccessKeyId.length > 0 && aliyunSmsAccessKeySecret.length > 0,
   );
 
   return {
@@ -403,6 +486,14 @@ export function loadApiServerConfig(
       enabled: toBoolean(env.REDIS_ENABLED, DEFAULTS.redis.enabled),
     },
     integrations: {
+      communications: {
+        emailProvider,
+        smsProvider,
+        defaultPhoneCountryCode: readString(
+          env.DEFAULT_PHONE_COUNTRY_CODE,
+          DEFAULTS.integrations.communications.defaultPhoneCountryCode,
+        ),
+      },
       stripe: {
         enabled: isEnabled(env.STRIPE_ENABLED, [
           stripeSecretKey,
@@ -452,7 +543,9 @@ export function loadApiServerConfig(
         ),
       },
       resend: {
-        enabled: isEnabled(env.RESEND_ENABLED, [resendApiKey]),
+        enabled:
+          emailProvider === "resend" &&
+          isEnabled(env.RESEND_ENABLED, [resendApiKey]),
         apiKey: resendApiKey,
         fromEmail: readString(
           env.RESEND_FROM_EMAIL,
@@ -466,6 +559,46 @@ export function loadApiServerConfig(
           env.RESEND_WEBHOOK_SECRET,
           DEFAULTS.integrations.resend.webhookSecret,
         ),
+      },
+      aliyunSms: {
+        enabled:
+          smsProvider === "aliyun" &&
+          isEnabled(env.ALIYUN_SMS_ENABLED, [
+            aliyunSmsAccessKeyId,
+            aliyunSmsAccessKeySecret,
+          ]),
+        accessKeyId: aliyunSmsAccessKeyId,
+        accessKeySecret: aliyunSmsAccessKeySecret,
+        endpoint: readString(
+          env.ALIYUN_SMS_ENDPOINT,
+          DEFAULTS.integrations.aliyunSms.endpoint,
+        ),
+        regionId: readString(
+          env.ALIYUN_SMS_REGION_ID,
+          DEFAULTS.integrations.aliyunSms.regionId,
+        ),
+        signName: readString(
+          env.ALIYUN_SMS_SIGN_NAME,
+          DEFAULTS.integrations.aliyunSms.signName,
+        ),
+        templateCodes: {
+          login: readString(
+            env.ALIYUN_SMS_TEMPLATE_LOGIN,
+            DEFAULTS.integrations.aliyunSms.templateCodes.login,
+          ),
+          register: readString(
+            env.ALIYUN_SMS_TEMPLATE_REGISTER,
+            DEFAULTS.integrations.aliyunSms.templateCodes.register,
+          ),
+          resetPassword: readString(
+            env.ALIYUN_SMS_TEMPLATE_RESET_PASSWORD,
+            DEFAULTS.integrations.aliyunSms.templateCodes.resetPassword,
+          ),
+          bindMobile: readString(
+            env.ALIYUN_SMS_TEMPLATE_BIND_MOBILE,
+            DEFAULTS.integrations.aliyunSms.templateCodes.bindMobile,
+          ),
+        },
       },
       clerk: {
         enabled: isEnabled(env.CLERK_ENABLED, [

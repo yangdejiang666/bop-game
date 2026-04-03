@@ -1,6 +1,6 @@
 # Platform Integrations
 
-This project now has a shared platform layer for `Stripe`, `Supabase`, `Resend`, `Clerk`, `PostHog`, `Sentry`, `Upstash`, and `Pinecone`.
+This project now has a shared platform layer for `Stripe`, `Supabase`, `Resend`, `Aliyun SMS`, `Clerk`, `PostHog`, `Sentry`, `Upstash`, and `Pinecone`.
 
 ## What is wired
 
@@ -14,8 +14,15 @@ This project now has a shared platform layer for `Stripe`, `Supabase`, `Resend`,
   - Frontend avatar `data:` uploads are pushed into the configured storage bucket
 - `Resend`
   - Password reset emails are sent from `/api/v1/auth/password/request-reset`
+  - Email verification codes can be sent from `POST /api/v1/auth/email/send`
+  - Email binding is completed through `POST /api/v1/auth/bind/email`
   - Purchase receipts are sent after successful Stripe fulfillment when an email is available
   - Inbound emails can be received through `POST /api/v1/platform/communications/webhooks/resend`
+- `Aliyun SMS`
+  - SMS verification codes can be sent from `POST /api/v1/auth/sms/send`
+  - SMS login is completed through `POST /api/v1/auth/login` with `method: "sms"`
+  - Mobile binding is completed through `POST /api/v1/auth/bind/mobile`
+  - Password reset can be requested over SMS from `POST /api/v1/auth/password/request-reset`
 - `Clerk`
   - Frontend opens Clerk sign-in
   - Backend verifies Clerk session tokens and exchanges them for the project's own auth tokens
@@ -64,10 +71,19 @@ This project now has a shared platform layer for `Stripe`, `Supabase`, `Resend`,
 
 ### Resend
 
+- `EMAIL_PROVIDER=resend`, `RESEND_ENABLED=true`, and `RESEND_FROM_EMAIL` must be set together.
 - `RESEND_FROM_EMAIL` must use a sender identity that is valid in your Resend account.
 - `RESEND_WEBHOOK_SECRET` enables signed inbound email webhooks from Resend.
 - Point the Resend webhook endpoint to `POST /api/v1/platform/communications/webhooks/resend` and subscribe to at least `email.received`.
-- If you leave Resend disabled, password reset and purchase receipt flows will return service-unavailable errors instead of silently succeeding.
+- If you leave `EMAIL_PROVIDER=disabled`, email verification and password reset cannot use a real mailbox transport.
+- If you keep `EMAIL_PROVIDER=local`, auth flows still work locally, but codes are only captured into the verification challenge debug payload for smoke tests.
+
+### Aliyun SMS
+
+- `SMS_PROVIDER=aliyun`, `ALIYUN_SMS_ENABLED=true`, `ALIYUN_SMS_SIGN_NAME`, and `ALIYUN_SMS_TEMPLATE_LOGIN` must be set together.
+- `ALIYUN_SMS_TEMPLATE_REGISTER`, `ALIYUN_SMS_TEMPLATE_RESET_PASSWORD`, and `ALIYUN_SMS_TEMPLATE_BIND_MOBILE` are strongly recommended so each auth flow has a dedicated approved template.
+- If you leave `SMS_PROVIDER=disabled`, the app cannot deliver real SMS verification.
+- If you keep `SMS_PROVIDER=local`, SMS auth flows still work locally, but codes are only captured into the database debug payload instead of being delivered to a handset.
 
 ### Clerk
 
@@ -101,6 +117,7 @@ Run these after env setup:
 cd shared-protocol && npm run check
 cd ../api-server && npm run check
 cd .. && npm run build
+npm run smoke:auth
 ```
 
 If you want to validate the Stripe flow end-to-end, also point the Stripe webhook to:
@@ -112,4 +129,4 @@ POST /api/v1/platform/commerce/webhooks/stripe
 ## Local auth bypass
 
 - `VITE_ENABLE_LOCAL_AUTH_BYPASS=true` only affects password login in the browser.
-- Keep it `false` whenever you are validating Clerk, Stripe, Supabase, Resend, or any real backend-linked flow.
+- Keep it `false` whenever you are validating Clerk, Stripe, Supabase, Resend, Aliyun SMS, or any real backend-linked flow.

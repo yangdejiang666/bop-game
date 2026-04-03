@@ -11,6 +11,8 @@
     "deploy:check:pages": "node ./scripts/check-deploy-readiness.mjs --mode pages-d1",
     "deploy:check:split": "node ./scripts/check-deploy-readiness.mjs --mode split-stack",
     "preview": "vite preview",
+    "smoke:auth": "node ./scripts/smoke-auth-communications.mjs",
+    "smoke:auth:email-real": "node ./scripts/smoke-auth-real-email.mjs",
     "smoke:cloud": "node ./scripts/smoke-cloud-stack.mjs",
     "local:start": "node ./scripts/start-local-stack.mjs",
     "local:start:fast": "node ./scripts/start-local-stack.mjs --skip-build",

@@ -1,5 +1,9 @@
 import { createHash, randomInt, randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
+import Dysmsapi20170525, {
+  SendSmsRequest,
+} from "@alicloud/dysmsapi20170525";
+import * as $OpenApi from "@alicloud/openapi-client";
 import Stripe from "stripe";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -28,6 +32,11 @@ import {
 } from "@bop/shared-protocol";
 import { apiServerConfig } from "../lib/config.js";
 import { withTransaction } from "../lib/db.js";
+import {
+  markVerificationChallengeFailed,
+  markVerificationChallengeSent,
+  upsertInboundEmail,
+} from "../repositories/authVerificationRepository.js";
 import {
   findPasswordIdentityByAccount,
   getUserSummaryById,
@@ -83,6 +92,16 @@ type InboundEmailRecord = {
   rawExpiresAt: string | null;
 };
 
+export interface EmailDispatchResult {
+  provider: "local" | "resend";
+  messageId: string | null;
+}
+
+export interface SmsDispatchResult {
+  provider: "local" | "aliyun";
+  messageId: string | null;
+}
+
 const memoryStore = new Map<string, StoredRecord>();
 const memoryProcessedSessions = new Map<string, number>();
 const rateLimiterCache = new Map<RateLimitBucket, Ratelimit>();
@@ -94,6 +113,7 @@ let stripeClient: Stripe | null | undefined;
 let supabaseAdminClient: SupabaseClient | null | undefined;
 let resendClient: Resend | null | undefined;
 let resendWebhookClient: Resend | null | undefined;
+let aliyunSmsClient: Dysmsapi20170525 | null | undefined;
 let posthogClient: PostHog | null | undefined;
 let pineconeClient: Pinecone | null | undefined;
 let sentryInitialized = false;
@@ -246,6 +266,33 @@ function getResendWebhookClient(): Resend | null {
   return resendWebhookClient;
 }
 
+function getAliyunSmsClient(): Dysmsapi20170525 | null {
+  if (aliyunSmsClient !== undefined) {
+    return aliyunSmsClient;
+  }
+
+  const smsConfig = apiServerConfig.integrations.aliyunSms;
+  if (
+    !smsConfig.enabled ||
+    !smsConfig.accessKeyId ||
+    !smsConfig.accessKeySecret ||
+    !smsConfig.signName
+  ) {
+    aliyunSmsClient = null;
+    return aliyunSmsClient;
+  }
+
+  const config = new $OpenApi.Config({
+    accessKeyId: smsConfig.accessKeyId,
+    accessKeySecret: smsConfig.accessKeySecret,
+    endpoint: smsConfig.endpoint,
+  });
+  config.regionId = smsConfig.regionId;
+
+  aliyunSmsClient = new Dysmsapi20170525(config);
+  return aliyunSmsClient;
+}
+
 function getPosthogClient(): PostHog | null {
   if (posthogClient !== undefined) {
     return posthogClient;
@@ -349,8 +396,13 @@ function buildProvidersConfig(): PlatformConfigResponse["providers"] {
     },
     {
       provider: "resend",
-      enabled: apiServerConfig.integrations.resend.enabled,
+      enabled: apiServerConfig.integrations.communications.emailProvider === "resend",
       features: resendFeatures,
+    },
+    {
+      provider: "aliyun-sms",
+      enabled: apiServerConfig.integrations.communications.smsProvider === "aliyun",
+      features: ["verification_sms", "china_mobile"],
     },
     {
       provider: "clerk",
@@ -491,13 +543,77 @@ async function markStripeSessionProcessed(sessionId: string): Promise<void> {
   memoryProcessedSessions.set(key, Date.now() + ttlMs);
 }
 
-async function sendEmail(params: {
+function resolveAliyunTemplateCode(
+  purpose: "login" | "register" | "resetPassword" | "bindMobile" | "bindEmail",
+): string {
+  const templates = apiServerConfig.integrations.aliyunSms.templateCodes;
+  if (purpose === "login") {
+    return templates.login;
+  }
+  if (purpose === "register") {
+    return templates.register || templates.login;
+  }
+  if (purpose === "bindMobile") {
+    return templates.bindMobile || templates.login;
+  }
+  if (purpose === "resetPassword") {
+    return templates.resetPassword || templates.login;
+  }
+  return templates.bindMobile || templates.login;
+}
+
+export async function dispatchEmailMessage(params: {
   to: string;
   subject: string;
   html: string;
-}): Promise<void> {
+  purpose?: string;
+  challengeId?: string;
+  debugPayload?: Record<string, unknown>;
+}): Promise<EmailDispatchResult> {
+  const provider = apiServerConfig.integrations.communications.emailProvider;
+  if (provider === "disabled") {
+    if (params.challengeId) {
+      await markVerificationChallengeFailed({
+        challengeId: params.challengeId,
+        errorMessage: "Email delivery provider is not configured.",
+      });
+    }
+    throw new PlatformServiceError(
+      PROTOCOL_ERROR.SERVICE_UNAVAILABLE,
+      503,
+      "Email delivery is not configured.",
+    );
+  }
+
+  if (provider === "local") {
+    if (params.challengeId) {
+      await markVerificationChallengeSent({
+        challengeId: params.challengeId,
+        debugPayload: {
+          ...(params.debugPayload ?? {}),
+          to: params.to,
+          subject: params.subject,
+          previewHtml: params.html,
+        },
+        metadata: {
+          deliveryMode: "local",
+        },
+      });
+    }
+    return {
+      provider: "local",
+      messageId: null,
+    };
+  }
+
   const resend = getResendClient();
   if (!resend) {
+    if (params.challengeId) {
+      await markVerificationChallengeFailed({
+        challengeId: params.challengeId,
+        errorMessage: "Resend is not configured.",
+      });
+    }
     throw new PlatformServiceError(
       PROTOCOL_ERROR.SERVICE_UNAVAILABLE,
       503,
@@ -514,10 +630,165 @@ async function sendEmail(params: {
   });
 
   if (response.error) {
+    if (params.challengeId) {
+      await markVerificationChallengeFailed({
+        challengeId: params.challengeId,
+        errorMessage: response.error.message || "Failed to send email.",
+      });
+    }
     throw new PlatformServiceError(
       PROTOCOL_ERROR.SERVICE_UNAVAILABLE,
       503,
       response.error.message || "Failed to send email.",
+    );
+  }
+
+  const messageId =
+    typeof (response.data as { id?: unknown } | null | undefined)?.id === "string"
+      ? (response.data as { id: string }).id
+      : null;
+
+  if (params.challengeId) {
+    await markVerificationChallengeSent({
+      challengeId: params.challengeId,
+      providerMessageId: messageId,
+      metadata: {
+        deliveryMode: "resend",
+      },
+    });
+  }
+
+  return {
+    provider: "resend",
+    messageId,
+  };
+}
+
+export async function dispatchSmsMessage(params: {
+  phone: string;
+  purpose: "login" | "register" | "resetPassword" | "bindMobile" | "bindEmail";
+  code: string;
+  text: string;
+  challengeId?: string;
+  debugPayload?: Record<string, unknown>;
+}): Promise<SmsDispatchResult> {
+  const provider = apiServerConfig.integrations.communications.smsProvider;
+  if (provider === "disabled") {
+    if (params.challengeId) {
+      await markVerificationChallengeFailed({
+        challengeId: params.challengeId,
+        errorMessage: "SMS delivery provider is not configured.",
+      });
+    }
+    throw new PlatformServiceError(
+      PROTOCOL_ERROR.SERVICE_UNAVAILABLE,
+      503,
+      "SMS delivery is not configured.",
+    );
+  }
+
+  if (provider === "local") {
+    if (params.challengeId) {
+      await markVerificationChallengeSent({
+        challengeId: params.challengeId,
+        debugPayload: {
+          ...(params.debugPayload ?? {}),
+          phone: params.phone,
+          text: params.text,
+          code: params.code,
+        },
+        metadata: {
+          deliveryMode: "local",
+        },
+      });
+    }
+    return {
+      provider: "local",
+      messageId: null,
+    };
+  }
+
+  const client = getAliyunSmsClient();
+  const templateCode = resolveAliyunTemplateCode(params.purpose);
+  if (!client || !templateCode) {
+    if (params.challengeId) {
+      await markVerificationChallengeFailed({
+        challengeId: params.challengeId,
+        errorMessage: "Aliyun SMS is not fully configured.",
+      });
+    }
+    throw new PlatformServiceError(
+      PROTOCOL_ERROR.SERVICE_UNAVAILABLE,
+      503,
+      "Aliyun SMS is not fully configured.",
+    );
+  }
+
+  try {
+    const response = await client.sendSms(
+      new SendSmsRequest({
+        phoneNumbers: params.phone,
+        signName: apiServerConfig.integrations.aliyunSms.signName,
+        templateCode,
+        templateParam: JSON.stringify({
+          code: params.code,
+        }),
+      }),
+    );
+
+    const body = response.body as {
+      code?: string;
+      message?: string;
+      bizId?: string;
+      requestId?: string;
+    } | undefined;
+    const responseCode = body?.code?.trim() ?? "";
+    if (responseCode && responseCode !== "OK") {
+      if (params.challengeId) {
+        await markVerificationChallengeFailed({
+          challengeId: params.challengeId,
+          errorMessage: body?.message || `Aliyun SMS send failed: ${responseCode}`,
+        });
+      }
+      throw new PlatformServiceError(
+        PROTOCOL_ERROR.SERVICE_UNAVAILABLE,
+        503,
+        body?.message || `Aliyun SMS send failed: ${responseCode}`,
+      );
+    }
+
+    const messageId = body?.bizId?.trim() || body?.requestId?.trim() || null;
+    if (params.challengeId) {
+      await markVerificationChallengeSent({
+        challengeId: params.challengeId,
+        providerMessageId: messageId,
+        metadata: {
+          deliveryMode: "aliyun",
+          requestId: body?.requestId ?? null,
+          responseCode: body?.code ?? null,
+        },
+      });
+    }
+
+    return {
+      provider: "aliyun",
+      messageId,
+    };
+  } catch (error) {
+    if (error instanceof PlatformServiceError) {
+      throw error;
+    }
+    const message = normalizeErrorMessage(error, "Aliyun SMS send failed.");
+    if (params.challengeId) {
+      await markVerificationChallengeFailed({
+        challengeId: params.challengeId,
+        errorMessage: message,
+      });
+    }
+    throw new PlatformServiceError(
+      PROTOCOL_ERROR.SERVICE_UNAVAILABLE,
+      503,
+      message,
     );
   }
 }
@@ -613,6 +884,27 @@ async function handleResendEmailReceived(event: EmailReceivedEvent): Promise<voi
 
   const record = mapInboundEmailRecord(event, emailDetails);
   rememberInboundEmail(record);
+  await upsertInboundEmail({
+    provider: record.provider,
+    emailId: record.emailId,
+    receivedAt: record.receivedAt,
+    fromEmail: record.from,
+    toEmails: record.to,
+    ccEmails: record.cc,
+    bccEmails: record.bcc,
+    subject: record.subject,
+    messageId: record.messageId,
+    textContent: record.text,
+    htmlContent: record.html,
+    attachments: record.attachments,
+    rawDownloadUrl: record.rawDownloadUrl,
+    rawExpiresAt: record.rawExpiresAt,
+    payloadJson: {
+      eventType: event.type,
+      createdAt: event.created_at,
+      data: event.data as unknown as Record<string, unknown>,
+    },
+  });
 
   await captureServerEvent({
     event: "resend_email_received",
@@ -690,11 +982,11 @@ async function syncPurchaseEmail(
   productLabel: string,
   coinGrant: number,
 ): Promise<void> {
-  if (!customerEmail.trim() || !getResendClient()) {
+  if (!customerEmail.trim()) {
     return;
   }
 
-  await sendEmail({
+  await dispatchEmailMessage({
     to: customerEmail,
     subject: `BOP 订单已完成 · ${productLabel}`,
     html: `
@@ -816,6 +1108,20 @@ export function createPublicPlatformConfig(): PlatformConfigResponse {
     providers: buildProvidersConfig(),
     auth: {
       passwordEnabled: true,
+      emailVerificationEnabled:
+        apiServerConfig.integrations.communications.emailProvider !== "disabled",
+      emailProvider:
+        apiServerConfig.integrations.communications.emailProvider === "disabled"
+          ? null
+          : apiServerConfig.integrations.communications.emailProvider,
+      smsVerificationEnabled:
+        apiServerConfig.integrations.communications.smsProvider !== "disabled",
+      smsProvider:
+        apiServerConfig.integrations.communications.smsProvider === "disabled"
+          ? null
+          : apiServerConfig.integrations.communications.smsProvider,
+      defaultPhoneCountryCode:
+        apiServerConfig.integrations.communications.defaultPhoneCountryCode || null,
       clerkEnabled: apiServerConfig.integrations.clerk.enabled,
       clerkPublishableKey:
         apiServerConfig.integrations.clerk.publishableKey || null,
@@ -1220,7 +1526,7 @@ export async function requestPasswordResetByEmail(params: {
   };
 
   await persistRecord(`auth:pwdreset:${challengeId}`, record, 1000 * 60 * 15);
-  await sendEmail({
+  await dispatchEmailMessage({
     to: email,
     subject: "BOP 密码重置验证码",
     html: `

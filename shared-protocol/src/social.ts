@@ -59,6 +59,15 @@ export interface GetSocialOverviewResponse {
   overview: SocialOverview;
 }
 
+export interface GetSocialFriendRequestsResponse {
+  incoming: SocialFriendRequest[];
+  outgoing: SocialFriendRequest[];
+}
+
+export interface GetSocialBlocksResponse {
+  blocks: SocialBlockEntry[];
+}
+
 export interface SocialSearchResult {
   found: boolean;
   user: SocialUserCard | null;

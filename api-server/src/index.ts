@@ -1,26 +1,20 @@
-import "dotenv/config";
+import "./loadEnv.js";
 /* eslint-disable no-console */
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { apiServerConfig } from "./lib/config.js";
-import authRouter from "./modules/auth.js";
-import { createUserRouter } from "./modules/user.js";
-import matchmakingRouter from "./modules/matchmaking.js";
-import roomRouter from "./modules/room.js";
-import progressionRouter from "./modules/progression.js";
 import { closeDbPool } from "./lib/db.js";
 import {
   handleResendWebhookHttp,
   handleStripeWebhookHttp,
-  platformRouter,
 } from "./modules/platform.js";
 import {
   captureServerException,
   initializeServerTelemetry,
   shutdownPlatformClients,
 } from "./services/platformService.js";
-
+import { createVersionedApiRouter } from "./routes/index.js";
 initializeServerTelemetry();
 
 function parseCorsOrigins(raw: string): string[] | boolean {
@@ -106,23 +100,7 @@ function createApp() {
     });
   });
 
-  // API root
-  app.get("/api/v1", (_req, res) => {
-    res.json({
-      ok: true,
-      service: "bop-api-server",
-      version: "v1",
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  // Module mounting
-  app.use("/api/v1/auth", authRouter);
-  app.use("/api/v1/user", createUserRouter());
-  app.use("/api/v1/matchmaking", matchmakingRouter);
-  app.use("/api/v1/room", roomRouter);
-  app.use("/api/v1/progression", progressionRouter);
-  app.use("/api/v1/platform", platformRouter);
+  app.use("/api", createVersionedApiRouter());
 
   app.all("/api/v1/inventory/*", (_req, res) => {
     res.status(501).json({
@@ -130,28 +108,6 @@ function createApp() {
       error: {
         code: "NOT_IMPLEMENTED",
         message: "inventory module scaffolded but not implemented yet.",
-      },
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  app.all("/api/v1/social/*", (_req, res) => {
-    res.status(501).json({
-      ok: false,
-      error: {
-        code: "NOT_IMPLEMENTED",
-        message: "social module scaffolded but not implemented yet.",
-      },
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  app.all("/api/v1/ranking/*", (_req, res) => {
-    res.status(501).json({
-      ok: false,
-      error: {
-        code: "NOT_IMPLEMENTED",
-        message: "ranking module scaffolded but not implemented yet.",
       },
       timestamp: new Date().toISOString(),
     });

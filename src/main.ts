@@ -38,6 +38,7 @@ import {
 } from "./app/progression";
 import { loadBestMassRecord, saveBestMassRecord, BEST_MASS_RECORD_KEY } from "./app/bestMassRecord";
 import {
+  type LobbyAuthCapabilities,
   LobbyUI,
   type LobbyAuthStatus,
   type LobbyFeatureId,
@@ -53,6 +54,7 @@ import {
 } from "./ui/ModeHallUI";
 import type { ModeHallTabId } from "./modes/definitions";
 import { authService } from "./network/authService";
+import type { AuthSessionState } from "./network/authService";
 import { lobbyService } from "./network/lobbyService";
 import { MatchmakingService } from "./network/matchmakingService";
 import { progressionService } from "./network/progressionService";
@@ -124,6 +126,13 @@ type RuntimeSession = {
 };
 
 type CheckoutReturnState = "success" | "cancelled" | null;
+type LaunchView = "play" | "hall";
+
+interface InitialLaunchRoute {
+  modeId: LobbyModeId;
+  view: LaunchView;
+  useMockAuth: boolean;
+}
 
 const appRoot = document.createElement("div");
 appRoot.className = "app-root";
@@ -138,6 +147,11 @@ appRoot.append(gameMount, overlayMount);
 document.body.appendChild(appRoot);
 
 initializeClientTelemetry();
+
+const initialLaunchRoute = readInitialLaunchRoute();
+if (initialLaunchRoute?.useMockAuth && !authService.getSession()) {
+  authService.installDebugSession(buildMockAuthSession());
+}
 
 setActiveStorageScopeForUser(authService.getSession()?.userId ?? null);
 
@@ -189,10 +203,19 @@ function hydrateRuntimePlatformConfig() {
     .getConfig()
     .then((config) => {
       runtimePlatformConfig = config;
+      lobbyUI.refreshAuthStatus();
     })
     .catch((error) => {
       console.error("Failed to hydrate platform config:", error);
     });
+}
+
+function getAuthCapabilitiesView(): LobbyAuthCapabilities {
+  const auth = runtimePlatformConfig?.auth;
+  return {
+    emailVerificationEnabled: auth?.emailVerificationEnabled ?? false,
+    emailProvider: auth?.emailProvider ?? null,
+  };
 }
 
 function isStripeShopEnabled() {
@@ -225,6 +248,56 @@ function consumeCheckoutReturnState(): CheckoutReturnState {
   const nextUrl = `${url.pathname}${url.search}${url.hash}`;
   window.history.replaceState(window.history.state, document.title, nextUrl);
   return checkout;
+}
+
+function buildMockAuthSession(): AuthSessionState {
+  return {
+    accessToken: "mock-token",
+    refreshToken: "mock-refresh",
+    expiresAt: Date.now() + 86_400_000,
+    refreshExpiresAt: Date.now() + 86_400_000,
+    userId: "debug-user-900001",
+    gameId: "900001",
+    nickname: "调试舰长",
+    method: "password",
+  };
+}
+
+function readInitialLaunchRoute(): InitialLaunchRoute | null {
+  const url = new URL(window.location.href);
+  const mode = url.searchParams.get("mode");
+  if (!mode || !isLobbyModeId(mode)) {
+    return null;
+  }
+
+  const viewParam = url.searchParams.get("view");
+  const view: LaunchView = viewParam === "hall" ? "hall" : "play";
+  const authParam = (url.searchParams.get("auth") ?? "").trim().toLowerCase();
+
+  return {
+    modeId: mode,
+    view,
+    useMockAuth: authParam === "mock",
+  };
+}
+
+function applyInitialLaunchRoute() {
+  if (!initialLaunchRoute || !authService.getSession()) {
+    return;
+  }
+
+  window.setTimeout(() => {
+    if (!authService.getSession()) {
+      return;
+    }
+
+    if (initialLaunchRoute.view === "hall") {
+      showModeHall(initialLaunchRoute.modeId, "rules");
+      return;
+    }
+
+    launchGame(initialLaunchRoute.modeId);
+  }, 0);
 }
 
 function applyCheckoutReturnFeedback(state: CheckoutReturnState) {
@@ -1092,6 +1165,8 @@ async function handleRegisterSubmit(
     account: payload.account,
     password: payload.password,
     nickname: payload.nickname,
+    email: payload.email,
+    emailCode: payload.emailCode,
   });
 
   if (!result.ok) {
@@ -1102,6 +1177,64 @@ async function handleRegisterSubmit(
   await syncAuthenticatedAccount(true);
   clearBackendAccountState();
   showLobby();
+}
+
+async function handleSendRegisterEmailCode(payload: {
+  email: string;
+}): Promise<{ cooldownSeconds?: number }> {
+  const result = await authService.sendEmailCode({
+    email: payload.email,
+    purpose: "register",
+  });
+
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
+
+  captureClientEvent("auth_register_email_code_sent", {
+    provider: getAuthCapabilitiesView().emailProvider ?? "unknown",
+  });
+  return result.data;
+}
+
+async function handleRequestPasswordReset(payload: {
+  account: string;
+}): Promise<{ challengeId: string; cooldownSeconds?: number }> {
+  const result = await authService.requestPasswordReset({
+    account: payload.account,
+    verifyBy: "email",
+  });
+
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
+
+  captureClientEvent("auth_password_reset_requested", {
+    provider: getAuthCapabilitiesView().emailProvider ?? "unknown",
+  });
+
+  return {
+    challengeId: result.data.challengeId,
+    cooldownSeconds: 60,
+  };
+}
+
+async function handleConfirmPasswordReset(payload: {
+  challengeId: string;
+  verificationCode: string;
+  newPassword: string;
+}): Promise<void> {
+  const result = await authService.confirmPasswordReset({
+    challengeId: payload.challengeId,
+    verificationCode: payload.verificationCode,
+    newPassword: payload.newPassword,
+  });
+
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
+
+  captureClientEvent("auth_password_reset_confirmed");
 }
 
 async function handleClerkSessionToken(token: string) {
@@ -1269,12 +1402,16 @@ const lobbyUI = new LobbyUI({
   onSettingsClosed: closeSettings,
   onLoginSubmit: handleLoginSubmit,
   onRegisterSubmit: handleRegisterSubmit,
+  onSendRegisterEmailCode: handleSendRegisterEmailCode,
+  onRequestPasswordReset: handleRequestPasswordReset,
+  onConfirmPasswordReset: handleConfirmPasswordReset,
   clerkEnabled: clientPlatformConfig.clerk.enabled,
   onClerkLoginStart: () => clerkBridge.openSignIn(),
   onLogoutSubmit: logoutToAnonymousScope,
   onFeatureAction: handleLobbyFeatureAction,
   onRequestDeveloperOverview: loadDeveloperAccountsOverview,
   getAuthStatus: getAuthStatusView,
+  getAuthCapabilities: getAuthCapabilitiesView,
 });
 
 matchmakingUI.mount(overlayMount);
@@ -1310,6 +1447,8 @@ if (authService.getSession()) {
 } else {
   showAuthGate();
 }
+
+applyInitialLaunchRoute();
 
 if (authService.getSession()) {
   void syncAuthenticatedAccount(false)
