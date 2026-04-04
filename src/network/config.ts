@@ -122,8 +122,9 @@ function deriveDefaultsByEnv(
 
   if (env === "production") {
     return {
-      apiBaseUrl: "https://api.bop-game.xyz/api/v1",
-      wsBaseUrl: "wss://ws.bop-game.xyz/ws",
+      apiBaseUrl:
+        sameOriginDefaults?.apiBaseUrl ?? "https://bop-game.pages.dev/api/v1",
+      wsBaseUrl: sameOriginDefaults?.wsBaseUrl ?? "wss://bop-game.pages.dev/ws",
     };
   }
 
@@ -174,17 +175,16 @@ export function loadNetworkConfig(): NetworkConfig {
       reconnectEnabledRaw === "true" ||
       reconnectEnabledRaw === "yes"
     : DEFAULTS.reconnect.enabled;
+  const useSameOriginProductionProxy = env === "production";
 
   return {
     env,
-    apiBaseUrl: sanitizeUrl(
-      import.meta.env.VITE_API_BASE_URL,
-      envDefaults.apiBaseUrl,
-    ),
-    wsBaseUrl: sanitizeUrl(
-      import.meta.env.VITE_WS_BASE_URL,
-      envDefaults.wsBaseUrl,
-    ),
+    apiBaseUrl: useSameOriginProductionProxy
+      ? envDefaults.apiBaseUrl
+      : sanitizeUrl(import.meta.env.VITE_API_BASE_URL, envDefaults.apiBaseUrl),
+    wsBaseUrl: useSameOriginProductionProxy
+      ? envDefaults.wsBaseUrl
+      : sanitizeUrl(import.meta.env.VITE_WS_BASE_URL, envDefaults.wsBaseUrl),
     requestTimeoutMs: sanitizePositiveInt(
       import.meta.env.VITE_REQUEST_TIMEOUT_MS,
       DEFAULTS.requestTimeoutMs,
