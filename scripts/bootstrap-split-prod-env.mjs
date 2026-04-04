@@ -122,10 +122,10 @@ const siteUrl = requireOrigin(
   readArg("--site-url", "https://bop-game.pages.dev"),
   "--site-url",
 );
-const extraSiteOrigin = readArg("--extra-site-origin", "https://bop-game.com").trim();
+const extraSiteOrigin = readArg("--extra-site-origin", "https://bop-game.xyz").trim();
 const extraOrigin = extraSiteOrigin ? requireOrigin(extraSiteOrigin, "--extra-site-origin") : "";
-const apiDomain = normalizeDomain(readArg("--api-domain", "api.bop-game.com"), "--api-domain");
-const wsDomain = normalizeDomain(readArg("--ws-domain", "ws.bop-game.com"), "--ws-domain");
+const apiDomain = normalizeDomain(readArg("--api-domain", "api.bop-game.xyz"), "--api-domain");
+const wsDomain = normalizeDomain(readArg("--ws-domain", "ws.bop-game.xyz"), "--ws-domain");
 const gameWsPath = normalizePathSegment(readArg("--game-ws-path", "/ws"));
 const corsOrigins = uniqueCsv([siteUrl, extraOrigin]);
 const frontendOut = resolveFromRoot(readArg("--frontend-out", ".env.production"));

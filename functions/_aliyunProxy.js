@@ -15,7 +15,9 @@ function isTruthy(value) {
 function isProxyEnabled(env) {
   const raw = String(env?.ALIYUN_PROXY_ENABLED ?? "").trim();
   if (!raw) {
-    return false;
+    // Default to the ECS IP proxy in production Pages/Workers deployments.
+    // An explicit false-ish value can still disable the bridge if needed.
+    return true;
   }
 
   return isTruthy(raw);
