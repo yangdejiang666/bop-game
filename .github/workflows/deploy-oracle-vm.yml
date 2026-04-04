@@ -35,9 +35,6 @@ jobs:
           ORACLE_VM_USER: ${{ secrets.ORACLE_VM_USER }}
           ORACLE_VM_APP_DIR: ${{ vars.ORACLE_VM_APP_DIR || '/opt/bop-game' }}
           DEPLOY_BRANCH: ${{ github.event.inputs.branch }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
-          RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
         run: |
           ssh "${ORACLE_VM_USER}@${ORACLE_VM_HOST}" \
             "set -euo pipefail; \
@@ -46,13 +43,6 @@ jobs:
              git checkout '${DEPLOY_BRANCH}'; \
              git pull --ff-only origin '${DEPLOY_BRANCH}'; \
              cd deploy/oracle-vm; \
-             touch .env; \
-             update_env() { key=\"\$1\"; value=\"\$2\"; if grep -q \"^\${key}=\" .env; then sed -i \"s#^\${key}=.*#\${key}=\${value}#\" .env; else printf '%s=%s\n' \"\$key\" \"\$value\" >> .env; fi; }; \
-             update_env EMAIL_PROVIDER 'resend'; \
-             update_env RESEND_ENABLED 'true'; \
-             update_env RESEND_API_KEY '${RESEND_API_KEY}'; \
-             update_env RESEND_FROM_EMAIL '${RESEND_FROM_EMAIL}'; \
-             update_env RESEND_WEBHOOK_SECRET '${RESEND_WEBHOOK_SECRET}'; \
              bash redeploy.sh"
 
       - name: Smoke split-stack deployment
