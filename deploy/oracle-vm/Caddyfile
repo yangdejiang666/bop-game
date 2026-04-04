@@ -1,13 +1,25 @@
 :80 {
     encode gzip zstd
 
+    @health path /healthz /readyz
+    handle @health {
+        reverse_proxy api-server:8788
+    }
+
+    @api path /api/v1 /api/v1/*
+    handle @api {
+        reverse_proxy api-server:8788
+    }
+
     @ws path /ws /ws/*
     handle @ws {
         reverse_proxy game-server:8899
     }
 
     handle {
-        reverse_proxy api-server:8788
+        root * /srv
+        try_files {path} /index.html
+        file_server
     }
 }
 
