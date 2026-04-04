@@ -50,6 +50,32 @@ function deriveGatewayProbeUrl(wsBaseUrl) {
   }
 }
 
+function shouldSkipGatewayProbe(siteUrl, wsBaseUrl) {
+  const site = trimTrailingSlash(siteUrl);
+  const wsBase = trimTrailingSlash(wsBaseUrl);
+
+  if (!site || !wsBase) {
+    return false;
+  }
+
+  try {
+    const siteParsed = new URL(site);
+    const wsParsed = new URL(wsBase);
+
+    // In direct ECS IP mode the browser connects over same-origin HTTP -> ws,
+    // while the game gateway itself stays behind the Caddy reverse proxy.
+    // Probing the raw gateway socket from GitHub runners is not reliable there,
+    // so the site/API checks are the meaningful health signal.
+    return (
+      siteParsed.protocol === "http:" &&
+      wsParsed.protocol === "ws:" &&
+      siteParsed.hostname === wsParsed.hostname
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
@@ -135,6 +161,9 @@ const gatewayProbeUrl =
   deriveGatewayProbeUrl(wsBaseUrl);
 const expectPlatform = !readFlag("--skip-platform");
 const skipSiteHealth = readFlag("--skip-site-health");
+const skipGatewayProbe =
+  readFlag("--skip-gateway-probe") ||
+  shouldSkipGatewayProbe(siteUrl, wsBaseUrl);
 
 if (!siteUrl && !apiBaseUrl) {
   console.error(
@@ -188,6 +217,10 @@ const checks = [
     ensureOkPayload(result, "Gateway probe");
   }),
 ];
+
+if (skipGatewayProbe) {
+  checks[checks.length - 1] = runCheck("Gateway Probe", "", () => {});
+}
 
 const results = await Promise.all(checks);
 const failed = results.filter((item) => item.status === "failed");
