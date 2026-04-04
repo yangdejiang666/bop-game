@@ -1248,118 +1248,133 @@ export class LobbyUI {
                             </div>
                         </form>
 
-                        <form class="stitch-auth-form" data-auth-form="reset">
-                            <div class="stitch-auth-form-grid">
-                                <label class="stitch-auth-field" data-auth-field="authResetAccount">
-                                    <span class="stitch-auth-field-label">
-                                        ${renderMaterialSymbol("person_search", "stitch-auth-field-symbol")}
-                                        <span>账号</span>
-                                    </span>
-                                    <input
-                                        type="text"
-                                        name="authResetAccount"
-                                        minlength="${AUTH_ACCOUNT_MIN_LENGTH}"
-                                        maxlength="64"
-                                        autocomplete="username"
-                                        placeholder="输入已注册账号"
-                                    />
-                                    <span
-                                        class="stitch-auth-field-popover"
-                                        data-auth-field-popover="authResetAccount"
-                                        aria-live="polite"
-                                    ></span>
-                                </label>
-                                <div class="stitch-auth-verify-block" data-auth-verify-block="reset-email">
-                                    <div class="stitch-auth-verify-row" data-auth-verify-row="reset-email">
-                                        <label class="stitch-auth-field" data-auth-field="authResetCode">
+                        <div class="stitch-auth-reset-dialog" data-auth-reset-dialog>
+                            <button
+                                type="button"
+                                class="stitch-auth-reset-dialog-backdrop"
+                                data-auth-link="back-login"
+                                aria-label="关闭找回密码弹窗"
+                            ></button>
+                            <div class="stitch-auth-reset-dialog-card">
+                                <div class="stitch-auth-reset-dialog-head">
+                                    <div class="stitch-auth-reset-dialog-copy">
+                                        <span class="stitch-auth-reset-dialog-kicker">邮箱找回</span>
+                                        <strong>通过绑定邮箱重置密码</strong>
+                                        <p>输入账号后发送邮箱验证码，验证通过后设置新密码。</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="stitch-auth-reset-dialog-close"
+                                        data-auth-link="back-login"
+                                        aria-label="关闭找回密码"
+                                    >
+                                        ${renderMaterialSymbol("close", "stitch-auth-reset-dialog-close-symbol")}
+                                    </button>
+                                </div>
+
+                                <form class="stitch-auth-form stitch-auth-form--reset-dialog" data-auth-form="reset">
+                                    <div class="stitch-auth-form-grid">
+                                        <label class="stitch-auth-field" data-auth-field="authResetAccount">
                                             <span class="stitch-auth-field-label">
-                                                ${renderMaterialSymbol("mail_lock", "stitch-auth-field-symbol")}
-                                                <span>邮箱验证码</span>
+                                                ${renderMaterialSymbol("person_search", "stitch-auth-field-symbol")}
+                                                <span>账号</span>
                                             </span>
                                             <input
                                                 type="text"
-                                                name="authResetCode"
-                                                inputmode="numeric"
-                                                maxlength="6"
-                                                autocomplete="one-time-code"
-                                                placeholder="输入 6 位验证码"
+                                                name="authResetAccount"
+                                                minlength="${AUTH_ACCOUNT_MIN_LENGTH}"
+                                                maxlength="64"
+                                                autocomplete="username"
+                                                placeholder="输入已注册账号"
                                             />
                                             <span
                                                 class="stitch-auth-field-popover"
-                                                data-auth-field-popover="authResetCode"
+                                                data-auth-field-popover="authResetAccount"
                                                 aria-live="polite"
                                             ></span>
                                         </label>
+                                        <div class="stitch-auth-verify-block" data-auth-verify-block="reset-email">
+                                            <div class="stitch-auth-verify-row" data-auth-verify-row="reset-email">
+                                                <label class="stitch-auth-field" data-auth-field="authResetCode">
+                                                    <span class="stitch-auth-field-label">
+                                                        ${renderMaterialSymbol("mail_lock", "stitch-auth-field-symbol")}
+                                                        <span>邮箱验证码</span>
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        name="authResetCode"
+                                                        inputmode="numeric"
+                                                        maxlength="6"
+                                                        autocomplete="one-time-code"
+                                                        placeholder="输入 6 位验证码"
+                                                    />
+                                                    <span
+                                                        class="stitch-auth-field-popover"
+                                                        data-auth-field-popover="authResetCode"
+                                                        aria-live="polite"
+                                                    ></span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    class="stitch-auth-send-code-btn"
+                                                    data-auth-send-code="reset-email"
+                                                >
+                                                    发送找回验证码
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <label class="stitch-auth-field" data-auth-field="authResetPassword">
+                                            <span class="stitch-auth-field-label">
+                                                ${renderMaterialSymbol("lock_reset", "stitch-auth-field-symbol")}
+                                                <span>新密码</span>
+                                            </span>
+                                            <input
+                                                type="password"
+                                                name="authResetPassword"
+                                                minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                                maxlength="64"
+                                                autocomplete="new-password"
+                                                placeholder="输入新的登录密码"
+                                            />
+                                            <span
+                                                class="stitch-auth-field-popover"
+                                                data-auth-field-popover="authResetPassword"
+                                                aria-live="polite"
+                                            ></span>
+                                        </label>
+                                        <label class="stitch-auth-field" data-auth-field="authResetConfirmPassword">
+                                            <span class="stitch-auth-field-label">
+                                                ${renderMaterialSymbol("task_alt", "stitch-auth-field-symbol")}
+                                                <span>确认新密码</span>
+                                            </span>
+                                            <input
+                                                type="password"
+                                                name="authResetConfirmPassword"
+                                                minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                                maxlength="64"
+                                                autocomplete="new-password"
+                                                placeholder="再次输入新密码"
+                                            />
+                                            <span
+                                                class="stitch-auth-field-popover"
+                                                data-auth-field-popover="authResetConfirmPassword"
+                                                aria-live="polite"
+                                            ></span>
+                                        </label>
+                                    </div>
+                                    <div class="stitch-auth-form-foot">
+                                        <p class="stitch-auth-form-note" data-auth-form-note="reset">输入账号后发送验证码，邮件会发到该账号绑定邮箱。</p>
                                         <button
-                                            type="button"
-                                            class="stitch-auth-send-code-btn"
-                                            data-auth-send-code="reset-email"
+                                            type="submit"
+                                            class="stitch-main-cta stitch-auth-submit-btn"
+                                            data-auth-submit="reset"
                                         >
-                                            发送找回验证码
+                                            重置密码并返回登录
                                         </button>
                                     </div>
-                                </div>
-                                <label class="stitch-auth-field" data-auth-field="authResetPassword">
-                                    <span class="stitch-auth-field-label">
-                                        ${renderMaterialSymbol("lock_reset", "stitch-auth-field-symbol")}
-                                        <span>新密码</span>
-                                    </span>
-                                    <input
-                                        type="password"
-                                        name="authResetPassword"
-                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
-                                        maxlength="64"
-                                        autocomplete="new-password"
-                                        placeholder="输入新的登录密码"
-                                    />
-                                    <span
-                                        class="stitch-auth-field-popover"
-                                        data-auth-field-popover="authResetPassword"
-                                        aria-live="polite"
-                                    ></span>
-                                </label>
-                                <label class="stitch-auth-field" data-auth-field="authResetConfirmPassword">
-                                    <span class="stitch-auth-field-label">
-                                        ${renderMaterialSymbol("task_alt", "stitch-auth-field-symbol")}
-                                        <span>确认新密码</span>
-                                    </span>
-                                    <input
-                                        type="password"
-                                        name="authResetConfirmPassword"
-                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
-                                        maxlength="64"
-                                        autocomplete="new-password"
-                                        placeholder="再次输入新密码"
-                                    />
-                                    <span
-                                        class="stitch-auth-field-popover"
-                                        data-auth-field-popover="authResetConfirmPassword"
-                                        aria-live="polite"
-                                    ></span>
-                                </label>
+                                </form>
                             </div>
-                            <div class="stitch-auth-secondary-link-row">
-                                <span class="stitch-auth-secondary-link-line" aria-hidden="true"></span>
-                                <button
-                                    type="button"
-                                    class="stitch-auth-secondary-link"
-                                    data-auth-link="back-login"
-                                >
-                                    返回登录
-                                </button>
-                                <span class="stitch-auth-secondary-link-line" aria-hidden="true"></span>
-                            </div>
-                            <div class="stitch-auth-form-foot">
-                                <p class="stitch-auth-form-note" data-auth-form-note="reset">输入账号后发送验证码，邮件会发到该账号绑定邮箱。</p>
-                                <button
-                                    type="submit"
-                                    class="stitch-main-cta stitch-auth-submit-btn"
-                                    data-auth-submit="reset"
-                                >
-                                    重置密码并返回登录
-                                </button>
-                            </div>
-                        </form>
+                        </div>
 
                         <div class="stitch-auth-provider-row" data-auth-provider-row>
                             <span class="stitch-auth-provider-note">其他登录方式</span>
@@ -1900,12 +1915,7 @@ export class LobbyUI {
       .forEach((element) => {
         element.addEventListener("click", () => {
           const nextMode = element.dataset.authTab;
-          const mode: AuthMode =
-            nextMode === "register"
-              ? "register"
-              : nextMode === "reset"
-                ? "reset"
-                : "login";
+          const mode: AuthMode = nextMode === "register" ? "register" : "login";
           this.setAuthMode(mode);
         });
       });
@@ -2128,8 +2138,6 @@ export class LobbyUI {
         const confirmPassword = this.root
           .querySelector<HTMLInputElement>('input[name="authRegisterConfirmPassword"]')
           ?.value ?? "";
-        const authCapabilities = this.getAuthCapabilities();
-
         if (account.length < AUTH_ACCOUNT_MIN_LENGTH) {
           this.showAuthValidationError(
             ["authRegisterAccount"],
@@ -2144,36 +2152,19 @@ export class LobbyUI {
           );
           return;
         }
-        if (authCapabilities.emailVerificationEnabled) {
-          if (!this.isValidEmail(email)) {
-            this.showAuthValidationError(
-              ["authRegisterEmail"],
-              "注册已开启邮箱验证，请先填写有效邮箱。",
-            );
-            return;
-          }
-          if (!/^\d{6}$/.test(emailCode)) {
-            this.showAuthValidationError(
-              ["authRegisterEmailCode"],
-              "注册时必须填写 6 位邮箱验证码。",
-            );
-            return;
-          }
-        } else if (email || emailCode) {
-          if (!this.isValidEmail(email)) {
-            this.showAuthValidationError(
-              ["authRegisterEmail"],
-              "邮箱格式不正确，请检查后再发送验证码。",
-            );
-            return;
-          }
-          if (!/^\d{6}$/.test(emailCode)) {
-            this.showAuthValidationError(
-              ["authRegisterEmailCode"],
-              "请输入 6 位邮箱验证码。",
-            );
-            return;
-          }
+        if (!this.isValidEmail(email)) {
+          this.showAuthValidationError(
+            ["authRegisterEmail"],
+            "注册必须填写有效邮箱。",
+          );
+          return;
+        }
+        if (!/^\d{6}$/.test(emailCode)) {
+          this.showAuthValidationError(
+            ["authRegisterEmailCode"],
+            "注册必须填写 6 位邮箱验证码。",
+          );
+          return;
         }
         if (password !== confirmPassword) {
           this.showAuthValidationError(
@@ -2731,14 +2722,13 @@ export class LobbyUI {
     };
     const capabilities = this.getAuthCapabilities();
     const authLocked = this.isAuthGateLocked();
-    const usingRegisterMode = !status.loggedIn && this.authMode === "register";
+    const authBaseMode = this.authMode === "register" ? "register" : "login";
+    const usingRegisterMode = !status.loggedIn && authBaseMode === "register";
     const usingResetMode = !status.loggedIn && this.authMode === "reset";
     const sceneBadge = authLocked
       ? "账号验证"
       : status.loggedIn
         ? "云存档在线"
-        : usingResetMode
-          ? "邮箱找回"
         : usingRegisterMode
           ? "创建账号"
           : "账号登录";
@@ -2746,8 +2736,6 @@ export class LobbyUI {
       ? "完成验证后解锁作战大厅"
       : status.loggedIn
         ? `${status.userLabel} 已接入星港网络`
-        : usingResetMode
-          ? "通过绑定邮箱找回密码"
         : usingRegisterMode
           ? "创建你的球球作战身份"
           : "使用已有账号返回战场";
@@ -2755,8 +2743,6 @@ export class LobbyUI {
       ? "账号是进入大厅、匹配和私人模式的前置条件"
       : status.loggedIn
         ? "当前账号正在托管你的资料、战绩与本地进度"
-        : usingResetMode
-          ? "验证码会发到账号绑定邮箱，验证通过后即可设置新密码"
         : usingRegisterMode
           ? "注册成功后自动登录，并立即接管当前本地档案"
           : "输入账号与密码，继续你的上一段作战记录";
@@ -2764,8 +2750,6 @@ export class LobbyUI {
       ? "先完成账号注册或登录，后面的大厅、匹配、私人模式和开发者链路才会全部点亮。"
       : status.loggedIn
         ? "账号已经在线，接下来可以直接进入模式大厅，也能继续查看当前账号的云端标签。"
-        : usingResetMode
-          ? "输入账号后发送邮箱验证码，收到验证码后设置新密码，再返回登录继续大厅流程。"
         : usingRegisterMode
           ? "建议先注册一个稳定账号，后续昵称、战绩、私人房和功能联调都会挂在这份身份上。"
           : "如果你已经有账号，直接输入账号和密码即可回到上一次的云端作战进度。";
@@ -2773,8 +2757,6 @@ export class LobbyUI {
       ? "先完成账号验证"
       : status.loggedIn
         ? "当前账号已接入"
-        : usingResetMode
-          ? "邮箱验证码找回密码"
         : usingRegisterMode
           ? "注册后立即进入大厅"
           : "账号密码直接进入";
@@ -2782,8 +2764,6 @@ export class LobbyUI {
       ? "登录或注册后即可进入大厅。"
       : status.loggedIn
         ? "当前账号已在线，可直接继续。"
-        : usingResetMode
-          ? "只需账号、邮箱验证码和新密码，不改账号资料。"
         : usingRegisterMode
           ? "只保留必要字段，注册完成后自动登录。"
           : "输入账号和密码，继续当前进度。";
@@ -2791,21 +2771,19 @@ export class LobbyUI {
       ? "完成账号验证后即可进入大厅。"
       : status.loggedIn
         ? "当前账号已接管本地资料。"
-        : usingResetMode
-          ? "忘记密码时可直接用绑定邮箱找回。"
         : usingRegisterMode
           ? "注册成功后会自动登录。"
           : "没有账号时切到注册即可。";
     const registerNoteText = usingRegisterMode
-      ? [
-          capabilities.emailVerificationEnabled
-            ? `邮箱验证已开启，填写邮箱与验证码后完成注册。`
-            : "当前只需账号、密码和确认密码。",
-        ].join(" ")
+      ? capabilities.emailVerificationEnabled
+        ? "注册时必须填写邮箱并完成邮箱验证码验证。"
+        : "注册界面会要求邮箱和验证码；如果云端邮件服务未就绪，发送时会直接报错。"
       : "登录后自动接管当前本地进度。";
     const resetNoteText = this.authResetChallengeId
       ? "验证码已发出，输入邮箱验证码与新密码后即可完成找回。"
-      : "输入账号后发送验证码，邮件会发到该账号绑定邮箱。";
+      : capabilities.emailVerificationEnabled
+        ? "输入账号后发送验证码，邮件会发到该账号绑定邮箱。"
+        : "输入账号后可尝试发送验证码；如果云端邮件服务未就绪，接口会直接返回错误。";
 
     this.root.dataset.authMode = this.authMode;
     this.root.classList.toggle("is-auth-busy", this.authBusy);
@@ -2822,8 +2800,6 @@ export class LobbyUI {
         ? "完成账号验证后才能开始游戏"
         : status.loggedIn
           ? "当前账号"
-          : usingResetMode
-            ? "邮箱找回密码"
           : usingRegisterMode
             ? "创建新账号"
             : "账号登录";
@@ -2862,7 +2838,7 @@ export class LobbyUI {
     this.root
       .querySelectorAll<HTMLElement>("[data-auth-tab]")
       .forEach((element) => {
-        const active = element.dataset.authTab === this.authMode;
+        const active = element.dataset.authTab === authBaseMode;
         element.classList.toggle("is-active", active);
         element.setAttribute("aria-pressed", active ? "true" : "false");
       });
@@ -2887,9 +2863,20 @@ export class LobbyUI {
           return;
         }
         const formMode = (element as HTMLElement).dataset.authForm;
-        const visible = !status.loggedIn && formMode === this.authMode;
+        const visible =
+          !status.loggedIn &&
+          ((formMode === "login" && authBaseMode === "login") ||
+            (formMode === "register" && authBaseMode === "register") ||
+            (formMode === "reset" && usingResetMode));
         (element as HTMLElement).style.display = visible ? "grid" : "none";
       });
+
+    const resetDialog = this.root.querySelector<HTMLElement>("[data-auth-reset-dialog]");
+    if (resetDialog) {
+      const visible = !status.loggedIn && usingResetMode;
+      resetDialog.style.display = visible ? "grid" : "none";
+      resetDialog.setAttribute("aria-hidden", visible ? "false" : "true");
+    }
 
     AUTH_FIELD_NAMES.forEach((fieldName) => {
       const fieldHost = this.root.querySelector<HTMLElement>(
@@ -3028,10 +3015,8 @@ export class LobbyUI {
       .querySelectorAll<HTMLElement>("[data-auth-verify-block]")
       .forEach((element) => {
         const blockType = element.dataset.authVerifyBlock ?? "";
-        const enabled = capabilities.emailVerificationEnabled;
         const visible =
           !status.loggedIn &&
-          enabled &&
           ((blockType === "register-email" && usingRegisterMode) ||
             (blockType === "reset-email" && usingResetMode));
         element.style.display = visible ? "grid" : "none";
@@ -3647,15 +3632,6 @@ export class LobbyUI {
     if (this.authBusy) {
       return;
     }
-
-    const capabilities = this.getAuthCapabilities();
-    if (!capabilities.emailVerificationEnabled) {
-      this.showAuthValidationError(
-        ["authRegisterEmail"],
-        "邮箱验证码服务暂时还没开启。",
-      );
-      return;
-    }
     if (this.authCodeCooldowns.registerEmail > 0) {
       return;
     }
@@ -3723,15 +3699,6 @@ export class LobbyUI {
 
   private async handleSendPasswordResetCode() {
     if (this.authBusy) {
-      return;
-    }
-
-    const capabilities = this.getAuthCapabilities();
-    if (!capabilities.emailVerificationEnabled) {
-      this.showAuthValidationError(
-        ["authResetAccount"],
-        "邮箱找回功能暂时还没开启。",
-      );
       return;
     }
     if (this.authCodeCooldowns.resetEmail > 0) {

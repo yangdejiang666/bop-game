@@ -32,7 +32,6 @@ import {
   type SendSmsCodeResponse,
 } from "@bop/shared-protocol";
 import { asyncHandler } from "../lib/asyncHandler.js";
-import { apiServerConfig } from "../lib/config.js";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -200,9 +199,7 @@ router.post(
       typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const emailCode =
       typeof body.emailCode === "string" ? body.emailCode.trim() : "";
-    const emailVerificationRequired =
-      apiServerConfig.integrations.communications.emailProvider !== "disabled";
-    if (emailVerificationRequired && !email) {
+    if (!email) {
       sendValidationError(
         response,
         request,
@@ -211,7 +208,7 @@ router.post(
       );
       return;
     }
-    if (emailVerificationRequired && !emailCode) {
+    if (!emailCode) {
       sendValidationError(
         response,
         request,
