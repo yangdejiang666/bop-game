@@ -10,13 +10,22 @@ import {
   getSkinOption,
   resolveSkinId,
 } from "../app/skins";
-import type { DeveloperAccountsOverview } from "../../shared-protocol/src/user";
+import type {
+  DeveloperAccountsOverview,
+  UserSummary,
+} from "../../shared-protocol/src/user";
 import type {
   SocialOverview,
   SocialRelationship,
   SocialSearchResult,
 } from "../../shared-protocol/src/social";
-import { lobbyService, type LobbyTask, type LobbyFriend } from "../network/lobbyService";
+import { networkConfig } from "../network/config";
+import {
+  lobbyService,
+  type LobbyTask,
+  type LobbyFriend,
+  type LobbyModeSnapshot,
+} from "../network/lobbyService";
 
 export type LobbyModeId =
   | "ranked"
@@ -128,7 +137,7 @@ interface StitchModeCard {
   tags: string[];
   icon: string;
   theme: "cyan" | "violet" | "gold" | "neutral" | "red" | "amber" | "purple";
-  status: "已开放" | "测试中" | "训练";
+  status: string;
   bgImage: string;
 }
 
@@ -160,14 +169,14 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     subtitle: "向最高荣誉发起冲锋",
     intro: "正式上分入口，节奏稳定，适合盯段位、盯晋级、盯赛季窗口。",
     metrics: [
-      { label: "当前段位", value: "黄金 II" },
-      { label: "预计匹配", value: "7.2 秒" },
-      { label: "赛季", value: "S3" },
+      { label: "当前段位", value: "暂无" },
+      { label: "排位分", value: "暂无" },
+      { label: "当前赛季", value: "未开启" },
     ],
-    tags: ["晋级保护", "单排优先", "连胜修正"],
+    tags: [],
     icon: "trophy",
     theme: "gold",
-    status: "已开放",
+    status: "暂无数据",
     bgImage: "/assets/images/ranked_bg.png"
   },
   {
@@ -178,14 +187,14 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     subtitle: "冷感冲榜，争夺更高席位",
     intro: "榜位压力更强，收益更高，适合盯前百和冲资格窗口的人。",
     metrics: [
-      { label: "当前榜位", value: "#178" },
-      { label: "巅峰分", value: "2164" },
-      { label: "开放时段", value: "20-24点" },
+      { label: "当前榜位", value: "未上榜" },
+      { label: "巅峰分", value: "暂无" },
+      { label: "当前赛季", value: "未开启" },
     ],
-    tags: ["资格已开", "高压冲榜", "复盘优先"],
+    tags: [],
     icon: "military_tech",
     theme: "violet",
-    status: "已开放",
+    status: "暂无数据",
     bgImage: "/assets/images/peak_bg.png"
   },
   {
@@ -196,14 +205,14 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     subtitle: "主球体舞台，轻快又熟悉",
     intro: "最稳的练手区，适合练球感、刷最佳质量、拉一位好友随时开球。",
     metrics: [
-      { label: "今日推荐", value: "海潮遗迹" },
-      { label: "最佳纪录", value: "1324kg" },
-      { label: "预计匹配", value: "6.6 秒" },
+      { label: "最佳纪录", value: "暂无" },
+      { label: "总场次", value: "暂无" },
+      { label: "胜场", value: "暂无" },
     ],
-    tags: ["球感最强", "自由开球", "成长稳定"],
+    tags: [],
     icon: "view_cozy",
     theme: "cyan",
-    status: "已开放",
+    status: "暂无数据",
     bgImage: "/assets/images/classic_bg.png"
   },
   {
@@ -214,14 +223,14 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     subtitle: "缩圈压迫，活到最后",
     intro: "危险圈、终圈运营和风险收益都被拉满，适合硬核求生和残局拉扯。",
     metrics: [
-      { label: "首次缩圈", value: "40 秒" },
-      { label: "圈外伤害", value: "18 / 秒" },
-      { label: "预计匹配", value: "8.4 秒" },
+      { label: "最佳纪录", value: "暂无" },
+      { label: "总场次", value: "暂无" },
+      { label: "胜率", value: "暂无" },
     ],
-    tags: ["危险热区", "终圈决策", "高风险收益"],
+    tags: [],
     icon: "local_fire_department",
     theme: "red",
-    status: "已开放",
+    status: "暂无数据",
     bgImage: "/assets/images/royale_bg.png"
   },
 ];
@@ -252,6 +261,7 @@ export class LobbyUI {
   private tipTimer: number | null = null;
   private tasks: LobbyTask[] = [];
   private friends: LobbyFriend[] = [];
+  private modeSnapshots: Partial<Record<StitchModeCardId, LobbyModeSnapshot>> = {};
   private socialOverview: SocialOverview | null = null;
   private socialSearchResult: SocialSearchResult | null = null;
   private socialBusy = false;
@@ -395,22 +405,55 @@ export class LobbyUI {
       const data = await lobbyService.fetchLobbyData();
       this.tasks = data.tasks;
       this.friends = data.friends;
+      this.modeSnapshots = data.modeSnapshots;
       this.socialOverview = data.overview;
       this.socialError = "";
       this.socialSearchResult = null;
+      if (data.summary) {
+        this.progression = this.toProgression(data.summary);
+        this.applyProgressionToView();
+      }
 
-      const modeStatusEl = this.root.querySelector<HTMLElement>("[data-mode-status]");
-      if (modeStatusEl) modeStatusEl.textContent = data.modeStatus;
+      const modeGridEl = this.root.querySelector<HTMLElement>("[data-mode-grid]");
+      if (modeGridEl) {
+        modeGridEl.innerHTML = this.buildModeCards();
+      }
+      this.applySelectedModeUI();
 
       const taskListEl = this.root.querySelector<HTMLElement>("[data-task-list-root]");
       if (taskListEl) taskListEl.innerHTML = this.buildTaskRows();
+      const taskCounterEl = this.root.querySelector<HTMLElement>("[data-task-counter]");
+      if (taskCounterEl) {
+        taskCounterEl.textContent = this.buildTaskCounterLabel();
+      }
       this.renderFriendsToLobby();
       this.renderSocialCenter();
+      void this.refreshBackendPing();
       this.scheduleTrayBottomAlignment(160);
     } catch (e) {
       console.error("Failed to load lobby data", e);
       this.socialError = e instanceof Error ? e.message : "社交数据读取失败。";
+      this.modeSnapshots = {};
+      this.tasks = [];
+      this.friends = [];
+      this.socialOverview = null;
+      this.socialSearchResult = null;
+      const modeGridEl = this.root.querySelector<HTMLElement>("[data-mode-grid]");
+      if (modeGridEl) {
+        modeGridEl.innerHTML = this.buildModeCards();
+      }
+      this.applySelectedModeUI();
+      const taskListEl = this.root.querySelector<HTMLElement>("[data-task-list-root]");
+      if (taskListEl) {
+        taskListEl.innerHTML = this.buildTaskRows();
+      }
+      const taskCounterEl = this.root.querySelector<HTMLElement>("[data-task-counter]");
+      if (taskCounterEl) {
+        taskCounterEl.textContent = this.buildTaskCounterLabel();
+      }
+      this.renderFriendsToLobby();
       this.renderSocialCenter();
+      void this.refreshBackendPing();
       this.scheduleTrayBottomAlignment(160);
     }
   }
@@ -692,7 +735,7 @@ export class LobbyUI {
                                             </div>
                                             <div class="stitch-badge-info">
                                                 <small>当前战区名分</small>
-                                                <strong>不屈青铜 III</strong>
+                                                <strong data-ranked-tier-label>暂无数据</strong>
                                             </div>
                                         </article>
                                     </div>
@@ -721,9 +764,9 @@ export class LobbyUI {
                                         <strong>模式选择</strong>
                                         <small>选择一个模式，直接进入对应分厅</small>
                                     </div>
-                                    <span class="stitch-mode-status" data-mode-status>已开放</span>
+                                    <span class="stitch-mode-status" data-mode-status>暂无数据</span>
                                 </div>
-                                    <div class="stitch-mode-grid">
+                                    <div class="stitch-mode-grid" data-mode-grid>
                                         ${this.buildModeCards()}
                                     </div>
                                 </section>
@@ -735,23 +778,21 @@ export class LobbyUI {
                                     <span class="stitch-launch-brief-kicker">当前入口 / 准备就绪</span>
                                     <div class="stitch-launch-brief-head">
                                         <strong data-selected-mode-name>排位赛</strong>
-                                        <span class="stitch-launch-brief-status" data-mode-status>已开放</span>
+                                        <span class="stitch-launch-brief-status" data-mode-status>暂无数据</span>
                                     </div>
                                     <p data-selected-mode-subtitle>向最高荣誉发起冲锋</p>
                                     <div class="stitch-launch-brief-stats">
                                         <article class="stitch-launch-brief-stat">
                                             <span>主轴情报</span>
-                                            <strong data-selected-mode-metric-a>黄金 II</strong>
+                                            <strong data-selected-mode-metric-a>暂无</strong>
                                         </article>
                                         <article class="stitch-launch-brief-stat">
                                             <span>排队焦点</span>
-                                            <strong data-selected-mode-metric-b>7.2 秒</strong>
+                                            <strong data-selected-mode-metric-b>暂无</strong>
                                         </article>
                                     </div>
                                     <div class="stitch-launch-brief-tags" data-selected-mode-tags>
-                                        <span class="stitch-launch-brief-tag">晋级保护</span>
-                                        <span class="stitch-launch-brief-tag">单排优先</span>
-                                        <span class="stitch-launch-brief-tag">连胜修正</span>
+                                        <span class="stitch-launch-brief-tag">暂无后端统计</span>
                                     </div>
                                 </section>
                                 <button type="button" class="stitch-launch-btn" data-start-game>
@@ -774,7 +815,7 @@ export class LobbyUI {
                         <div class="stitch-tray-plate"></div>
                         <div class="stitch-hud-server-ping stitch-hud-server-ping--bottom">
                             <span class="ping-dot"></span>
-                            <span class="ping-ms">网络延迟: 18ms | 系统在线</span>
+                            <span class="ping-ms" data-backend-ping>网络延迟: 检测中 | 正在探测后端</span>
                         </div>
                         <nav class="stitch-tray-nav">
                             <button type="button" class="stitch-tray-btn" data-toggle-drawer="tasks" aria-label="任务中心">
@@ -806,7 +847,7 @@ export class LobbyUI {
                                     <span class="stitch-z4-kicker">/ MISSION LOG</span>
                                     <strong>每日签发指令</strong>
                                 </div>
-                                <span class="stitch-z4-counter">2 / 5</span>
+                                <span class="stitch-z4-counter" data-task-counter>暂无任务</span>
                             </div>
                             <div class="stitch-z4-body">
                                 <div class="stitch-task-list" data-task-list-root>
@@ -1343,9 +1384,9 @@ export class LobbyUI {
 
   private buildModeCards(): string {
     return STITCH_MODE_CARDS.map((card) => {
+      const presentation = this.getModeCardPresentation(card);
       const activeClass = card.id === this.selectedCardId ? " is-active" : "";
       const themeClass = ` is-theme-${card.theme}`;
-
 
       return `
                 <article
@@ -1370,7 +1411,7 @@ export class LobbyUI {
                         <p class="stitch-mode-card-subtitle">${card.subtitle}</p>
                         <div class="stitch-mode-card-brief">${card.intro}</div>
                         <div class="stitch-mode-card-metrics">
-                            ${card.metrics
+                            ${presentation.metrics
                               .map(
                                 (metric) => `
                                     <article class="stitch-mode-card-metric">
@@ -1382,12 +1423,16 @@ export class LobbyUI {
                               .join("")}
                         </div>
                         <div class="stitch-mode-card-tags">
-                            ${card.tags
-                              .map(
-                                (tag) =>
-                                  `<span class="stitch-mode-card-tag">${this.escapeHtml(tag)}</span>`,
-                              )
-                              .join("")}
+                            ${
+                              presentation.tags.length > 0
+                                ? presentation.tags
+                                    .map(
+                                      (tag) =>
+                                        `<span class="stitch-mode-card-tag">${this.escapeHtml(tag)}</span>`,
+                                    )
+                                    .join("")
+                                : '<span class="stitch-mode-card-tag">暂无后端统计</span>'
+                            }
                         </div>
                     </div>
 
@@ -1397,6 +1442,17 @@ export class LobbyUI {
   }
 
   private buildTaskRows(): string {
+    if (!this.tasks.length) {
+      return `
+            <article class="stitch-task-row stitch-task-row--empty">
+                <div class="stitch-task-copy">
+                    <strong>暂无后端任务数据</strong>
+                    <span>任务接口接通后，这里只显示真实进度。</span>
+                </div>
+            </article>
+        `;
+    }
+
     return this.tasks.map(
       (task) => {
         const ratio = task.total > 0 ? Math.min(task.progress / task.total, 1) : 0;
@@ -1419,6 +1475,18 @@ export class LobbyUI {
   }
 
   private buildFriendRows(): string {
+    if (!this.friends.length) {
+      return `
+            <article class="stitch-friend-item stitch-friend-item--empty">
+                <strong>暂无好友</strong>
+                <small>后端返回好友后会显示在这里</small>
+            </article>
+            <button type="button" class="stitch-friend-item stitch-friend-add" data-feature="friends" aria-label="邀请好友">
+                ${renderMaterialSymbol("add", "stitch-friend-add-symbol")}
+            </button>
+        `;
+    }
+
     const rows = this.friends.map(
       (friend) => `
             <article class="stitch-friend-item">
@@ -2060,6 +2128,7 @@ export class LobbyUI {
         const confirmPassword = this.root
           .querySelector<HTMLInputElement>('input[name="authRegisterConfirmPassword"]')
           ?.value ?? "";
+        const authCapabilities = this.getAuthCapabilities();
 
         if (account.length < AUTH_ACCOUNT_MIN_LENGTH) {
           this.showAuthValidationError(
@@ -2075,7 +2144,22 @@ export class LobbyUI {
           );
           return;
         }
-        if (email || emailCode) {
+        if (authCapabilities.emailVerificationEnabled) {
+          if (!this.isValidEmail(email)) {
+            this.showAuthValidationError(
+              ["authRegisterEmail"],
+              "注册已开启邮箱验证，请先填写有效邮箱。",
+            );
+            return;
+          }
+          if (!/^\d{6}$/.test(emailCode)) {
+            this.showAuthValidationError(
+              ["authRegisterEmailCode"],
+              "注册时必须填写 6 位邮箱验证码。",
+            );
+            return;
+          }
+        } else if (email || emailCode) {
           if (!this.isValidEmail(email)) {
             this.showAuthValidationError(
               ["authRegisterEmail"],
@@ -2262,20 +2346,32 @@ export class LobbyUI {
       });
 
     this.root
-      .querySelectorAll<HTMLElement>("[data-mode-card-id]")
-      .forEach((card) => {
-        card.addEventListener("click", () => {
+      .querySelector<HTMLElement>("[data-mode-grid]")
+      ?.addEventListener("click", (event) => {
+        const card = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+          "[data-mode-card-id]",
+        );
+        if (!card) {
+          return;
+        }
+        const cardId = card.dataset.modeCardId ?? "";
+        this.selectModeCard(cardId);
+      });
+
+    this.root
+      .querySelector<HTMLElement>("[data-mode-grid]")
+      ?.addEventListener("keydown", (event) => {
+        const card = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+          "[data-mode-card-id]",
+        );
+        if (!card) {
+          return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
           const cardId = card.dataset.modeCardId ?? "";
           this.selectModeCard(cardId);
-        });
-
-        card.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            const cardId = card.dataset.modeCardId ?? "";
-            this.selectModeCard(cardId);
-          }
-        });
+        }
       });
 
     this.root
@@ -2510,6 +2606,7 @@ export class LobbyUI {
 
   private applySelectedModeUI() {
     const selectedCard = this.getSelectedCard();
+    const presentation = this.getModeCardPresentation(selectedCard);
 
     this.root
       .querySelectorAll<HTMLElement>("[data-mode-card-id]")
@@ -2537,17 +2634,17 @@ export class LobbyUI {
     this.root
       .querySelectorAll<HTMLElement>("[data-selected-mode-metric-a]")
       .forEach((el) => {
-        el.textContent = selectedCard.metrics[0]?.value ?? "待同步";
+        el.textContent = presentation.metrics[0]?.value ?? "暂无";
       });
     this.root
       .querySelectorAll<HTMLElement>("[data-selected-mode-metric-b]")
       .forEach((el) => {
-        el.textContent = selectedCard.metrics[1]?.value ?? "待同步";
+        el.textContent = presentation.metrics[1]?.value ?? "暂无";
       });
     this.root
       .querySelectorAll<HTMLElement>("[data-mode-status]")
       .forEach((el) => {
-        el.textContent = selectedCard.status;
+        el.textContent = presentation.status;
       });
     this.root
       .querySelectorAll<HTMLElement>("[data-launch-label]")
@@ -2557,15 +2654,27 @@ export class LobbyUI {
     this.root
       .querySelectorAll<HTMLElement>("[data-launch-code]")
       .forEach((el) => {
-        el.textContent = `// ${selectedCard.name}频道就绪`;
+        el.textContent = `// ${selectedCard.name}${presentation.status === "实时同步" ? "统计已同步" : "等待后端数据"}`;
       });
 
     const launchTags = this.root.querySelector<HTMLElement>("[data-selected-mode-tags]");
     if (launchTags) {
-      launchTags.innerHTML = selectedCard.tags
-        .map((tag) => `<span class="stitch-launch-brief-tag">${this.escapeHtml(tag)}</span>`)
-        .join("");
+      launchTags.innerHTML = presentation.tags.length > 0
+        ? presentation.tags
+            .map((tag) => `<span class="stitch-launch-brief-tag">${this.escapeHtml(tag)}</span>`)
+            .join("")
+        : '<span class="stitch-launch-brief-tag">暂无后端统计</span>';
     }
+
+    const rankedTierLabel =
+      this.modeSnapshots.ranked?.rankLabel ??
+      presentation.rankLabel ??
+      "暂无数据";
+    this.root
+      .querySelectorAll<HTMLElement>("[data-ranked-tier-label]")
+      .forEach((el) => {
+        el.textContent = rankedTierLabel;
+      });
 
     this.root.dataset.modeTheme = selectedCard.theme;
   }
@@ -3451,10 +3560,25 @@ export class LobbyUI {
       if (this.root.classList.contains("is-visible")) {
         this.root.classList.add("is-auth-required");
       }
+      this.modeSnapshots = {};
+      this.tasks = [];
       this.socialOverview = null;
       this.socialSearchResult = null;
       this.socialError = "";
       this.friends = [];
+      const modeGridEl = this.root.querySelector<HTMLElement>("[data-mode-grid]");
+      if (modeGridEl) {
+        modeGridEl.innerHTML = this.buildModeCards();
+      }
+      this.applySelectedModeUI();
+      const taskListEl = this.root.querySelector<HTMLElement>("[data-task-list-root]");
+      if (taskListEl) {
+        taskListEl.innerHTML = this.buildTaskRows();
+      }
+      const taskCounterEl = this.root.querySelector<HTMLElement>("[data-task-counter]");
+      if (taskCounterEl) {
+        taskCounterEl.textContent = this.buildTaskCounterLabel();
+      }
       this.renderFriendsToLobby();
     }
     this.renderSocialCenter();
@@ -4047,6 +4171,38 @@ export class LobbyUI {
     return `${month}-${day} ${hours}:${minutes}`;
   }
 
+  private getModeCardPresentation(card: StitchModeCard) {
+    const snapshot = this.modeSnapshots[card.id];
+    return {
+      metrics: snapshot?.metrics?.length ? snapshot.metrics : card.metrics,
+      tags: snapshot?.tags ?? card.tags,
+      status: snapshot?.status ?? card.status,
+      rankLabel: snapshot?.rankLabel ?? "暂无数据",
+    };
+  }
+
+  private buildTaskCounterLabel() {
+    if (!this.tasks.length) {
+      return "暂无任务";
+    }
+    const finishedCount = this.tasks.filter(
+      (task) => task.progress >= task.total,
+    ).length;
+    return `${finishedCount} / ${this.tasks.length}`;
+  }
+
+  private toProgression(summary: UserSummary): PlayerProgression {
+    return {
+      level: summary.profile.level,
+      currentXp: summary.profile.currentXp,
+      totalXp: summary.profile.totalXp,
+      coins: summary.profile.coins,
+      totalMatches: summary.profile.totalMatches,
+      totalWins: summary.profile.totalWins,
+      bestMass: summary.profile.bestMass,
+    };
+  }
+
   private escapeHtml(value: string) {
     return value
       .replaceAll("&", "&amp;")
@@ -4087,6 +4243,44 @@ export class LobbyUI {
       return `${(value / 1_000_000).toFixed(1)}M`;
     }
     return `${value} kg`;
+  }
+
+  private resolveBackendHealthUrl() {
+    try {
+      const baseUrl = networkConfig.apiBaseUrl.startsWith("http")
+        ? new URL(networkConfig.apiBaseUrl)
+        : new URL(networkConfig.apiBaseUrl, window.location.origin);
+      baseUrl.pathname = "/healthz";
+      baseUrl.search = "";
+      baseUrl.hash = "";
+      return baseUrl.toString();
+    } catch {
+      return `${window.location.origin}/healthz`;
+    }
+  }
+
+  private async refreshBackendPing() {
+    const pingLabel = this.root.querySelector<HTMLElement>("[data-backend-ping]");
+    if (!pingLabel) {
+      return;
+    }
+
+    pingLabel.textContent = "网络延迟: 检测中 | 正在探测后端";
+    const startedAt = performance.now();
+
+    try {
+      const response = await fetch(this.resolveBackendHealthUrl(), {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        pingLabel.textContent = "网络延迟: -- | 后端响应异常";
+        return;
+      }
+      const elapsedMs = Math.max(1, Math.round(performance.now() - startedAt));
+      pingLabel.textContent = `网络延迟: ${elapsedMs}ms | 后端在线`;
+    } catch {
+      pingLabel.textContent = "网络延迟: -- | 后端暂不可达";
+    }
   }
 
   private readFileAsDataUrl(file: File): Promise<string> {

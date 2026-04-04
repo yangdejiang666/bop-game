@@ -9647,6 +9647,14 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
     align-items: center;
 }
 
+.lobby-overlay.lobby-stitch-exact .stitch-task-row--empty {
+    grid-template-columns: 1fr;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px dashed rgba(129, 236, 255, 0.24);
+    background: rgba(8, 18, 36, 0.42);
+}
+
 .lobby-overlay.lobby-stitch-exact .stitch-task-icon {
     width: 32px;
     height: 32px;
@@ -9667,6 +9675,16 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
     display: block;
     font-size: 13px;
     color: #edf6ff;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-row--empty .stitch-task-copy {
+    display: grid;
+    gap: 6px;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-task-row--empty .stitch-task-copy span {
+    color: rgba(178, 199, 230, 0.78);
+    font-size: 12px;
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-task-bar {
@@ -9717,6 +9735,11 @@ html[data-reduced-motion="true"] .lobby-overlay .lobby-status-dot::before {
     gap: 4px;
     justify-items: center;
     min-height: 0;
+}
+
+.lobby-overlay.lobby-stitch-exact .stitch-friend-item--empty {
+    border-style: dashed;
+    background: rgba(8, 18, 36, 0.4);
 }
 
 .lobby-overlay.lobby-stitch-exact .stitch-friend-avatar {

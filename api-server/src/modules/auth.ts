@@ -32,6 +32,7 @@ import {
   type SendSmsCodeResponse,
 } from "@bop/shared-protocol";
 import { asyncHandler } from "../lib/asyncHandler.js";
+import { apiServerConfig } from "../lib/config.js";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -199,6 +200,26 @@ router.post(
       typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const emailCode =
       typeof body.emailCode === "string" ? body.emailCode.trim() : "";
+    const emailVerificationRequired =
+      apiServerConfig.integrations.communications.emailProvider !== "disabled";
+    if (emailVerificationRequired && !email) {
+      sendValidationError(
+        response,
+        request,
+        "email is required for registration.",
+        "email",
+      );
+      return;
+    }
+    if (emailVerificationRequired && !emailCode) {
+      sendValidationError(
+        response,
+        request,
+        "emailCode is required for registration.",
+        "emailCode",
+      );
+      return;
+    }
     if ((email.length > 0 || emailCode.length > 0) && !email) {
       sendValidationError(
         response,

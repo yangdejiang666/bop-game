@@ -29,7 +29,6 @@ import type {
 } from "../../shared-protocol/src/user";
 import type { ProtocolResponse } from "../../shared-protocol/src/errors";
 import { networkConfig } from "./config";
-import { clientPlatformConfig } from "../platform/config";
 
 const DEFAULT_BASE_URL = networkConfig.apiBaseUrl;
 const DEVICE_STORAGE_KEY = "bop:device-id";
@@ -126,51 +125,6 @@ export class AuthService {
 
   async login(payload: LoginRequest): Promise<ProtocolResponse<LoginResponse>> {
     const requestPayload = this.attachDeviceToLoginPayload(payload);
-    if (
-      clientPlatformConfig.enableLocalAuthBypass &&
-      requestPayload.method === "password"
-    ) {
-      const dummySession: AuthSessionState = {
-        accessToken: "mock-token",
-        refreshToken: "mock-refresh",
-        expiresAt: Date.now() + 86_400_000,
-        refreshExpiresAt: Date.now() + 86_400_000,
-        userId: "dev-local-999",
-        gameId: "123456",
-        nickname: "星际穿越测试员",
-        method: "password",
-      };
-
-      this.persistSession(dummySession);
-
-      return {
-        ok: true,
-        data: {
-          tokens: {
-            accessToken: "mock-token",
-            refreshToken: "mock-refresh",
-            expiresIn: 86400,
-            refreshExpiresIn: 86400,
-            tokenType: "Bearer",
-          },
-          user: {
-            userId: "dev-local-999",
-            accountId: "acc-dev",
-            gameId: "123456",
-            nickname: "星际穿越测试员",
-            avatarUrl: "",
-            banned: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          method: "password",
-          isNewUser: false,
-          serverTime: new Date().toISOString(),
-        } as LoginResponse,
-        timestamp: new Date().toISOString(),
-      };
-    }
-
     const response = await this.request<LoginResponse>("/auth/login", {
       method: "POST",
       body: requestPayload,
@@ -354,44 +308,6 @@ export class AuthService {
   }
 
   async getMe(): Promise<ProtocolResponse<GetMeResponse>> {
-    if (
-      clientPlatformConfig.enableLocalAuthBypass &&
-      this.inMemorySession?.userId === "dev-local-999"
-    ) {
-      return {
-        ok: true,
-        data: {
-          summary: {
-            user: {
-              id: "dev-local-999",
-              gameId: "123456",
-              status: "active",
-              lastLoginAt: new Date().toISOString(),
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-            profile: {
-              userId: "dev-local-999",
-              nickname: "星际穿越测试员",
-              level: 99,
-              currentXp: 12000,
-              totalXp: 99999,
-              coins: 8888,
-              totalMatches: 200,
-              totalWins: 180,
-              bestMass: 7777,
-              avatarUrl: null,
-              seasonScore: 10000,
-              updatedAt: new Date().toISOString(),
-            },
-            ban: null as any,
-            identities: [],
-          } as any,
-        },
-        timestamp: new Date().toISOString(),
-      };
-    }
-
     await this.refreshToken();
     return this.request<GetMeResponse>("/user/me", {
       method: "GET",

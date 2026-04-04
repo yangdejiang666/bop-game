@@ -54,7 +54,6 @@ import {
 } from "./ui/ModeHallUI";
 import type { ModeHallTabId } from "./modes/definitions";
 import { authService } from "./network/authService";
-import type { AuthSessionState } from "./network/authService";
 import { lobbyService } from "./network/lobbyService";
 import { MatchmakingService } from "./network/matchmakingService";
 import { progressionService } from "./network/progressionService";
@@ -131,7 +130,6 @@ type LaunchView = "play" | "hall";
 interface InitialLaunchRoute {
   modeId: LobbyModeId;
   view: LaunchView;
-  useMockAuth: boolean;
 }
 
 const appRoot = document.createElement("div");
@@ -149,9 +147,6 @@ document.body.appendChild(appRoot);
 initializeClientTelemetry();
 
 const initialLaunchRoute = readInitialLaunchRoute();
-if (initialLaunchRoute?.useMockAuth && !authService.getSession()) {
-  authService.installDebugSession(buildMockAuthSession());
-}
 
 setActiveStorageScopeForUser(authService.getSession()?.userId ?? null);
 
@@ -250,19 +245,6 @@ function consumeCheckoutReturnState(): CheckoutReturnState {
   return checkout;
 }
 
-function buildMockAuthSession(): AuthSessionState {
-  return {
-    accessToken: "mock-token",
-    refreshToken: "mock-refresh",
-    expiresAt: Date.now() + 86_400_000,
-    refreshExpiresAt: Date.now() + 86_400_000,
-    userId: "debug-user-900001",
-    gameId: "900001",
-    nickname: "调试舰长",
-    method: "password",
-  };
-}
-
 function readInitialLaunchRoute(): InitialLaunchRoute | null {
   const url = new URL(window.location.href);
   const mode = url.searchParams.get("mode");
@@ -272,12 +254,10 @@ function readInitialLaunchRoute(): InitialLaunchRoute | null {
 
   const viewParam = url.searchParams.get("view");
   const view: LaunchView = viewParam === "hall" ? "hall" : "play";
-  const authParam = (url.searchParams.get("auth") ?? "").trim().toLowerCase();
 
   return {
     modeId: mode,
     view,
-    useMockAuth: authParam === "mock",
   };
 }
 
