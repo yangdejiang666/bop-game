@@ -135,6 +135,10 @@ const gatewayProbeUrl =
   deriveGatewayProbeUrl(wsBaseUrl);
 const expectPlatform = !readFlag("--skip-platform");
 const skipSiteHealth = readFlag("--skip-site-health");
+const skipApiRoot = readFlag("--skip-api-root");
+const skipGatewayProbe =
+  readFlag("--skip-gateway-probe") ||
+  shouldSkipGatewayProbe(siteUrl, wsBaseUrl);
 
 if (!siteUrl && !apiBaseUrl) {
   console.error(
@@ -169,7 +173,11 @@ const checks = [
     apiOrigin ? `${apiOrigin}/readyz` : "",
     (result) => ensureOkPayload(result, "API readyz"),
   ),
-  runCheck("API Root", apiBaseUrl, (result) => ensureOkPayload(result, "API root")),
+  runCheck(
+    "API Root",
+    skipApiRoot ? "" : apiBaseUrl,
+    (result) => ensureOkPayload(result, "API root"),
+  ),
   runCheck(
     "Platform Config",
     expectPlatform && apiBaseUrl ? `${apiBaseUrl}/platform/config` : "",

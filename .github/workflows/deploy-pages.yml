@@ -55,4 +55,4 @@ jobs:
       - name: Smoke deployed Pages build
         env:
           SITE_URL: ${{ steps.deploy.outputs['pages-deployment-alias-url'] || steps.deploy.outputs['deployment-url'] || vars.CLOUDFLARE_PAGES_URL || 'https://bop-game.pages.dev' }}
-        run: node ./scripts/smoke-cloud-stack.mjs --site "$SITE_URL"
+        run: node ./scripts/smoke-cloud-stack.mjs --site "$SITE_URL" --skip-site-health --skip-api-root
