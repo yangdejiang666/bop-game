@@ -50,6 +50,28 @@ function deriveGatewayProbeUrl(wsBaseUrl) {
   }
 }
 
+function shouldSkipGatewayProbe(siteUrl, wsBaseUrl) {
+  const site = trimTrailingSlash(siteUrl);
+  const wsBase = trimTrailingSlash(wsBaseUrl);
+
+  if (!site || !wsBase) {
+    return false;
+  }
+
+  try {
+    const siteParsed = new URL(site);
+    const wsParsed = new URL(wsBase);
+
+    return (
+      siteParsed.protocol === "http:" &&
+      wsParsed.protocol === "ws:" &&
+      siteParsed.hostname === wsParsed.hostname
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
