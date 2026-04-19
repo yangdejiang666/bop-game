@@ -5,6 +5,8 @@ import type {
   JoinRoomResponse,
   LeaveRoomRequest,
   LeaveRoomResponse,
+  InviteFriendToRoomRequest,
+  InviteFriendToRoomResponse,
   SetReadyRequest,
   SetReadyResponse,
   GetRoomSnapshotResponse,
@@ -14,164 +16,74 @@ import type {
   SyncRoomMatchRequest,
   SyncRoomMatchResponse,
 } from "../../shared-protocol/src/room";
-import { HttpClient } from "./http";
-import { networkConfig } from "./config";
-import { authService } from "./authService";
+import { BaseService, type BaseServiceDeps } from "./BaseService";
 
-export interface RoomServiceOptions {
-  httpClient?: HttpClient;
-}
+export interface RoomServiceOptions extends BaseServiceDeps {}
 
-export class RoomService {
-  private readonly http: HttpClient;
-
-  constructor(options: RoomServiceOptions = {}) {
-    this.http =
-      options.httpClient ??
-      new HttpClient({
-        baseUrl: networkConfig.apiBaseUrl,
-        prepareAuth: () => authService.refreshToken(),
-        getAccessToken: () => authService.getSession()?.accessToken ?? null,
-      });
-  }
-
+/**
+ * 房间服务 — 管理私人房 CRUD、快照查询、对局同步。
+ *
+ * 继承 BaseService，使用 authPost/authGet/authDelete 快捷方法。
+ * 所有公共 API 返回裸 data，失败时抛 Error。
+ */
+export class RoomService extends BaseService {
   async createRoom(payload: CreateRoomRequest): Promise<CreateRoomResponse> {
-    const response = await this.http.post<
-      CreateRoomResponse,
-      CreateRoomRequest
-    >("/room/create", payload, {
-      withAuth: true,
-    });
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
+    return this.authPost<CreateRoomResponse, CreateRoomRequest>("/room/create", payload);
   }
 
   async joinRoom(payload: JoinRoomRequest): Promise<JoinRoomResponse> {
-    const response = await this.http.post<JoinRoomResponse, JoinRoomRequest>(
-      "/room/join",
+    return this.authPost<JoinRoomResponse, JoinRoomRequest>("/room/join", payload);
+  }
+
+  async inviteFriendToRoom(
+    payload: InviteFriendToRoomRequest,
+  ): Promise<InviteFriendToRoomResponse> {
+    return this.authPost<InviteFriendToRoomResponse, InviteFriendToRoomRequest>(
+      "/room/invite-friend",
       payload,
-      {
-        withAuth: true,
-      },
     );
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
   }
 
   async leaveRoom(payload: LeaveRoomRequest): Promise<LeaveRoomResponse> {
-    const response = await this.http.post<LeaveRoomResponse, LeaveRoomRequest>(
-      "/room/leave",
-      payload,
-      {
-        withAuth: true,
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
+    return this.authPost<LeaveRoomResponse, LeaveRoomRequest>("/room/leave", payload);
   }
 
   async setReady(payload: SetReadyRequest): Promise<SetReadyResponse> {
-    const response = await this.http.post<SetReadyResponse, SetReadyRequest>(
-      "/room/ready",
-      payload,
-      {
-        withAuth: true,
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
+    return this.authPost<SetReadyResponse, SetReadyRequest>("/room/ready", payload);
   }
 
   async getRoomSnapshot(roomId: string): Promise<GetRoomSnapshotResponse> {
     const safeRoomId = roomId.trim();
-    if (!safeRoomId) {
-      throw new Error("roomId is required");
-    }
-
-    const response = await this.http.get<GetRoomSnapshotResponse>(
-      `/room/${encodeURIComponent(safeRoomId)}`,
-      {
-        withAuth: true,
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
+    if (!safeRoomId) throw new Error("roomId is required");
+    return this.authGet<GetRoomSnapshotResponse>(`/room/${encodeURIComponent(safeRoomId)}`);
   }
 
   async queryRoomByInviteCode(
     inviteCode: string,
   ): Promise<QueryRoomByInviteCodeResponse> {
     const safeInviteCode = inviteCode.trim().toUpperCase();
-    if (!safeInviteCode) {
-      throw new Error("inviteCode is required");
-    }
-
-    const response = await this.http.get<QueryRoomByInviteCodeResponse>(
+    if (!safeInviteCode) throw new Error("inviteCode is required");
+    return this.authGet<QueryRoomByInviteCodeResponse>(
       `/room/invite/${encodeURIComponent(safeInviteCode)}`,
-      {
-        withAuth: true,
-      },
     );
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
   }
 
   async startRoomMatch(
     payload: StartRoomMatchRequest,
   ): Promise<StartRoomMatchResponse> {
-    const response = await this.http.post<
-      StartRoomMatchResponse,
-      StartRoomMatchRequest
-    >("/room/start-match", payload, {
-      withAuth: true,
-    });
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
+    return this.authPost<StartRoomMatchResponse, StartRoomMatchRequest>(
+      "/room/start-match",
+      payload,
+    );
   }
 
   async syncRoomMatch(
     payload: SyncRoomMatchRequest,
   ): Promise<SyncRoomMatchResponse> {
-    const response = await this.http.post<
-      SyncRoomMatchResponse,
-      SyncRoomMatchRequest
-    >("/room/session/sync", payload, {
-      withAuth: true,
-    });
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
+    return this.authPost<SyncRoomMatchResponse, SyncRoomMatchRequest>(
+      "/room/session/sync",
+      payload,
+    );
   }
 }
 

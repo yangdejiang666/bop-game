@@ -191,3 +191,17 @@ export interface QueryRoomByInviteCodeRequest {
 export interface QueryRoomByInviteCodeResponse {
     room: RoomSnapshot;
 }
+
+export interface InviteFriendToRoomRequest {
+    roomId: string;
+    targetGameId: string;
+}
+
+export interface InviteFriendToRoomResponse {
+    success: true;
+    roomId: string;
+    inviteCode: string | null;
+    targetGameId: string;
+    targetUserId: string;
+    deliveredAt: string;
+}

@@ -14,11 +14,14 @@ import {
 } from "../modes/definitions";
 import type { LobbyModeId } from "./LobbyUI";
 import {
+  buildCockpitSeats,
   buildHeaderRibbon,
   buildHudMarkup,
   buildModeHallTemplate,
   buildPartyMembers,
   buildQueueTabs,
+  buildRankShowcase,
+  buildRankTiersList,
   buildSidebarList,
   buildSidebarSummary,
   buildStageBriefCards,
@@ -26,6 +29,9 @@ import {
   buildSidebarTabs,
   buildTrayContent,
   buildTrayTabs,
+  escapeHtml,
+  type CockpitSeat,
+  type RankInfo,
 } from "./modeHallRender";
 
 export type RoomAction = "create" | "join" | "leave" | "ready";
@@ -54,6 +60,8 @@ interface ModeHallUIOptions {
     action: RoomAction,
     payload?: string,
   ) => Promise<ModeHallRoomSnapshot | null> | ModeHallRoomSnapshot | null;
+  onInviteFriendToRoom?: (gameId: string) => Promise<string | void> | string | void;
+  onSeatClick?: (seatIndex: number, currentState: "empty" | "self" | "filled") => void;
 }
 
 export interface ModeHallSocialFriend {
@@ -75,6 +83,8 @@ export class ModeHallUI {
   private roomState: RoomState = this.createEmptyRoomState();
   private roomCodeDraft = "";
   private socialFriends: ModeHallSocialFriend[] = [];
+  private cockpitSeats: CockpitSeat[] = this.buildDefaultSeats();
+  private rankInfo: RankInfo = { tierIndex: 0, division: 1, points: 0, stars: 0, totalPoints: 0 };
   private heroState: ModeHallState["heroState"] = "idle";
   private readonly heroCanvas: HTMLCanvasElement;
   private heroStage: HeroStageController | null = null;
@@ -141,9 +151,11 @@ export class ModeHallUI {
     this.activeSidebarTab = "friends";
     this.roomState = this.createEmptyRoomState();
     this.roomCodeDraft = "";
+    this.cockpitSeats = this.buildDefaultSeats();
     const mode = getModeDefinition(modeId);
     this.activeQueueVariantId = mode.hall.queueVariants[0]?.id ?? null;
     this.partyPanelExpanded = mode.hall.party.defaultExpanded;
+    console.log("[ModeHallUI] show() triggered", { modeId, tabId });
     this.root.classList.add("is-visible");
     this.syncBreakpointState();
     this.scheduleViewportFit();
@@ -245,15 +257,30 @@ export class ModeHallUI {
       if (drawerToggle) {
         const drawerName = drawerToggle.dataset.modehallDrawerToggle;
         if (this.root.dataset.activeDrawer === drawerName) {
-            this.root.dataset.activeDrawer = "";
+          this.root.dataset.activeDrawer = "";
         } else {
-            this.root.dataset.activeDrawer = drawerName;
+          this.root.dataset.activeDrawer = drawerName;
+          if (drawerName === "sidebar") this.renderFriendsList();
         }
+        return;
+      }
+      const friendInviteBtn = target.closest<HTMLElement>("[data-friend-invite]");
+      if (friendInviteBtn && friendInviteBtn.dataset.friendInvite) {
+        void this.inviteFriendById(friendInviteBtn.dataset.friendInvite);
         return;
       }
 
       if (target.closest("[data-modehall-backdrop]")) {
         this.root.dataset.activeDrawer = "";
+        return;
+      }
+      if (target.closest("[data-modehall-rank-detail]")) {
+        this.root.dataset.rankDrawer = this.root.dataset.rankDrawer === "open" ? "" : "open";
+        if (this.root.dataset.rankDrawer === "open") this.renderRankTiers();
+        return;
+      }
+      if (target.closest("[data-modehall-rank-backdrop]")) {
+        this.root.dataset.rankDrawer = "";
         return;
       }
 
@@ -289,6 +316,21 @@ export class ModeHallUI {
       }
       if (target.closest("[data-room-copy]")) {
         void this.copyRoomCode();
+        return;
+      }
+      const seatButton = target.closest<HTMLElement>("[data-seat-index]");
+      if (seatButton) {
+        const seatIndex = Number(seatButton.dataset.seatIndex);
+        const seatState = (seatButton.dataset.seatState ?? "empty") as "empty" | "self" | "filled";
+        if (this.options.onSeatClick) {
+          this.options.onSeatClick(seatIndex, seatState);
+        } else if (seatState === "empty") {
+          this.root.dataset.activeDrawer = "sidebar";
+          this.renderFriendsList();
+        } else if (seatState === "filled") {
+          this.clearSeat(seatIndex);
+        }
+        return;
       }
     });
     this.query<HTMLInputElement>("[data-room-code-input]")?.addEventListener("input", (event) => {
@@ -305,6 +347,7 @@ export class ModeHallUI {
   }
 
   private async refreshView(playEntryAnimation: boolean) {
+    console.log("[ModeHallUI] refreshView()", { playEntryAnimation, modeId: this.modeId });
     if (!this.modeId) return;
     const mode = getModeDefinition(this.modeId);
     this.root.dataset.modeTheme = mode.theme;
@@ -320,6 +363,8 @@ export class ModeHallUI {
     this.setText("[data-modehall-title-caption]", mode.hall.identityHud.subtitle);
     this.setHtml("[data-modehall-hud-left]", buildHudMarkup(mode));
     this.renderStage(mode);
+    this.renderRankShowcase();
+    this.renderCockpitSeats();
     this.renderQueueAndCta(mode);
     this.renderSidebar(mode);
     this.renderTray(mode);
@@ -372,12 +417,7 @@ export class ModeHallUI {
     const variant = this.getActiveVariant(mode);
     this.setHtml("[data-modehall-queue-tabs]", buildQueueTabs(mode.hall.queueVariants, this.activeQueueVariantId));
     this.setText("[data-modehall-cta-kicker]", mode.hall.sceneAccent.statusLabel);
-    this.setText("[data-modehall-cta-label]", mode.hall.sceneAccent.ctaLabel);
-    this.setText("[data-modehall-cta-hint]", `${mode.hall.sceneAccent.ctaHint} · ${variant?.label ?? mode.name} · ${this.getVariantEta(mode, variant).toFixed(1)} 秒`);
-    this.setText(
-      "[data-modehall-cta-detail]",
-      `${mode.hall.sceneAccent.ctaDetail} · ${variant?.hint ?? "直接进入队列"}`,
-    );
+    this.setText("[data-modehall-cta-hint]", `${variant?.label ?? mode.name} · 预计 ${this.getVariantEta(mode, variant).toFixed(1)} 秒`);
     const button = this.query<HTMLButtonElement>("[data-modehall-start]");
     if (button) button.textContent = mode.hall.sceneAccent.ctaLabel;
   }
@@ -397,15 +437,15 @@ export class ModeHallUI {
     if (this.activeSidebarTab === "friends") {
       rows = this.socialFriends.length > 0
         ? this.socialFriends.slice(0, 4).map((friend) => ({
-            title: friend.nickname,
-            meta: `UID ${friend.gameId} · ${friend.isOnline ? "在线可邀" : "当前离线"}`,
-            badge: friend.isOnline ? "在线" : "离线",
-          }))
+          title: friend.nickname,
+          meta: `UID ${friend.gameId} · ${friend.isOnline ? "在线可邀" : "当前离线"}`,
+          badge: friend.isOnline ? "在线" : "离线",
+        }))
         : [
-            { title: "泡泡喵", meta: `${mode.name} · 在线等你组队`, badge: "邀请" },
-            { title: "团子队长", meta: this.roomState.created ? `房间 ${this.roomState.code} · 可拉进来` : "空闲中 · 随时开球", badge: "组队" },
-            { title: "旋风仔", meta: mode.social.supportsReplay ? "刚打完上一局 · 可一起复盘" : "当前空闲 · 适合快速开局", badge: mode.social.supportsReplay ? "复盘" : "待命" },
-          ];
+          { title: "泡泡喵", meta: `${mode.name} · 在线等你组队`, badge: "邀请" },
+          { title: "团子队长", meta: this.roomState.created ? `房间 ${this.roomState.code} · 可拉进来` : "空闲中 · 随时开球", badge: "组队" },
+          { title: "旋风仔", meta: mode.social.supportsReplay ? "刚打完上一局 · 可一起复盘" : "当前空闲 · 适合快速开局", badge: mode.social.supportsReplay ? "复盘" : "待命" },
+        ];
     } else if (this.activeSidebarTab === "leaderboard") {
       rows = mode.hall.leaderboardEntries;
     } else {
@@ -418,6 +458,192 @@ export class ModeHallUI {
   private renderTray(mode: ModeDefinition) {
     this.setHtml("[data-modehall-tray-tabs]", buildTrayTabs(mode, this.activeTrayTab));
     this.setHtml("[data-modehall-tray-content]", buildTrayContent(mode, this.activeTrayTab));
+  }
+
+  private renderCockpitSeats() {
+    this.setHtml("[data-modehall-seats]", buildCockpitSeats(this.cockpitSeats));
+    this.updateSeatHint();
+  }
+
+  private buildDefaultSeats(): CockpitSeat[] {
+    const seats: CockpitSeat[] = [];
+    for (let i = 0; i < 5; i++) {
+      const isSelf = i === 2; // center position
+      seats.push({
+        index: i,
+        occupied: isSelf,
+        isSelf,
+        name: isSelf ? (this.settings?.playerName?.trim() || "我") : "",
+        avatarUrl: null,
+        isOnline: isSelf,
+        gameId: "",
+      });
+    }
+    return seats;
+  }
+
+  private clearSeat(seatIndex: number) {
+    if (this.cockpitSeats[seatIndex]?.isSelf) return;
+    this.cockpitSeats[seatIndex] = {
+      index: seatIndex,
+      occupied: false,
+      isSelf: false,
+      name: "",
+      avatarUrl: null,
+      isOnline: false,
+      gameId: "",
+    };
+    this.renderCockpitSeats();
+    this.autoSelectQueueVariant();
+  }
+
+  setSeatOccupant(seatIndex: number, friend: ModeHallSocialFriend | null) {
+    if (seatIndex < 0 || seatIndex >= 5) return;
+    if (this.cockpitSeats[seatIndex]?.isSelf) return;
+    if (friend) {
+      this.cockpitSeats[seatIndex] = {
+        index: seatIndex,
+        occupied: true,
+        isSelf: false,
+        name: friend.nickname,
+        avatarUrl: null,
+        isOnline: friend.isOnline,
+        gameId: friend.gameId,
+      };
+    } else {
+      this.cockpitSeats[seatIndex] = {
+        index: seatIndex,
+        occupied: false,
+        isSelf: false,
+        name: "",
+        avatarUrl: null,
+        isOnline: false,
+        gameId: "",
+      };
+    }
+    this.renderCockpitSeats();
+    this.autoSelectQueueVariant();
+  }
+
+  private getOccupiedSeatCount(): number {
+    return this.cockpitSeats.filter((s) => s.occupied).length;
+  }
+
+  private autoSelectQueueVariant() {
+    if (!this.modeId) return;
+    const mode = getModeDefinition(this.modeId);
+    const count = this.getOccupiedSeatCount();
+    const variants = mode.hall.queueVariants;
+    const match = variants.find((v) => v.teamSize === count)
+      ?? variants.find((v) => v.teamSize !== undefined && v.teamSize >= count)
+      ?? variants[0];
+    if (match) {
+      this.activeQueueVariantId = match.id;
+    }
+    this.renderQueueAndCta(mode);
+  }
+
+  private updateSeatHint() {
+    const count = this.getOccupiedSeatCount();
+    const hint = count <= 1
+      ? "点击 + 邀请好友组队"
+      : count < 5
+        ? `点击头像可移除 · 匹配将根据人数自动分配`
+        : "队伍已满，可以开始游戏";
+    this.setText("[data-modehall-seats-hint]", hint);
+    this.setText("[data-modehall-cta-hint]", `当前队伍 ${count}/5`);
+  }
+
+  private renderFriendsList() {
+    const invitedIds = new Set(this.cockpitSeats.filter((s) => s.occupied && !s.isSelf).map((s) => s.gameId));
+    const online = this.socialFriends.filter((f) => f.isOnline);
+    const offline = this.socialFriends.filter((f) => !f.isOnline);
+    this.setText("[data-modehall-friends-count]", `在线 ${online.length} · 离线 ${offline.length}`);
+
+    let html = "";
+    if (online.length > 0) {
+      html += `<div class="mh-friend-section-label mh-friend-section-label--online">在线</div>`;
+      for (const f of online) {
+        const already = invitedIds.has(f.gameId);
+        html += `
+          <div class="mh-friend-row">
+            <div class="mh-friend-avatar">${escapeHtml(f.nickname.charAt(0))}<div class="mh-friend-dot"></div></div>
+            <div class="mh-friend-info">
+              <div class="mh-friend-name">${escapeHtml(f.nickname)}</div>
+            </div>
+            <button type="button" class="mh-friend-btn ${already ? "mh-friend-btn--done" : "mh-friend-btn--invite"}" ${already ? "" : `data-friend-invite="${escapeHtml(f.gameId)}"`} ${already ? "disabled" : ""}>
+              ${already ? "已邀请" : "邀请"}
+            </button>
+          </div>`;
+      }
+    }
+    if (offline.length > 0) {
+      html += `<div class="mh-friend-section-label mh-friend-section-label--offline">离线</div>`;
+      for (const f of offline) {
+        html += `
+          <div class="mh-friend-row is-offline">
+            <div class="mh-friend-avatar">${escapeHtml(f.nickname.charAt(0))}</div>
+            <div class="mh-friend-info">
+              <div class="mh-friend-name">${escapeHtml(f.nickname)}</div>
+            </div>
+            <span class="mh-friend-btn mh-friend-btn--done">离线</span>
+          </div>`;
+      }
+    }
+    if (online.length === 0 && offline.length === 0) {
+      html = `<div style="padding:40px 0;text-align:center;color:rgba(255,255,255,0.2);font-size:13px;">暂无好友</div>`;
+    }
+    this.setHtml("[data-modehall-friends-list]", html);
+  }
+
+  private async inviteFriendById(gameId: string) {
+    const friend = this.socialFriends.find((f) => f.gameId === gameId);
+    if (!friend) return;
+    const emptySlot = this.cockpitSeats.find((s) => !s.occupied);
+    if (!emptySlot) return;
+
+    const applySeat = () => {
+      emptySlot.occupied = true;
+      emptySlot.name = friend.nickname;
+      emptySlot.isOnline = friend.isOnline;
+      emptySlot.gameId = friend.gameId;
+      this.renderCockpitSeats();
+      this.autoSelectQueueVariant();
+      this.renderFriendsList();
+    };
+
+    try {
+      let result: string | void = undefined;
+      if (this.roomState.created && this.options.onInviteFriendToRoom) {
+        result = await this.options.onInviteFriendToRoom(friend.gameId);
+      }
+      applySeat();
+      if (result) {
+        this.roomState.lastCheck = result;
+        if (this.modeId) {
+          this.renderPartyPanel(getModeDefinition(this.modeId));
+        }
+      }
+    } catch (error) {
+      this.roomState.lastCheck =
+        error instanceof Error ? error.message : "发送好友房间邀请失败。";
+      if (this.modeId) {
+        this.renderPartyPanel(getModeDefinition(this.modeId));
+      }
+    }
+  }
+
+  private renderRankShowcase() {
+    this.setHtml("[data-modehall-rank-zone]", buildRankShowcase(this.rankInfo));
+  }
+
+  private renderRankTiers() {
+    this.setHtml("[data-modehall-rank-tiers]", buildRankTiersList(this.rankInfo));
+  }
+
+  setRankInfo(rank: RankInfo) {
+    this.rankInfo = rank;
+    this.renderRankShowcase();
   }
 
   private renderPartyPanel(mode: ModeDefinition) {
@@ -546,22 +772,26 @@ export class ModeHallUI {
   }
 
   private playEntryAnimation() {
-    const shell = this.query<HTMLElement>(".mode-hall-shell--scene");
-    const blocks = Array.from(this.root.querySelectorAll<HTMLElement>(".mode-hall-hud-left, .mode-hall-stage-shell, .mode-hall-sidebar-right, .mode-hall-party-panel"));
-    if (shell) {
-      const animation = animate(shell, { opacity: [0.58, 1], transform: ["translateY(28px) scale(0.95)", "translateY(0px) scale(1)"] }, { duration: 0.6, easing: [0.34, 1.56, 0.64, 1] });
-      void animation.finished.catch(() => undefined).then(() => {
-        shell.style.removeProperty("transform");
-        shell.style.removeProperty("opacity");
-        this.scheduleViewportFit();
+    const arena = this.query<HTMLElement>(".mh-arena");
+    if (arena) {
+      const anim = animate(arena, { opacity: [0, 1], transform: ["translateY(24px)", "translateY(0)"] }, { duration: 0.5, easing: [0.34, 1.56, 0.64, 1] });
+      void anim.finished.catch(() => undefined).then(() => {
+        arena.style.removeProperty("transform");
+        arena.style.removeProperty("opacity");
       });
     }
-    blocks.forEach((block, index) => {
-      animate(block, { opacity: [0, 1], transform: ["translateY(36px) scale(0.92)", "translateY(0px) scale(1)"] }, { duration: 0.8, delay: index * 0.05, easing: [0.34, 1.56, 0.64, 1] });
+    const seats = Array.from(this.root.querySelectorAll<HTMLElement>(".mh-seat"));
+    seats.forEach((seat, i) => {
+      animate(seat, { opacity: [0, 1], transform: ["translateY(20px) scale(0.9)", "translateY(0) scale(1)"] }, { duration: 0.6, delay: 0.1 + i * 0.06, easing: [0.34, 1.56, 0.64, 1] });
     });
+    const bottom = this.query<HTMLElement>(".mh-bottom");
+    if (bottom) {
+      animate(bottom, { opacity: [0, 1], transform: ["translateY(16px)", "translateY(0)"] }, { duration: 0.5, delay: 0.35, easing: [0.34, 1.56, 0.64, 1] });
+    }
   }
 
   private async ensureHeroStage() {
+    console.log("[ModeHallUI] ensureHeroStage()", { hasStage: !!this.heroStage, isSetupInProgress: !!this.heroStageSetup });
     if (this.heroStage) return;
     if (this.heroStageSetup) {
       await this.heroStageSetup;
@@ -571,8 +801,14 @@ export class ModeHallUI {
     this.root.dataset.heroState = this.heroState;
     this.heroStageSetup = (async () => {
       try {
+        console.log("[ModeHallUI] inside try block of stage setup");
+        console.log("[ModeHallUI] importing ModeHeroStage module");
         const module = await import("./ModeHeroStage");
-        if (!this.root.isConnected) return;
+        console.log("[ModeHallUI] module imported");
+        if (!this.root.isConnected) {
+          console.warn("[ModeHallUI] root not connected, aborting setup");
+          return;
+        }
         const stage = new module.ModeHeroStage(this.heroCanvas);
         stage.setReducedMotion(this.settings.reducedMotion);
         this.heroStage = stage;

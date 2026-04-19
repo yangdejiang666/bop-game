@@ -1,7 +1,12 @@
 import type { GameSettings } from "../app/settings";
+import { getCurrentMinExitTimeSeconds } from "../app/settings";
 import type { DebugMatchFinishOptions } from "./createGameSession";
 import type { LobbyModeId } from "../ui/LobbyUI";
 import type { CompleteMatchProgressionResponse } from "../../shared-protocol/src/progression";
+import {
+  finishPlaytimeTracking,
+  startPlaytimeTracking,
+} from "../app/playtimeTracking";
 import type {
   RoomMatchSnapshot,
   RoomSnapshot,
@@ -71,6 +76,7 @@ export interface OnlineRoomSession {
 
 interface CreateOnlineRoomSessionOptions {
   settings: GameSettings;
+  isDeveloper: boolean;
   modeId: LobbyModeId;
   roomId: string;
   initialRoom: RoomSnapshot;
@@ -134,9 +140,12 @@ export function createOnlineRoomSession(
   let ctx: CanvasRenderingContext2D | null = null;
   let animationFrameId: number | null = null;
   let syncTimerId: number | null = null;
+  const matchStartedAt = Date.now();
   let isRunning = false;
+  let matchFinished = false;
   let connectionState: ConnectionState = "connecting";
   let syncError: string | null = null;
+  let networkLatencyMs: number | null = null;
   let lastRenderAt = performance.now();
   let hasReportedCompletion = false;
   let pointerActive = false;
@@ -147,6 +156,8 @@ export function createOnlineRoomSession(
   let keydownHandler: ((event: KeyboardEvent) => void) | null = null;
   let keyupHandler: ((event: KeyboardEvent) => void) | null = null;
   let resizeHandler: (() => void) | null = null;
+  let visibilityHandler: (() => void) | null = null;
+  let focusHandler: (() => void) | null = null;
 
   function getLocalPlayer() {
     if (!snapshot.localPlayerId) {
@@ -217,7 +228,7 @@ export function createOnlineRoomSession(
       connectionState === "online"
         ? snapshot.phase === "finished"
           ? "对局已结算"
-          : `同步在线 · ${snapshot.players.length} 名玩家`
+          : `同步在线 · ${snapshot.players.length} 名玩家${networkLatencyMs !== null ? ` · 延迟 ${networkLatencyMs}ms` : ""}`
         : connectionState === "error"
           ? syncError || "同步异常"
           : "正在同步房间";
@@ -266,7 +277,7 @@ export function createOnlineRoomSession(
   }
 
   function ensureCanvasSize() {
-    if (!domRefs || !ctx) {
+    if (!domRefs || !ctx || !domRefs.canvas) {
       return;
     }
 
@@ -294,7 +305,7 @@ export function createOnlineRoomSession(
       dx += 1;
     }
 
-    if (pointerActive && domRefs) {
+    if (pointerActive && domRefs && domRefs.canvas) {
       const rect = domRefs.canvas.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
@@ -332,6 +343,7 @@ export function createOnlineRoomSession(
     }
 
     hasReportedCompletion = true;
+    matchFinished = true;
     try {
       await options.onCompleteMatch({
         clientMatchId: nextSnapshot.sessionId,
@@ -355,11 +367,13 @@ export function createOnlineRoomSession(
     updateHud();
 
     try {
+      const startedAt = performance.now();
       const response = await roomService.syncRoomMatch({
         roomId: options.roomId,
         input: getMoveInput(),
         lastKnownVersion: snapshot.version,
       });
+      networkLatencyMs = Math.max(0, Math.round(performance.now() - startedAt));
 
       connectionState = "online";
       syncError = null;
@@ -370,6 +384,7 @@ export function createOnlineRoomSession(
       await reportCompletionOnce(snapshot);
     } catch (error) {
       connectionState = "error";
+      networkLatencyMs = null;
       syncError =
         error instanceof Error ? error.message : "房间同步失败，请稍后重试。";
       updateHud();
@@ -535,10 +550,24 @@ export function createOnlineRoomSession(
     resizeHandler = () => {
       ensureCanvasSize();
     };
+    visibilityHandler = () => {
+      if (!isRunning || document.hidden) {
+        return;
+      }
+      void performSync();
+    };
+    focusHandler = () => {
+      if (!isRunning) {
+        return;
+      }
+      void performSync();
+    };
 
     window.addEventListener("keydown", keydownHandler);
     window.addEventListener("keyup", keyupHandler);
     window.addEventListener("resize", resizeHandler);
+    document.addEventListener("visibilitychange", visibilityHandler);
+    window.addEventListener("focus", focusHandler);
   }
 
   function detachDomEvents() {
@@ -553,6 +582,14 @@ export function createOnlineRoomSession(
     if (resizeHandler) {
       window.removeEventListener("resize", resizeHandler);
       resizeHandler = null;
+    }
+    if (visibilityHandler) {
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      visibilityHandler = null;
+    }
+    if (focusHandler) {
+      window.removeEventListener("focus", focusHandler);
+      focusHandler = null;
     }
   }
 
@@ -630,6 +667,21 @@ export function createOnlineRoomSession(
       .querySelectorAll<HTMLElement>("[data-online-back], [data-online-result-back]")
       .forEach((button) => {
         button.addEventListener("click", () => {
+          // Developers can exit anytime; regular players must satisfy the server-defined playtime gate.
+          if (!options.isDeveloper && !matchFinished) {
+            const minExitTimeSeconds = getCurrentMinExitTimeSeconds();
+            const elapsed = (Date.now() - matchStartedAt) / 1000;
+            const remaining = minExitTimeSeconds - elapsed;
+            if (remaining > 0) {
+              alert(`请至少游玩 ${Math.ceil(remaining)} 秒后再退出`);
+              return;
+            }
+          }
+          void finishPlaytimeTracking({
+            modeId: options.modeId,
+            matchId: snapshot.sessionId,
+            reason: "user_exit",
+          });
           options.onReturnToModeHall();
         });
       });
@@ -673,6 +725,10 @@ export function createOnlineRoomSession(
     connectionState = "connecting";
     syncError = null;
     lastRenderAt = performance.now();
+    void startPlaytimeTracking({
+      modeId: options.modeId,
+      matchId: snapshot.sessionId,
+    });
     animationFrameId = window.requestAnimationFrame(renderFrame);
     syncTimerId = window.setInterval(() => {
       void performSync();
@@ -682,6 +738,11 @@ export function createOnlineRoomSession(
 
   function stop() {
     isRunning = false;
+    void finishPlaytimeTracking({
+      modeId: options.modeId,
+      matchId: snapshot.sessionId,
+      reason: matchFinished ? "completed" : "disconnect",
+    });
     if (animationFrameId !== null) {
       window.cancelAnimationFrame(animationFrameId);
       animationFrameId = null;

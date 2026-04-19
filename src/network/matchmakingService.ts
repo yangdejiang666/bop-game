@@ -6,12 +6,13 @@ import type {
   CancelMatchmakingResponse,
   MatchmakingTicketState,
 } from "../../shared-protocol/src/matchmaking";
+import { HttpClient } from "./http";
+import { networkConfig } from "./config";
+import { authService } from "./authService";
 
 export interface MatchmakingServiceOptions {
-  baseUrl: string;
-  prepareAuth?: () => Promise<unknown> | unknown;
-  getAccessToken: () => string | null;
-  requestTimeoutMs?: number;
+  /** 外部注入的 HttpClient（测试/Mock 场景） */
+  httpClient?: HttpClient;
 }
 
 export class MatchmakingServiceError extends Error {
@@ -33,30 +34,35 @@ export class MatchmakingServiceError extends Error {
   }
 }
 
+/**
+ * 匹配服务 — 管理后端匹配流程（开始/取消/轮询状态/获取活跃票据）。
+ *
+ * 特殊设计说明：
+ * - 不继承 BaseService，因为需要自定义错误类型（MatchmakingServiceError）
+ *   和轮询逻辑，但内部使用 HttpClient 统一通信
+ * - 公共 API 返回裸 data（非 ProtocolResponse），失败时抛 MatchmakingServiceError
+ */
 export class MatchmakingService {
-  private readonly baseUrl: string;
-  private readonly prepareAuth?: () => Promise<unknown> | unknown;
-  private readonly getAccessToken: () => string | null;
-  private readonly requestTimeoutMs: number;
+  private readonly http: HttpClient;
 
-  constructor(options: MatchmakingServiceOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, "");
-    this.prepareAuth = options.prepareAuth;
-    this.getAccessToken = options.getAccessToken;
-    this.requestTimeoutMs = options.requestTimeoutMs ?? 12_000;
+  constructor(options: MatchmakingServiceOptions = {}) {
+    this.http =
+      options.httpClient ??
+      new HttpClient({
+        baseUrl: networkConfig.apiBaseUrl,
+        prepareAuth: () => authService.refreshToken(),
+        getAccessToken: () => authService.getSession()?.accessToken ?? null,
+        timeoutMs: networkConfig.requestTimeoutMs ?? 12_000,
+      });
   }
 
   async start(
     payload: StartMatchmakingRequest,
   ): Promise<StartMatchmakingResponse> {
-    const result = await this.request<StartMatchmakingResponse>(
+    return this.request<StartMatchmakingResponse>(
       "/matchmaking/start",
-      {
-        method: "POST",
-        body: payload,
-      },
+      { method: "POST", body: payload },
     );
-    return result;
   }
 
   async cancel(
@@ -69,17 +75,13 @@ export class MatchmakingService {
       );
     }
 
-    const result = await this.request<CancelMatchmakingResponse>(
+    return this.request<CancelMatchmakingResponse>(
       "/matchmaking/cancel",
       {
         method: "POST",
-        body: {
-          ticketId: ticketId.trim(),
-          reason,
-        } satisfies CancelMatchmakingRequest,
+        body: { ticketId: ticketId.trim(), reason } satisfies CancelMatchmakingRequest,
       },
     );
-    return result;
   }
 
   async getTicketStatus(ticketId: string): Promise<MatchmakingTicketState> {
@@ -90,17 +92,24 @@ export class MatchmakingService {
     const encoded = encodeURIComponent(ticketId.trim());
     return this.request<MatchmakingTicketState>(
       `/matchmaking/status/${encoded}`,
-      {
-        method: "GET",
-      },
+      { method: "GET" },
     );
   }
 
   async getActiveTicket(): Promise<MatchmakingTicketState | null> {
-    const response = await this.request<{
-      ticket: MatchmakingTicketState | null;
-    }>("/matchmaking/active", { method: "GET" });
-    return response.ticket;
+    const response = await this.raw<{ ticket: MatchmakingTicketState | null }>(
+      "/matchmaking/active",
+      { method: "GET" },
+    );
+    if (!response.ok) {
+      throw new MatchmakingServiceError(
+        response.error.message,
+        undefined,
+        response.error.code,
+        response.error.details,
+      );
+    }
+    return response.data!.ticket;
   }
 
   async pollTicketStatus(
@@ -142,127 +151,41 @@ export class MatchmakingService {
     }
   }
 
+  // ─── 私有方法 ────────────────────────────────────────
+
+  /**
+   * 发送请求并解包为裸 data。
+   * 失败时抛出 MatchmakingServiceError（携带协议错误详情）。
+   */
   private async request<T>(
     path: string,
-    init: {
-      method: "GET" | "POST";
-      body?: unknown;
-    },
+    options: { method: "GET" | "POST"; body?: unknown },
   ): Promise<T> {
-    await this.prepareAuth?.();
-    const token = this.getAccessToken();
+    const response = await this.raw<T>(path, options);
 
-    const controller = new AbortController();
-    const timer = window.setTimeout(
-      () => controller.abort(),
-      this.requestTimeoutMs,
-    );
-
-    try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
-        method: init.method,
-        headers: {
-          "content-type": "application/json",
-          ...(token ? { authorization: `Bearer ${token}` } : {}),
-        },
-        body: init.body === undefined ? undefined : JSON.stringify(init.body),
-        signal: controller.signal,
-      });
-
-      const raw = (await safeJson(response)) as ProtocolResponse<T> | unknown;
-
-      if (!response.ok) {
-        const err = extractProtocolFailure(raw);
-        throw new MatchmakingServiceError(
-          err?.message ?? `HTTP ${response.status}`,
-          response.status,
-          err?.code,
-          err?.details,
-        );
-      }
-
-      const success = extractProtocolSuccess<T>(raw);
-      if (!success) {
-        throw new MatchmakingServiceError(
-          "Unexpected API response format",
-          response.status,
-          "INVALID_RESPONSE",
-        );
-      }
-
-      return success;
-    } catch (error) {
-      if (error instanceof MatchmakingServiceError) {
-        throw error;
-      }
-
-      if (error instanceof DOMException && error.name === "AbortError") {
-        throw new MatchmakingServiceError(
-          `Request timeout after ${this.requestTimeoutMs}ms`,
-          408,
-          "REQUEST_TIMEOUT",
-        );
-      }
-
+    if (!response.ok) {
       throw new MatchmakingServiceError(
-        error instanceof Error
-          ? error.message
-          : "Unknown matchmaking request error",
+        response.error.message,
+        undefined,
+        response.error.code,
+        response.error.details,
       );
-    } finally {
-      window.clearTimeout(timer);
     }
-  }
-}
 
-function extractProtocolSuccess<T>(raw: unknown): T | null {
-  if (!raw || typeof raw !== "object") {
-    return null;
+    return response.data!;
   }
 
-  const maybe = raw as { ok?: unknown; data?: unknown };
-  if (maybe.ok !== true) {
-    return null;
-  }
-
-  return maybe.data as T;
-}
-
-function extractProtocolFailure(
-  raw: unknown,
-): { code?: string; message?: string; details?: unknown } | null {
-  if (!raw || typeof raw !== "object") {
-    return null;
-  }
-
-  const maybe = raw as { ok?: unknown; error?: unknown };
-  if (maybe.ok !== false || !maybe.error || typeof maybe.error !== "object") {
-    return null;
-  }
-
-  const error = maybe.error as {
-    code?: unknown;
-    message?: unknown;
-    details?: unknown;
-  };
-
-  return {
-    code: typeof error.code === "string" ? error.code : undefined,
-    message: typeof error.message === "string" ? error.message : undefined,
-    details: error.details,
-  };
-}
-
-async function safeJson(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (!text) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return { ok: false, error: { message: text } };
+  /**
+   * 使用 HttpClient 发送原始请求，返回完整 ProtocolResponse。
+   */
+  private async raw<T>(
+    path: string,
+    options: { method: "GET" | "POST"; body?: unknown },
+  ): Promise<ProtocolResponse<T>> {
+    if (options.method === "POST") {
+      return this.http.post<T>(path, options.body, { withAuth: true });
+    }
+    return this.http.get<T>(path, { withAuth: true });
   }
 }
 

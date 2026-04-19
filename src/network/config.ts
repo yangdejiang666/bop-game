@@ -22,7 +22,7 @@ const DEFAULTS: NetworkConfig = {
   wsBaseUrl: "ws://127.0.0.1:8899/ws",
   requestTimeoutMs: 12_000,
   heartbeatIntervalMs: 10_000,
-  useBackendMatching: false,
+  useBackendMatching: true,
   reconnect: {
     enabled: true,
     maxAttempts: 8,
@@ -172,19 +172,32 @@ export function loadNetworkConfig(): NetworkConfig {
     .toLowerCase();
   const reconnectEnabled = reconnectEnabledRaw
     ? reconnectEnabledRaw === "1" ||
-      reconnectEnabledRaw === "true" ||
-      reconnectEnabledRaw === "yes"
+    reconnectEnabledRaw === "true" ||
+    reconnectEnabledRaw === "yes"
     : DEFAULTS.reconnect.enabled;
-  const useSameOriginProductionProxy = env === "production";
+
+  const useBackendMatching =
+    env === "production"
+      ? true
+      : sanitizeBoolean(
+        import.meta.env.VITE_USE_BACKEND_MATCHING,
+        DEFAULTS.useBackendMatching,
+      );
+
+  const isProduction = env === "production";
+  const apiBaseUrl = sanitizeUrl(
+    import.meta.env.VITE_API_BASE_URL,
+    isProduction ? "https://api.bop-game.xyz/api/v1" : envDefaults.apiBaseUrl,
+  );
+  const wsBaseUrl = sanitizeUrl(
+    import.meta.env.VITE_WS_BASE_URL,
+    isProduction ? "wss://ws.bop-game.xyz/ws" : envDefaults.wsBaseUrl,
+  );
 
   return {
     env,
-    apiBaseUrl: useSameOriginProductionProxy
-      ? envDefaults.apiBaseUrl
-      : sanitizeUrl(import.meta.env.VITE_API_BASE_URL, envDefaults.apiBaseUrl),
-    wsBaseUrl: useSameOriginProductionProxy
-      ? envDefaults.wsBaseUrl
-      : sanitizeUrl(import.meta.env.VITE_WS_BASE_URL, envDefaults.wsBaseUrl),
+    apiBaseUrl,
+    wsBaseUrl,
     requestTimeoutMs: sanitizePositiveInt(
       import.meta.env.VITE_REQUEST_TIMEOUT_MS,
       DEFAULTS.requestTimeoutMs,
@@ -193,10 +206,7 @@ export function loadNetworkConfig(): NetworkConfig {
       import.meta.env.VITE_WS_HEARTBEAT_MS,
       DEFAULTS.heartbeatIntervalMs,
     ),
-    useBackendMatching: sanitizeBoolean(
-      import.meta.env.VITE_USE_BACKEND_MATCHING,
-      DEFAULTS.useBackendMatching,
-    ),
+    useBackendMatching,
     reconnect: {
       enabled: reconnectEnabled,
       maxAttempts: sanitizePositiveInt(

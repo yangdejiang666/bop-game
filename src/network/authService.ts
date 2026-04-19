@@ -23,21 +23,26 @@ import type {
   SendSmsCodeResponse,
 } from "../../shared-protocol/src/auth";
 import type {
+  UserAuthorization,
+  UserPlaytimePolicy,
+} from "../../shared-protocol/src/access";
+import type {
   GetMeResponse,
   UpdateProfileRequest,
   UpdateProfileResponse,
 } from "../../shared-protocol/src/user";
 import type { ProtocolResponse } from "../../shared-protocol/src/errors";
+import { HttpClient } from "./http";
 import { networkConfig } from "./config";
-import { clientPlatformConfig } from "../platform/config";
 
-const DEFAULT_BASE_URL = networkConfig.apiBaseUrl;
 const DEVICE_STORAGE_KEY = "bop:device-id";
 
 export interface AuthServiceConfig {
   baseUrl?: string;
   storageKey?: string;
   requestTimeoutMs?: number;
+  /** 外部注入的 HttpClient（测试/Mock 场景） */
+  httpClient?: HttpClient;
 }
 
 export interface AuthSessionState {
@@ -49,6 +54,8 @@ export interface AuthSessionState {
   gameId: string;
   nickname: string;
   method: LoginMethod;
+  isDeveloper: boolean;
+  playtimePolicy: UserPlaytimePolicy;
 }
 
 export interface AuthHeadersOptions {
@@ -56,17 +63,39 @@ export interface AuthHeadersOptions {
   requestId?: string;
 }
 
+/**
+ * 认证服务 — 管理用户登录态、Token 刷新、注册/登录/登出等认证流程。
+ *
+ * 特殊设计说明：
+ * - 继承自 BaseService 模式但不继承（因为需要返回完整 ProtocolResponse 而非解包后的裸 data）
+ * - 内部使用 HttpClient 统一处理 HTTP 通信（与其他 Service 共享同一套基础设施）
+ * - register/login 等方法需要检查 response.ok 并在成功后持久化 session，
+ *   因此使用 rawPost/rawGet 返回完整 ProtocolResponse
+ * - bindMobile/bindEmail/getMe/updateProfile 等方法需要先刷新 Token 再请求，
+ *   因此内部调用 refreshToken() 后再发带 auth 的请求
+ *
+ * 公共 API 完全不变，所有外部引用无需修改。
+ */
 export class AuthService {
-  private readonly baseUrl: string;
+  private readonly http: HttpClient;
   private readonly storageKey: string;
   private readonly requestTimeoutMs: number;
   private inMemorySession: AuthSessionState | null = null;
 
   constructor(config?: AuthServiceConfig) {
-    this.baseUrl = (config?.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.storageKey = config?.storageKey ?? "bop:auth-session";
     this.requestTimeoutMs = Math.max(1000, config?.requestTimeoutMs ?? 10_000);
     this.inMemorySession = this.loadSessionFromStorage();
+
+    const baseUrl = ((config != null ? config.baseUrl : undefined) ?? networkConfig.apiBaseUrl).replace(/\/+$/, "");
+
+    this.http =
+      config?.httpClient ??
+      new HttpClient({
+        baseUrl,
+        getRequestId: () => `req_${Math.random().toString(36).slice(2, 10)}`,
+        timeoutMs: this.requestTimeoutMs,
+      });
   }
 
   getSession(): AuthSessionState | null {
@@ -86,11 +115,16 @@ export class AuthService {
     } catch {
       // ignore storage errors
     }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("bop:auth-session-changed"));
+    }
   }
 
   installDebugSession(session: AuthSessionState): void {
     this.persistSession(session);
   }
+
+  // ─── 认证核心方法 ──────────────────────────────────────
 
   async register(
     payload: RegisterByPasswordRequest,
@@ -99,12 +133,9 @@ export class AuthService {
       ...payload,
       device: payload.device ?? this.getDeviceInfo(),
     };
-    const response = await this.request<RegisterByPasswordResponse>(
+    const response = await this.http.post<RegisterByPasswordResponse>(
       "/auth/register",
-      {
-        method: "POST",
-        body: requestPayload,
-      },
+      requestPayload,
     );
 
     if (response.ok) {
@@ -118,6 +149,12 @@ export class AuthService {
         gameId: response.data.user.gameId,
         nickname: response.data.user.nickname,
         method: "password",
+        isDeveloper: response.data.user.role === "developer",
+        playtimePolicy: {
+          ...response.data.user.playtimePolicy,
+          activeSessionId: null,
+          lastHeartbeatAt: null,
+        },
       });
     }
 
@@ -126,55 +163,7 @@ export class AuthService {
 
   async login(payload: LoginRequest): Promise<ProtocolResponse<LoginResponse>> {
     const requestPayload = this.attachDeviceToLoginPayload(payload);
-    if (
-      clientPlatformConfig.enableLocalAuthBypass &&
-      requestPayload.method === "password"
-    ) {
-      const dummySession: AuthSessionState = {
-        accessToken: "mock-token",
-        refreshToken: "mock-refresh",
-        expiresAt: Date.now() + 86_400_000,
-        refreshExpiresAt: Date.now() + 86_400_000,
-        userId: "dev-local-999",
-        gameId: "123456",
-        nickname: "星际穿越测试员",
-        method: "password",
-      };
-
-      this.persistSession(dummySession);
-
-      return {
-        ok: true,
-        data: {
-          tokens: {
-            accessToken: "mock-token",
-            refreshToken: "mock-refresh",
-            expiresIn: 86400,
-            refreshExpiresIn: 86400,
-            tokenType: "Bearer",
-          },
-          user: {
-            userId: "dev-local-999",
-            accountId: "acc-dev",
-            gameId: "123456",
-            nickname: "星际穿越测试员",
-            avatarUrl: "",
-            banned: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          method: "password",
-          isNewUser: false,
-          serverTime: new Date().toISOString(),
-        } as LoginResponse,
-        timestamp: new Date().toISOString(),
-      };
-    }
-
-    const response = await this.request<LoginResponse>("/auth/login", {
-      method: "POST",
-      body: requestPayload,
-    });
+    const response = await this.http.post<LoginResponse>("/auth/login", requestPayload);
 
     if (response.ok) {
       this.persistSession({
@@ -187,6 +176,12 @@ export class AuthService {
         gameId: response.data.user.gameId,
         nickname: response.data.user.nickname,
         method: response.data.method,
+        isDeveloper: response.data.user.role === "developer",
+        playtimePolicy: {
+          ...response.data.user.playtimePolicy,
+          activeSessionId: null,
+          lastHeartbeatAt: null,
+        },
       });
     }
 
@@ -240,10 +235,11 @@ export class AuthService {
       },
     };
 
-    const response = await this.request<RefreshTokenResponse>("/auth/refresh", {
-      method: "POST",
-      body: payload,
-    });
+    // refresh 端点不需要 Bearer Token（用 refreshToken 字段即可）
+    const response = await this.http.post<RefreshTokenResponse>(
+      "/auth/refresh",
+      payload,
+    );
 
     if (response.ok) {
       this.persistSession({
@@ -254,6 +250,7 @@ export class AuthService {
         refreshExpiresAt:
           Date.now() + response.data.tokens.refreshExpiresIn * 1000,
         method: session.method,
+        playtimePolicy: session.playtimePolicy,
       });
     } else if (
       response.error.code === "AUTH_REFRESH_TOKEN_INVALID" ||
@@ -285,131 +282,76 @@ export class AuthService {
       refreshToken: session.refreshToken,
     };
 
-    const response = await this.request<LogoutResponse>("/auth/logout", {
-      method: "POST",
-      body: payload,
-      auth: true,
+    // logout 需要 Bearer Token + refreshToken body
+    const response = await this.http.post<LogoutResponse>("/auth/logout", payload, {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
     });
 
     this.clearSession();
     return response;
   }
 
+  // ─── 验证码与密码重置 ─────────────────────────────────
+
   async sendSmsCode(
     payload: SendSmsCodeRequest,
   ): Promise<ProtocolResponse<SendSmsCodeResponse>> {
-    return this.request<SendSmsCodeResponse>("/auth/sms/send", {
-      method: "POST",
-      body: payload,
-    });
+    return this.http.post<SendSmsCodeResponse>("/auth/sms/send", payload);
   }
 
   async sendEmailCode(
     payload: SendEmailCodeRequest,
   ): Promise<ProtocolResponse<SendEmailCodeResponse>> {
-    return this.request<SendEmailCodeResponse>("/auth/email/send", {
-      method: "POST",
-      body: payload,
-    });
+    return this.http.post<SendEmailCodeResponse>("/auth/email/send", payload);
   }
 
   async requestPasswordReset(
     payload: RequestPasswordResetRequest,
   ): Promise<ProtocolResponse<RequestPasswordResetResponse>> {
-    return this.request<RequestPasswordResetResponse>("/auth/password/request-reset", {
-      method: "POST",
-      body: payload,
-    });
+    return this.http.post<RequestPasswordResetResponse>(
+      "/auth/password/request-reset",
+      payload,
+    );
   }
 
   async confirmPasswordReset(
     payload: ConfirmPasswordResetRequest,
   ): Promise<ProtocolResponse<ConfirmPasswordResetResponse>> {
-    return this.request<ConfirmPasswordResetResponse>("/auth/password/confirm-reset", {
-      method: "POST",
-      body: payload,
-    });
+    return this.http.post<ConfirmPasswordResetResponse>(
+      "/auth/password/confirm-reset",
+      payload,
+    );
   }
+
+  // ─── 已登录用户的操作（自动带 Auth + 自动 Refresh）──
 
   async bindMobile(
     payload: BindMobileRequest,
   ): Promise<ProtocolResponse<BindMobileResponse>> {
     await this.refreshToken();
-    return this.request<BindMobileResponse>("/auth/bind/mobile", {
-      method: "POST",
-      body: payload,
-      auth: true,
-    });
+    return this.authRequest<BindMobileResponse>("/auth/bind/mobile", "POST", payload);
   }
 
   async bindEmail(
     payload: BindEmailRequest,
   ): Promise<ProtocolResponse<BindEmailResponse>> {
     await this.refreshToken();
-    return this.request<BindEmailResponse>("/auth/bind/email", {
-      method: "POST",
-      body: payload,
-      auth: true,
-    });
+    return this.authRequest<BindEmailResponse>("/auth/bind/email", "POST", payload);
   }
 
   async getMe(): Promise<ProtocolResponse<GetMeResponse>> {
-    if (
-      clientPlatformConfig.enableLocalAuthBypass &&
-      this.inMemorySession?.userId === "dev-local-999"
-    ) {
-      return {
-        ok: true,
-        data: {
-          summary: {
-            user: {
-              id: "dev-local-999",
-              gameId: "123456",
-              status: "active",
-              lastLoginAt: new Date().toISOString(),
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-            profile: {
-              userId: "dev-local-999",
-              nickname: "星际穿越测试员",
-              level: 99,
-              currentXp: 12000,
-              totalXp: 99999,
-              coins: 8888,
-              totalMatches: 200,
-              totalWins: 180,
-              bestMass: 7777,
-              avatarUrl: null,
-              seasonScore: 10000,
-              updatedAt: new Date().toISOString(),
-            },
-            ban: null as any,
-            identities: [],
-          } as any,
-        },
-        timestamp: new Date().toISOString(),
-      };
-    }
-
     await this.refreshToken();
-    return this.request<GetMeResponse>("/user/me", {
-      method: "GET",
-      auth: true,
-    });
+    return this.authRequest<GetMeResponse>("/user/me", "GET");
   }
 
   async updateProfile(
     payload: UpdateProfileRequest,
   ): Promise<ProtocolResponse<UpdateProfileResponse>> {
     await this.refreshToken();
-    const response = await this.request<UpdateProfileResponse>(
+    const response = await this.authRequest<UpdateProfileResponse>(
       "/user/profile",
-      {
-        method: "PATCH",
-        body: payload,
-        auth: true,
-      },
+      "PATCH",
+      payload,
     );
 
     if (response.ok && this.inMemorySession) {
@@ -439,12 +381,71 @@ export class AuthService {
     });
   }
 
+  updateSessionAuthorization(userId: string, authorization: UserAuthorization): void {
+    const session = this.inMemorySession;
+    if (!session || session.userId !== userId) {
+      return;
+    }
+
+    this.persistSession({
+      ...session,
+      isDeveloper: authorization.role === "developer",
+      playtimePolicy: authorization.playtimePolicy,
+    });
+  }
+
+  // ─── 私有方法 ────────────────────────────────────────
+
+  /**
+   * 带认证头的通用请求方法。
+   * 自动从当前 session 取 Bearer Token，无 session 时返回 UNAUTHORIZED 错误响应。
+   */
+  private async authRequest<T>(
+    path: string,
+    method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
+    body?: unknown,
+  ): Promise<ProtocolResponse<T>> {
+    const session = this.inMemorySession;
+    if (!session) {
+      return {
+        ok: false,
+        error: {
+          code: "UNAUTHORIZED",
+          message: "No auth session.",
+          timestamp: new Date().toISOString(),
+        },
+      };
+    }
+
+    const options: Parameters<HttpClient["post"]>[2] = {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    };
+
+    switch (method) {
+      case "GET":
+        return this.http.get<T>(path, options);
+      case "POST":
+        return this.http.post<T>(path, body, options);
+      case "PATCH":
+        return this.http.patch<T>(path, body, options);
+      case "PUT":
+        return this.http.put<T>(path, body, options);
+      case "DELETE":
+        return this.http.delete<T>(path, options);
+      default:
+        return this.http.post<T>(path, body, options);
+    }
+  }
+
   private persistSession(next: AuthSessionState): void {
     this.inMemorySession = next;
     try {
       window.localStorage.setItem(this.storageKey, JSON.stringify(next));
     } catch {
       // ignore storage errors
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("bop:auth-session-changed"));
     }
   }
 
@@ -523,6 +524,7 @@ export class AuthService {
       const raw = window.localStorage.getItem(this.storageKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as Partial<AuthSessionState>;
+      const playtimePolicy = parsed.playtimePolicy as Partial<UserPlaytimePolicy> | undefined;
       if (
         typeof parsed.accessToken !== "string" ||
         typeof parsed.refreshToken !== "string" ||
@@ -531,7 +533,9 @@ export class AuthService {
         typeof parsed.userId !== "string" ||
         typeof parsed.gameId !== "string" ||
         typeof parsed.nickname !== "string" ||
-        typeof parsed.method !== "string"
+        typeof parsed.method !== "string" ||
+        typeof playtimePolicy !== "object" ||
+        playtimePolicy === null
       ) {
         if (
           typeof parsed.accessToken !== "string" ||
@@ -544,6 +548,8 @@ export class AuthService {
           return null;
         }
       }
+      const safePlaytimePolicy: Partial<UserPlaytimePolicy> = playtimePolicy ?? {};
+
       return {
         accessToken: parsed.accessToken,
         refreshToken: parsed.refreshToken,
@@ -564,72 +570,45 @@ export class AuthService {
           parsed.method === "platform"
             ? parsed.method
             : "password",
+        isDeveloper: parsed.isDeveloper === true,
+        playtimePolicy: {
+          requiredSeconds:
+            typeof safePlaytimePolicy.requiredSeconds === "number"
+              ? safePlaytimePolicy.requiredSeconds
+              : 360,
+          accumulatedSeconds:
+            typeof safePlaytimePolicy.accumulatedSeconds === "number"
+              ? safePlaytimePolicy.accumulatedSeconds
+              : 0,
+          remainingSeconds:
+            typeof safePlaytimePolicy.remainingSeconds === "number"
+              ? safePlaytimePolicy.remainingSeconds
+              : 360,
+          canExitMatch: safePlaytimePolicy.canExitMatch === true,
+          activeSessionId:
+            typeof safePlaytimePolicy.activeSessionId === "string"
+              ? safePlaytimePolicy.activeSessionId
+              : null,
+          lastHeartbeatAt:
+            typeof safePlaytimePolicy.lastHeartbeatAt === "string"
+              ? safePlaytimePolicy.lastHeartbeatAt
+              : null,
+          unlockedFeatureKeys: Array.isArray(safePlaytimePolicy.unlockedFeatureKeys)
+            ? safePlaytimePolicy.unlockedFeatureKeys.filter(
+                (item): item is UserPlaytimePolicy["unlockedFeatureKeys"][number] =>
+                  typeof item === "string",
+              )
+            : [],
+          pendingFeatureKeys: Array.isArray(safePlaytimePolicy.pendingFeatureKeys)
+            ? safePlaytimePolicy.pendingFeatureKeys.filter(
+                (item): item is UserPlaytimePolicy["pendingFeatureKeys"][number] =>
+                  typeof item === "string",
+              )
+            : [],
+        },
       };
     } catch {
       return null;
-    }
-  }
-
-  private async request<T>(
-    path: string,
-    options: {
-      method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
-      body?: unknown;
-      auth?: boolean;
-      requestId?: string;
-    },
-  ): Promise<ProtocolResponse<T>> {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(
-      () => controller.abort(),
-      this.requestTimeoutMs,
-    );
-
-    try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "x-request-id":
-          options.requestId ?? `req_${Math.random().toString(36).slice(2, 10)}`,
-      };
-
-      if (options.auth) {
-        const session = this.inMemorySession;
-        if (!session) {
-          return {
-            ok: false,
-            error: {
-              code: "UNAUTHORIZED",
-              message: "No auth session.",
-              timestamp: new Date().toISOString(),
-            },
-          };
-        }
-        headers.Authorization = `Bearer ${session.accessToken}`;
-      }
-
-      const response = await fetch(`${this.baseUrl}${path}`, {
-        method: options.method,
-        headers,
-        body:
-          options.body === undefined ? undefined : JSON.stringify(options.body),
-        signal: controller.signal,
-      });
-
-      const json = (await response.json()) as ProtocolResponse<T>;
-      return json;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Network request failed.";
-      return {
-        ok: false,
-        error: {
-          code: "SERVICE_UNAVAILABLE",
-          message,
-          timestamp: new Date().toISOString(),
-        },
-      };
-    } finally {
-      window.clearTimeout(timeout);
     }
   }
 }

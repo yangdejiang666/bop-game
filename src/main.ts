@@ -52,15 +52,14 @@ import {
   type ModeHallSocialFriend,
   type RoomAction,
 } from "./ui/ModeHallUI";
-import type { ModeHallTabId } from "./modes/definitions";
 import { authService } from "./network/authService";
-import type { AuthSessionState } from "./network/authService";
 import { lobbyService } from "./network/lobbyService";
 import { MatchmakingService } from "./network/matchmakingService";
 import { progressionService } from "./network/progressionService";
 import { roomService } from "./network/roomService";
 import { userService } from "./network/userService";
 import { networkConfig } from "./network/config";
+import { HttpProtocolError } from "./network/http";
 import { platformService } from "./network/platformService";
 import { clerkBridge } from "./platform/clerk";
 import { clientPlatformConfig } from "./platform/config";
@@ -71,11 +70,11 @@ import {
   identifyClientUser,
   initializeClientTelemetry,
 } from "./platform/telemetry";
+import type { ModeHallTabId, ModeHallRoomSnapshot } from "./modes/definitions";
 import type {
   RoomMatchSnapshot,
   RoomSnapshot,
 } from "../shared-protocol/src/room";
-import type { ModeHallRoomSnapshot } from "./modes/definitions";
 import type {
   DeveloperAccountsOverview,
   UserSummary,
@@ -131,7 +130,6 @@ type LaunchView = "play" | "hall";
 interface InitialLaunchRoute {
   modeId: LobbyModeId;
   view: LaunchView;
-  useMockAuth: boolean;
 }
 
 const appRoot = document.createElement("div");
@@ -149,9 +147,6 @@ document.body.appendChild(appRoot);
 initializeClientTelemetry();
 
 const initialLaunchRoute = readInitialLaunchRoute();
-if (initialLaunchRoute?.useMockAuth && !authService.getSession()) {
-  authService.installDebugSession(buildMockAuthSession());
-}
 
 setActiveStorageScopeForUser(authService.getSession()?.userId ?? null);
 
@@ -165,22 +160,21 @@ let activeModeHall: LobbyModeId | null = null;
 let activeModeHallTab: ModeHallTabId = "rules";
 let backendTicketId: string | null = null;
 let backendPollTimerId: number | null = null;
+let pendingOnlineMatchRoomId: string | null = null;
 let activeBackendRoomId: string | null = null;
 let activeBackendRoomInviteCode: string | null = null;
 let lastKnownBackendRoomId: string | null = null;
 let lastKnownBackendRoomInviteCode: string | null = null;
+let onlineMatchEntryRoomId: string | null = null;
+let onlineMatchEntryPromise: Promise<boolean> | null = null;
 let profileSyncTimerId: number | null = null;
 let roomSnapshotPollTimerId: number | null = null;
 let socialPollTimerId: number | null = null;
 let suppressRemoteProfileSync = false;
 let runtimePlatformConfig: PlatformConfigResponse | null = null;
+let currentUserSummary: UserSummary | null = null;
 const SOCIAL_POLL_INTERVAL_MS = 20_000;
-const backendMatchmaking = new MatchmakingService({
-  baseUrl: networkConfig.apiBaseUrl,
-  prepareAuth: () => authService.refreshToken(),
-  getAccessToken: () => authService.getSession()?.accessToken ?? null,
-  requestTimeoutMs: networkConfig.requestTimeoutMs,
-});
+const backendMatchmaking = new MatchmakingService({});
 
 function getAnonymousStorageScope() {
   return getStorageScopeForUser(null);
@@ -236,7 +230,7 @@ function consumeCheckoutReturnState(): CheckoutReturnState {
   const url = new URL(window.location.href);
   const checkout =
     url.searchParams.get("checkout") === "success" ||
-    url.searchParams.get("checkout") === "cancelled"
+      url.searchParams.get("checkout") === "cancelled"
       ? (url.searchParams.get("checkout") as Exclude<CheckoutReturnState, null>)
       : null;
 
@@ -250,19 +244,6 @@ function consumeCheckoutReturnState(): CheckoutReturnState {
   return checkout;
 }
 
-function buildMockAuthSession(): AuthSessionState {
-  return {
-    accessToken: "mock-token",
-    refreshToken: "mock-refresh",
-    expiresAt: Date.now() + 86_400_000,
-    refreshExpiresAt: Date.now() + 86_400_000,
-    userId: "debug-user-900001",
-    gameId: "900001",
-    nickname: "调试舰长",
-    method: "password",
-  };
-}
-
 function readInitialLaunchRoute(): InitialLaunchRoute | null {
   const url = new URL(window.location.href);
   const mode = url.searchParams.get("mode");
@@ -272,12 +253,10 @@ function readInitialLaunchRoute(): InitialLaunchRoute | null {
 
   const viewParam = url.searchParams.get("view");
   const view: LaunchView = viewParam === "hall" ? "hall" : "play";
-  const authParam = (url.searchParams.get("auth") ?? "").trim().toLowerCase();
 
   return {
     modeId: mode,
     view,
-    useMockAuth: authParam === "mock",
   };
 }
 
@@ -326,6 +305,7 @@ function getAuthStatusView(): LobbyAuthStatus {
     loggedIn: !!session,
     userLabel: session?.nickname ?? "游客",
     accountLabel: session?.gameId ? `UID · ${session.gameId}` : "本地试玩档",
+    gameId: session?.gameId ?? "",
   };
 }
 
@@ -362,6 +342,7 @@ function applyUserSummaryToLocalState(
     updateRuntimeSettings?: boolean;
   },
 ) {
+  currentUserSummary = summary;
   identifyClientUser({
     userId: summary.user.id,
     gameId: summary.user.gameId,
@@ -379,6 +360,7 @@ function applyUserSummaryToLocalState(
   savePlayerProgression(toProfileProgression(summary), userScope);
   saveBestMassRecord(summary.profile.bestMass, userScope);
   authService.updateSessionProfile(summary.user.id, summary.profile.nickname);
+  authService.updateSessionAuthorization(summary.user.id, summary.authorization);
 
   if (options?.updateRuntimeSettings !== false) {
     setActiveStorageScopeForUser(summary.user.id);
@@ -401,7 +383,7 @@ function buildAnonymousBootstrapPayload() {
     source: "local_storage" as const,
     nickname:
       anonymousSettings.playerName.trim().length > 0 &&
-      anonymousSettings.playerName.trim() !== DEFAULT_GAME_SETTINGS.playerName
+        anonymousSettings.playerName.trim() !== DEFAULT_GAME_SETTINGS.playerName
         ? anonymousSettings.playerName.trim()
         : undefined,
     avatarUrl:
@@ -432,6 +414,15 @@ async function syncAuthenticatedAccount(runBootstrap: boolean) {
   }
 
   applyUserSummaryToLocalState(summary);
+  if (summary.ban.isBanned) {
+    const reason = summary.ban.reason?.trim() || "违规行为";
+    const until = summary.ban.until
+      ? new Date(summary.ban.until).toLocaleString("zh-CN", { hour12: false })
+      : "永久封禁";
+    lobbyUI.notify(
+      `账号已封禁：${reason}（至 ${until}）。请在游戏内邮件中心查看通知并提交申诉。`,
+    );
+  }
 }
 
 async function loadDeveloperAccountsOverview(): Promise<DeveloperAccountsOverview | null> {
@@ -510,6 +501,7 @@ function beginSocialPolling() {
 }
 
 function applyAnonymousScopeState() {
+  currentUserSummary = null;
   clearClientUser();
   setActiveStorageScopeForUser(null);
   suppressRemoteProfileSync = true;
@@ -521,14 +513,19 @@ function applyAnonymousScopeState() {
   void lobbyUI.refreshDeveloperOverview(true);
 }
 
-function clearBackendAccountState() {
+function resetBackendMatchmakingState() {
   backendTicketId = null;
+  pendingOnlineMatchRoomId = null;
+  stopBackendMatchmakingPolling();
+}
+
+function clearBackendAccountState() {
+  resetBackendMatchmakingState();
   activeBackendRoomId = null;
   activeBackendRoomInviteCode = null;
   lastKnownBackendRoomId = null;
   lastKnownBackendRoomInviteCode = null;
   stopRoomSnapshotPolling();
-  stopBackendMatchmakingPolling();
   clearModeHallRoomSnapshot("私人模式链路待连接。");
 }
 
@@ -676,6 +673,7 @@ function requireAuthenticatedSession() {
     return true;
   }
 
+  console.warn("[main] authentication required but session missing, showing auth gate");
   showAuthGate();
   return false;
 }
@@ -718,6 +716,7 @@ function isModeHallTabId(value: string): value is ModeHallTabId {
 }
 
 function showModeHall(modeId: LobbyModeId, tabId: ModeHallTabId = "rules") {
+  console.log("[main] showModeHall requested:", { modeId, tabId });
   if (!requireAuthenticatedSession()) {
     return;
   }
@@ -726,6 +725,7 @@ function showModeHall(modeId: LobbyModeId, tabId: ModeHallTabId = "rules") {
   pendingModeForMatch = modeId;
   activeModeHall = modeId;
   activeModeHallTab = tabId;
+  console.log("[main] hiding matchmaking and lobby, calling modeHallUI.show");
   matchmakingUI.hide(true);
   lobbyUI.hideAll();
   modeHallUI.show(modeId, tabId);
@@ -786,6 +786,7 @@ function launchGame(modeId: LobbyModeId = "classic") {
 
   currentSession = createGameSession({
     settings,
+    isDeveloper: authService.getSession()?.isDeveloper ?? false,
     modeId,
     onReturnToLobby: showLobby,
     onOpenSettings: () => openSettings(true),
@@ -874,7 +875,7 @@ async function maybeEnterOnlineRoomFromSnapshot(room: RoomSnapshot) {
       roomId: room.roomId,
       input: { moveX: 0, moveY: 0 },
     });
-    launchOnlineRoomSession(result.room, result.session);
+    launchOnlineRoomSession(result.room, result.session, "room");
     return true;
   } catch {
     return false;
@@ -908,6 +909,7 @@ function beginRoomSnapshotPolling() {
 function launchOnlineRoomSession(
   room: RoomSnapshot,
   session: RoomMatchSnapshot,
+  source: "room" | "matchmaking" = "room",
 ) {
   if (!requireAuthenticatedSession()) {
     return;
@@ -922,12 +924,17 @@ function launchOnlineRoomSession(
 
   currentSession = createOnlineRoomSession({
     settings,
+    isDeveloper: authService.getSession()?.isDeveloper ?? false,
     modeId: (room.modeId as LobbyModeId) ?? "classic",
     roomId: room.roomId,
     initialRoom: room,
     initialSession: session,
     onReturnToModeHall: () => {
       showModeHall((room.modeId as LobbyModeId) ?? "classic", activeModeHallTab);
+      if (source === "matchmaking") {
+        clearModeHallRoomSnapshot("在线对局已结束，可继续匹配。");
+        return;
+      }
       syncModeHallRoomSnapshot(
         room,
         session.phase === "finished" ? "在线对局已结束，可继续准备下一局。" : "已返回私人房间。",
@@ -936,15 +943,28 @@ function launchOnlineRoomSession(
     },
     onOpenSettings: () => openSettings(true),
     onRoomSnapshot: (nextRoom) => {
-      syncModeHallRoomSnapshot(nextRoom);
+      if (source === "room") {
+        syncModeHallRoomSnapshot(nextRoom);
+      }
     },
     onCompleteMatch: authService.getSession()
       ? (payload) => handleCloudMatchCompletion(payload)
       : undefined,
   });
 
-  currentSession.mount(gameMount);
-  currentSession.startNewGame();
+  try {
+    currentSession.mount(gameMount);
+    currentSession.startNewGame();
+  } catch (error) {
+    // Canvas 初始化或游戏启动失败，清理并返回分厅
+    console.error("Failed to start online room session:", error);
+    currentSession?.destroy();
+    currentSession = null;
+    lobbyUI.notify("游戏启动失败，请刷新页面重试。");
+    showModeHall((room.modeId as LobbyModeId) ?? "classic", activeModeHallTab);
+    return;
+  }
+
   phase = "playing";
   lobbyUI.hideAll();
   applyReducedMotionState();
@@ -1057,6 +1077,22 @@ async function handleModeHallRoomAction(
   return null;
 }
 
+async function handleModeHallInviteFriend(gameId: string): Promise<string> {
+  const session = authService.getSession();
+  if (!session) {
+    throw new Error("请先登录后再邀请好友。");
+  }
+  if (!activeBackendRoomId) {
+    throw new Error("请先创建或加入房间后再邀请好友。");
+  }
+
+  const result = await roomService.inviteFriendToRoom({
+    roomId: activeBackendRoomId,
+    targetGameId: gameId,
+  });
+  return `已向 UID ${result.targetGameId} 发送房间邀请邮件。`;
+}
+
 function mapLobbyModeToQueueMode(modeId: LobbyModeId) {
   return modeId;
 }
@@ -1086,6 +1122,201 @@ function stopBackendMatchmakingPolling() {
   }
 }
 
+function getProtocolErrorCode(error: unknown): string | null {
+  if (error instanceof HttpProtocolError) {
+    return error.payload?.error?.code ?? null;
+  }
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    return (error as { code: string }).code;
+  }
+
+  return null;
+}
+
+function isRetryableOnlineMatchEntryError(error: unknown): boolean {
+  const code = getProtocolErrorCode(error);
+  // 协议层面的房间未就绪，可以重试
+  if (
+    code === "ROOM_NOT_FOUND" ||
+    code === "ROOM_INVALID_STATE" ||
+    code === "ROOM_NOT_MEMBER"
+  ) {
+    return true;
+  }
+  // 网络层面的错误（超时、断网、DNS失败）也可以重试
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (
+      msg.includes("timeout") ||
+      msg.includes("fetch") ||
+      msg.includes("network") ||
+      msg.includes("abort") ||
+      msg.includes("failed to fetch") ||
+      msg.includes("cors")
+    ) {
+      return true;
+    }
+  }
+  // HttpProtocolError 且 status 为 0（网络层失败）也重试
+  if (
+    error &&
+    typeof error === "object" &&
+    "status" in error &&
+    (error as { status: number }).status === 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function syncOnlineMatchRoomWithRetry(
+  roomId: string,
+  options: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    onStatus?: (status: "entering" | "syncing" | "ready") => void;
+  } = {},
+) {
+  const timeoutMs = options.timeoutMs ?? 20_000;
+  const intervalMs = options.intervalMs ?? 800;
+  const startedAt = Date.now();
+  let lastError: unknown = null;
+  let attempt = 0;
+
+  options.onStatus?.("entering");
+
+  while (Date.now() - startedAt < timeoutMs) {
+    attempt++;
+    try {
+      options.onStatus?.("syncing");
+      const result = await roomService.syncRoomMatch({
+        roomId,
+        input: { moveX: 0, moveY: 0 },
+      });
+      options.onStatus?.("ready");
+      return result;
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableOnlineMatchEntryError(error)) {
+        throw error;
+      }
+      // 前5次快速重试，之后慢一点
+      const delay = attempt <= 5 ? intervalMs : Math.min(intervalMs * 2, 2000);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error("在线房间尚未就绪，请稍后重试。");
+}
+
+async function waitForMatchedRoomId(
+  ticketId: string,
+  timeoutMs = 25_000,
+): Promise<string | null> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const state = await backendMatchmaking.getTicketStatus(ticketId);
+      const matchedRoomId = state.matchFound?.roomId?.trim() ?? "";
+      if (state.stage === "matched" && matchedRoomId) {
+        pendingOnlineMatchRoomId = matchedRoomId;
+        return matchedRoomId;
+      }
+      if (state.stage === "cancelled" || state.stage === "failed") {
+        return null;
+      }
+    } catch {
+      // retry until timeout
+    }
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 600));
+  }
+  return null;
+}
+
+async function tryEnterOnlineMatchFromBackendTicket(): Promise<boolean> {
+  if (!networkConfig.useBackendMatching || !backendTicketId) {
+    return false;
+  }
+
+  const state = await backendMatchmaking.getTicketStatus(backendTicketId);
+  const matchedRoomId = state.matchFound?.roomId?.trim();
+  if (state.stage !== "matched" || !matchedRoomId) {
+    return false;
+  }
+
+  pendingOnlineMatchRoomId = matchedRoomId;
+  return tryEnterOnlineMatchFromRoomId(matchedRoomId);
+}
+
+async function tryEnterOnlineMatchFromRoomId(
+  roomId: string,
+): Promise<boolean> {
+  const normalizedRoomId = roomId.trim();
+  if (!normalizedRoomId) {
+    return false;
+  }
+  if (currentSession) {
+    return true;
+  }
+  if (
+    onlineMatchEntryPromise &&
+    onlineMatchEntryRoomId === normalizedRoomId
+  ) {
+    return onlineMatchEntryPromise;
+  }
+
+  const entryPromise = (async () => {
+    // 进房过程中更新UI状态
+    const sync = await syncOnlineMatchRoomWithRetry(normalizedRoomId, {
+      onStatus: (status) => {
+        if (status === "entering") {
+          matchmakingUI.setEntryStatus?.("正在建立连接...");
+        } else if (status === "syncing") {
+          matchmakingUI.setEntryStatus?.("正在同步战场数据...");
+        }
+      },
+    });
+
+    backendTicketId = null;
+    pendingOnlineMatchRoomId = null;
+    stopBackendMatchmakingPolling();
+    launchOnlineRoomSession(sync.room, sync.session, "matchmaking");
+    return true;
+  })().catch((error) => {
+    // 最终失败时给出更友好的提示
+    const code = getProtocolErrorCode(error);
+    if (code === "ROOM_NOT_FOUND") {
+      throw new Error("房间已关闭或不存在，请重新匹配。");
+    } else if (code === "ROOM_NOT_MEMBER") {
+      throw new Error("你不在该房间的成员列表中，请重新匹配。");
+    } else if (code === "ROOM_INVALID_STATE" && error instanceof Error && error.message?.includes("finished")) {
+      throw new Error("房间对局已结束，请返回分厅重新开始。");
+    } else if (error instanceof Error && error.message?.includes("timeout")) {
+      throw new Error("连接超时，请检查网络后重新匹配。");
+    }
+    throw error;
+  }).finally(() => {
+    if (onlineMatchEntryPromise === entryPromise) {
+      onlineMatchEntryPromise = null;
+      onlineMatchEntryRoomId = null;
+    }
+  });
+
+  onlineMatchEntryRoomId = normalizedRoomId;
+  onlineMatchEntryPromise = entryPromise;
+  return entryPromise;
+}
+
 function beginBackendMatchmakingPolling() {
   stopBackendMatchmakingPolling();
 
@@ -1108,8 +1339,13 @@ function beginBackendMatchmakingPolling() {
 
         if (state.stage === "matched") {
           stopBackendMatchmakingPolling();
+          const matchedRoomId = state.matchFound?.roomId?.trim() ?? "";
+          if (matchedRoomId && pendingOnlineMatchRoomId !== matchedRoomId) {
+            pendingOnlineMatchRoomId = matchedRoomId;
+          }
         } else if (state.stage === "cancelled" || state.stage === "failed") {
           backendTicketId = null;
+          pendingOnlineMatchRoomId = null;
           stopBackendMatchmakingPolling();
         }
       })
@@ -1129,12 +1365,39 @@ async function startBackendMatchmaking(modeId: LobbyModeId = "classic") {
     return false;
   }
 
-  const result = await backendMatchmaking.start({
-    modeId: mapLobbyModeToQueueMode(modeId),
-  });
-  backendTicketId = result.ticketId;
-  beginBackendMatchmakingPolling();
-  return true;
+  const existingActiveTicket = await backendMatchmaking
+    .getActiveTicket()
+    .catch(() => null);
+  if (existingActiveTicket) {
+    backendTicketId = existingActiveTicket.ticketId;
+    pendingOnlineMatchRoomId = existingActiveTicket.matchFound?.roomId?.trim() || null;
+    beginBackendMatchmakingPolling();
+    return true;
+  }
+
+  try {
+    const result = await backendMatchmaking.start({
+      modeId: mapLobbyModeToQueueMode(modeId),
+    });
+    backendTicketId = result.ticketId;
+    beginBackendMatchmakingPolling();
+    return true;
+  } catch (error) {
+    const matchmakingError =
+      error && typeof error === "object"
+        ? (error as { code?: string })
+        : null;
+    if (matchmakingError?.code === "MATCH_ALREADY_IN_QUEUE") {
+      const activeTicket = await backendMatchmaking.getActiveTicket();
+      if (activeTicket) {
+        backendTicketId = activeTicket.ticketId;
+        pendingOnlineMatchRoomId = activeTicket.matchFound?.roomId?.trim() || null;
+        beginBackendMatchmakingPolling();
+        return true;
+      }
+    }
+    throw error;
+  }
 }
 
 async function handleLoginSubmit(
@@ -1149,6 +1412,18 @@ async function handleLoginSubmit(
   });
 
   if (!result.ok) {
+    if (result.error.code === "AUTH_ACCOUNT_BANNED") {
+      const details = result.error.details as
+        | { banReason?: string; banUntil?: string | null }
+        | undefined;
+      const reason = details?.banReason?.trim() || "违规行为";
+      const until = details?.banUntil
+        ? new Date(details.banUntil).toLocaleString("zh-CN", { hour12: false })
+        : "永久封禁";
+      throw new Error(
+        `账号已封禁：${reason}（至 ${until}）。请在游戏内邮件中心提交申诉。`,
+      );
+    }
     throw new Error(result.error.message);
   }
 
@@ -1308,11 +1583,16 @@ async function startRoomBackedMatch(modeId: LobbyModeId) {
     roomId: activeBackendRoomId,
   });
   syncModeHallRoomSnapshot(result.room, "房主已开局，正在进入在线对局。");
-  launchOnlineRoomSession(result.room, result.session);
+  launchOnlineRoomSession(result.room, result.session, "room");
 }
 
 function startMatchmaking(modeId: LobbyModeId = "classic") {
   if (!requireAuthenticatedSession()) {
+    return;
+  }
+  if (currentUserSummary?.ban.isBanned) {
+    const reason = currentUserSummary.ban.reason?.trim() || "违规行为";
+    lobbyUI.notify(`当前账号处于封禁状态（${reason}），无法开始对局。请先在游戏邮件中申诉。`);
     return;
   }
 
@@ -1329,6 +1609,7 @@ function startMatchmaking(modeId: LobbyModeId = "classic") {
 
   destroyCurrentSession();
   stopRoomSnapshotPolling();
+  resetBackendMatchmakingState();
   pendingModeForMatch = modeId;
   activeModeHall = modeId;
   phase = "matching";
@@ -1354,12 +1635,83 @@ function startMatchmaking(modeId: LobbyModeId = "classic") {
 const matchmakingUI = new MatchmakingUI({
   settings,
   onMatchReady: (modeId) => {
-    launchGame(modeId);
+    console.log("[Matchmaking] onMatchReady triggered", {
+      modeId,
+      hasCurrentSession: !!currentSession,
+      phase,
+      hasOnlineMatchEntryPromise: !!onlineMatchEntryPromise,
+      backendTicketId,
+      pendingOnlineMatchRoomId,
+      useBackendMatching: networkConfig.useBackendMatching,
+    });
+
+    if (currentSession || phase === "playing" || onlineMatchEntryPromise) {
+      console.log("[Matchmaking] onMatchReady aborted - already in game");
+      return;
+    }
+
+    if (networkConfig.useBackendMatching) {
+      // 进房失败处理：显示分厅界面和错误提示，让用户可以选择重试
+      const handleEntryFailure = (error: unknown, context: string, failedModeId: LobbyModeId) => {
+        console.error(`[Matchmaking] ${context}:`, error);
+        const code = getProtocolErrorCode(error);
+        let message = "进入对局失败，";
+        if (code === "ROOM_NOT_FOUND") {
+          message += "房间已关闭。";
+        } else if (code === "ROOM_NOT_MEMBER") {
+          message += "你不在房间成员列表中。";
+        } else if (error instanceof Error && error.message?.toLowerCase().includes("timeout")) {
+          message += "连接超时。";
+        } else {
+          message += "请重试或取消匹配。";
+        }
+        resetBackendMatchmakingState();
+        // 显示分厅界面（保持可见），同时显示错误通知
+        showModeHall(failedModeId, activeModeHallTab);
+        lobbyUI.notify(message);
+      };
+
+      if (pendingOnlineMatchRoomId) {
+        void tryEnterOnlineMatchFromRoomId(pendingOnlineMatchRoomId).catch((error) => {
+          handleEntryFailure(error, "Failed to enter pending matched room", modeId);
+        });
+        return;
+      }
+
+      void (async () => {
+        if (backendTicketId) {
+          const matchedRoomId = await waitForMatchedRoomId(backendTicketId);
+          if (matchedRoomId) {
+            await tryEnterOnlineMatchFromRoomId(matchedRoomId);
+            return;
+          }
+        }
+
+        const enteredOnline = await tryEnterOnlineMatchFromBackendTicket();
+        if (!enteredOnline) {
+          showModeHall(modeId, activeModeHallTab);
+          lobbyUI.notify("房间准备中，请稍后重试匹配。");
+        }
+      })()
+        .catch((error) => {
+          handleEntryFailure(error, "Failed to enter online match from ticket", modeId);
+        });
+      return;
+    }
+
+    void tryEnterOnlineMatchFromBackendTicket()
+      .then((enteredOnline) => {
+        if (!enteredOnline) {
+          launchGame(modeId);
+        }
+      })
+      .catch(() => {
+        launchGame(modeId);
+      });
   },
   onCancelled: () => {
     const ticketId = backendTicketId;
-    backendTicketId = null;
-    stopBackendMatchmakingPolling();
+    resetBackendMatchmakingState();
 
     if (ticketId) {
       void backendMatchmaking.cancel(ticketId, "user_cancelled").catch(() => {
@@ -1387,6 +1739,7 @@ const modeHallUI = new ModeHallUI({
     startMatchmaking(modeId);
   },
   onRoomAction: (action, payload) => handleModeHallRoomAction(action, payload),
+  onInviteFriendToRoom: (gameId) => handleModeHallInviteFriend(gameId),
 });
 
 const lobbyUI = new LobbyUI({
@@ -1482,317 +1835,361 @@ window.addEventListener("unhandledrejection", (event) => {
   });
 });
 
-window.render_game_to_text = () => {
-  const authStatus = getAuthStatusView();
-  const payload = {
-    phase,
-    isPlaying: currentSession !== null,
-    playerName: settings.playerName,
-    auth: {
-      loggedIn: authStatus.loggedIn,
-      userLabel: authStatus.userLabel,
-      accountLabel: authStatus.accountLabel ?? null,
-      userId: authService.getSession()?.userId ?? null,
-      gameId: authService.getSession()?.gameId ?? null,
-    },
-    progression: loadPlayerProgression(),
-    settings: {
-      equippedSkinId: settings.equippedSkinId,
-      showFps: settings.showFps,
-      showMinimap: settings.showMinimap,
-      showLeaderboard: settings.showLeaderboard,
-      developerMode: settings.developerMode,
-      reducedMotion: settings.reducedMotion,
-    },
-    matching: matchmakingUI.getSnapshot(),
-    modeHall: modeHallUI.getSnapshot(),
-    pendingModeForMatch,
-    session: currentSession?.getSnapshot() ?? null,
-  };
-
-  return JSON.stringify(payload);
-};
-
-window.advanceTime = (ms: number) => {
-  if (!currentSession) {
+/**
+ * Register developer-only global console APIs.
+ * Only available when current user has isDeveloper=true.
+ */
+function registerDeveloperDebugApis(): void {
+  const session = authService.getSession();
+  if (!session?.isDeveloper) {
+    // Still expose a minimal info function (read-only).
+    window.render_game_to_text = () =>
+      JSON.stringify({
+        phase,
+        auth: { loggedIn: authService.isLoggedIn() },
+        note: "Debug APIs require a developer account.",
+      });
+    // All other debug functions become no-ops.
+    const noop = (): string => JSON.stringify({ ok: false, message: "Developer access required." });
+    window.advanceTime = (_ms: number): void => { };
+    window.export_gameplay_tuning = noop;
+    window.apply_gameplay_tuning = (): string => noop();
+    window.reset_gameplay_tuning = noop;
+    window.debug_finish_match = (): string => noop();
+    window.debug_set_best_record = (): string => noop();
+    window.debug_reset_progression = (): string => noop();
+    window.debug_set_progression = (): string => noop();
+    window.debug_set_mode = (): string => noop();
+    window.debug_open_mode_hall = (): string => noop();
+    window.debug_room_simulate = (): string => noop();
+    window.debug_set_zone = (): string => noop();
+    window.debug_backend_login_demo = async (): Promise<string> => Promise.resolve(noop());
+    window.debug_backend_guest_login = async (): Promise<string> => Promise.resolve(JSON.stringify({ ok: false, message: "guest login is disabled" }));
+    window.debug_backend_logout = async (): Promise<string> => Promise.resolve(noop());
+    window.debug_backend_match_start = async (): Promise<string> => Promise.resolve(noop());
+    window.debug_backend_match_cancel = async (): Promise<string> => Promise.resolve(noop());
+    window.debug_backend_match_status = async (): Promise<string> => Promise.resolve(noop());
     return;
   }
 
-  currentSession.advanceTime(ms);
-};
+  window.render_game_to_text = () => {
+    const authStatus = getAuthStatusView();
+    const payload = {
+      phase,
+      isPlaying: currentSession !== null,
+      playerName: settings.playerName,
+      auth: {
+        loggedIn: authStatus.loggedIn,
+        userLabel: authStatus.userLabel,
+        accountLabel: authStatus.accountLabel ?? null,
+        userId: authService.getSession()?.userId ?? null,
+        gameId: authService.getSession()?.gameId ?? null,
+      },
+      progression: loadPlayerProgression(),
+      settings: {
+        equippedSkinId: settings.equippedSkinId,
+        showFps: settings.showFps,
+        showMinimap: settings.showMinimap,
+        showLeaderboard: settings.showLeaderboard,
+        developerMode: settings.developerMode,
+        reducedMotion: settings.reducedMotion,
+      },
+      matching: matchmakingUI.getSnapshot(),
+      modeHall: modeHallUI.getSnapshot(),
+      pendingModeForMatch,
+      session: currentSession?.getSnapshot() ?? null,
+    };
 
-window.export_gameplay_tuning = () =>
-  JSON.stringify(cloneGameplayTuning(), null, 2);
+    return JSON.stringify(payload);
+  };
 
-window.apply_gameplay_tuning = (patch: GameplayTuningPatch | string) => {
-  let nextPatch: GameplayTuningPatch;
+  window.advanceTime = (ms: number) => {
+    if (!currentSession) {
+      return;
+    }
 
-  if (typeof patch === "string") {
-    nextPatch = JSON.parse(patch) as GameplayTuningPatch;
-  } else {
-    nextPatch = patch;
-  }
+    currentSession.advanceTime(ms);
+  };
 
-  applyGameplayTuningPatch(nextPatch);
-  saveGameplayTuningToStorage();
-  return window.export_gameplay_tuning();
-};
+  window.export_gameplay_tuning = () =>
+    JSON.stringify(cloneGameplayTuning(), null, 2);
 
-window.reset_gameplay_tuning = () => {
-  resetGameplayTuningToDefaults();
-  return window.export_gameplay_tuning();
-};
+  window.apply_gameplay_tuning = (patch: GameplayTuningPatch | string) => {
+    let nextPatch: GameplayTuningPatch;
 
-window.debug_finish_match = (mode = "auto") => {
-  if (!currentSession) {
-    return window.render_game_to_text();
-  }
+    if (typeof patch === "string") {
+      nextPatch = JSON.parse(patch) as GameplayTuningPatch;
+    } else {
+      nextPatch = patch;
+    }
 
-  if (mode === "win") {
-    currentSession.debugFinishMatch({
-      winner: "player",
-      subtitle: "Console 调试：强制我方胜利。",
-    });
-  } else if (mode === "lose") {
-    currentSession.debugFinishMatch({
-      winner: "bot",
-      subtitle: "Console 调试：强制我方失败。",
-    });
-  } else if (mode === "record") {
-    const snapshot = currentSession.getSnapshot();
-    if (!isSinglePlayerSessionSnapshot(snapshot)) {
+    applyGameplayTuningPatch(nextPatch);
+    saveGameplayTuningToStorage();
+    return window.export_gameplay_tuning();
+  };
+
+  window.reset_gameplay_tuning = () => {
+    resetGameplayTuningToDefaults();
+    return window.export_gameplay_tuning();
+  };
+
+  window.debug_finish_match = (mode = "auto") => {
+    if (!currentSession) {
       return window.render_game_to_text();
     }
-    const previewMass = Math.max(snapshot.playerMass, snapshot.match.bestMassRecord + 500);
-    currentSession.debugFinishMatch({
-      winner: "player",
-      playerMass: previewMass,
-      forceNewRecord: true,
-      subtitle: "Console 调试：新纪录庆祝预览。",
-    });
-  } else {
-    currentSession.debugFinishMatch();
-  }
 
-  return window.render_game_to_text();
-};
-
-window.debug_set_best_record = (value: number) => {
-  if (currentSession) {
-    currentSession.debugSetBestMassRecord(value);
-  } else if (Number.isFinite(value)) {
-    const nextBestMass = Math.max(0, Math.floor(value));
-    saveBestMassRecord(nextBestMass);
-    setPlayerProgression({ bestMass: nextBestMass });
-  }
-  lobbyUI.refreshProgression();
-  return window.render_game_to_text();
-};
-
-window.debug_reset_progression = () => {
-  saveBestMassRecord(0);
-  resetPlayerProgression();
-  lobbyUI.refreshProgression();
-  return window.render_game_to_text();
-};
-
-window.debug_set_progression = (
-  payload: Partial<PlayerProgression> | string,
-) => {
-  let patch: Partial<PlayerProgression>;
-  if (typeof payload === "string") {
-    patch = JSON.parse(payload) as Partial<PlayerProgression>;
-  } else {
-    patch = payload;
-  }
-  setPlayerProgression(patch);
-  if (typeof patch.bestMass === "number" && Number.isFinite(patch.bestMass)) {
-    saveBestMassRecord(Math.max(0, Math.floor(patch.bestMass)));
-  }
-  lobbyUI.refreshProgression();
-  return window.render_game_to_text();
-};
-
-window.debug_set_mode = (modeId: LobbyModeId) => {
-  if (!isLobbyModeId(modeId)) {
-    return window.render_game_to_text();
-  }
-  showModeHall(modeId, "rules");
-  return window.render_game_to_text();
-};
-
-window.debug_open_mode_hall = (
-  modeId: LobbyModeId,
-  tabId: ModeHallTabId = "rules",
-) => {
-  if (!isLobbyModeId(modeId) || !isModeHallTabId(tabId)) {
-    return window.render_game_to_text();
-  }
-  showModeHall(modeId, tabId);
-  return window.render_game_to_text();
-};
-
-window.debug_room_simulate = (action: RoomAction, payload?: string) => {
-  void handleModeHallRoomAction(action)
-    .catch(() => {
-      modeHallUI.simulateRoom(action, payload);
-    })
-    .finally(() => {
-      window.render_game_to_text();
-    });
-  return window.render_game_to_text();
-};
-
-window.debug_set_zone = (stage: number) => {
-  if (currentSession && Number.isFinite(stage)) {
-    currentSession.debugSetBattleZone(Math.max(0, Number(stage)));
-  }
-  return window.render_game_to_text();
-};
-
-window.debug_backend_login_demo = async () => {
-  const res = await authService.login({
-    method: "password",
-    payload: {
-      account: "demo",
-      password: "demo123456",
-    },
-  });
-
-  if (res.ok) {
-    await syncAuthenticatedAccount(true);
-    clearBackendAccountState();
-  } else {
-    lobbyUI.refreshAuthStatus();
-  }
-
-  return JSON.stringify({
-    ok: res.ok,
-    userId: res.ok ? res.data.user.userId : null,
-    message: res.ok ? "demo login ok" : res.error.message,
-  });
-};
-
-window.debug_backend_guest_login = async (
-  guestId = `guest_${Math.random().toString(36).slice(2, 8)}`,
-) => {
-  return JSON.stringify({
-    ok: false,
-    userId: null,
-    guestId,
-    message: "guest login is disabled in the current backend flow",
-  });
-};
-
-window.debug_backend_logout = async () => {
-  await logoutToAnonymousScope();
-  return JSON.stringify({
-    ok: true,
-    message: "logout ok",
-  });
-};
-
-window.debug_backend_match_start = async (modeId: LobbyModeId = "classic") => {
-  if (!networkConfig.useBackendMatching) {
-    return JSON.stringify({
-      ok: false,
-      message: "backend matching is disabled by VITE_USE_BACKEND_MATCHING",
-    });
-  }
-
-  const session = authService.getSession();
-  if (!session) {
-    return JSON.stringify({
-      ok: false,
-      message: "not logged in",
-    });
-  }
-
-  try {
-    const data = await backendMatchmaking.start({
-      modeId: mapLobbyModeToQueueMode(modeId),
-    });
-    backendTicketId = data.ticketId;
-    return JSON.stringify({
-      ok: true,
-      ticketId: data.ticketId,
-      modeId: data.modeId,
-      stage: data.stage,
-    });
-  } catch (error) {
-    return JSON.stringify({
-      ok: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "backend matchmaking start failed",
-    });
-  }
-};
-
-window.debug_backend_match_cancel = async () => {
-  if (!backendTicketId) {
-    return JSON.stringify({
-      ok: false,
-      message: "no active backend ticket",
-    });
-  }
-
-  try {
-    const data = await backendMatchmaking.cancel(
-      backendTicketId,
-      "user_cancelled",
-    );
-    backendTicketId = null;
-    stopBackendMatchmakingPolling();
-    return JSON.stringify({
-      ok: true,
-      ticketId: data.ticketId,
-      stage: data.stage,
-    });
-  } catch (error) {
-    return JSON.stringify({
-      ok: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "backend matchmaking cancel failed",
-    });
-  }
-};
-
-window.debug_backend_match_status = async () => {
-  if (!backendTicketId) {
-    return JSON.stringify({
-      ok: false,
-      message: "no active backend ticket",
-    });
-  }
-
-  try {
-    const data = await backendMatchmaking.getTicketStatus(backendTicketId);
-    if (
-      data.stage === "cancelled" ||
-      data.stage === "failed" ||
-      data.stage === "matched"
-    ) {
-      backendTicketId = data.stage === "matched" ? backendTicketId : null;
+    if (mode === "win") {
+      currentSession.debugFinishMatch({
+        winner: "player",
+        subtitle: "Console 调试：强制我方胜利。",
+      });
+    } else if (mode === "lose") {
+      currentSession.debugFinishMatch({
+        winner: "bot",
+        subtitle: "Console 调试：强制我方失败。",
+      });
+    } else if (mode === "record") {
+      const snapshot = currentSession.getSnapshot();
+      if (!isSinglePlayerSessionSnapshot(snapshot)) {
+        return window.render_game_to_text();
+      }
+      const previewMass = Math.max(snapshot.playerMass, snapshot.match.bestMassRecord + 500);
+      currentSession.debugFinishMatch({
+        winner: "player",
+        playerMass: previewMass,
+        forceNewRecord: true,
+        subtitle: "Console 调试：新纪录庆祝预览。",
+      });
+    } else {
+      currentSession.debugFinishMatch();
     }
-    return JSON.stringify({
-      ok: true,
-      ticketId: data.ticketId,
-      stage: data.stage,
-      currentPlayers: data.currentPlayers,
-      targetPlayers: data.targetPlayers,
-      etaSeconds: data.estimatedWaitSeconds,
+
+    return window.render_game_to_text();
+  };
+
+  window.debug_set_best_record = (value: number) => {
+    if (currentSession) {
+      currentSession.debugSetBestMassRecord(value);
+    } else if (Number.isFinite(value)) {
+      const nextBestMass = Math.max(0, Math.floor(value));
+      saveBestMassRecord(nextBestMass);
+      setPlayerProgression({ bestMass: nextBestMass });
+    }
+    lobbyUI.refreshProgression();
+    return window.render_game_to_text();
+  };
+
+  window.debug_reset_progression = () => {
+    saveBestMassRecord(0);
+    resetPlayerProgression();
+    lobbyUI.refreshProgression();
+    return window.render_game_to_text();
+  };
+
+  window.debug_set_progression = (
+    payload: Partial<PlayerProgression> | string,
+  ) => {
+    let patch: Partial<PlayerProgression>;
+    if (typeof payload === "string") {
+      patch = JSON.parse(payload) as Partial<PlayerProgression>;
+    } else {
+      patch = payload;
+    }
+    setPlayerProgression(patch);
+    if (typeof patch.bestMass === "number" && Number.isFinite(patch.bestMass)) {
+      saveBestMassRecord(Math.max(0, Math.floor(patch.bestMass)));
+    }
+    lobbyUI.refreshProgression();
+    return window.render_game_to_text();
+  };
+
+  window.debug_set_mode = (modeId: LobbyModeId) => {
+    if (!isLobbyModeId(modeId)) {
+      return window.render_game_to_text();
+    }
+    showModeHall(modeId, "rules");
+    return window.render_game_to_text();
+  };
+
+  window.debug_open_mode_hall = (
+    modeId: LobbyModeId,
+    tabId: ModeHallTabId = "rules",
+  ) => {
+    if (!isLobbyModeId(modeId) || !isModeHallTabId(tabId)) {
+      return window.render_game_to_text();
+    }
+    showModeHall(modeId, tabId);
+    return window.render_game_to_text();
+  };
+
+  window.debug_room_simulate = (action: RoomAction, payload?: string) => {
+    void handleModeHallRoomAction(action)
+      .catch(() => {
+        modeHallUI.simulateRoom(action, payload);
+      })
+      .finally(() => {
+        window.render_game_to_text();
+      });
+    return window.render_game_to_text();
+  };
+
+  window.debug_set_zone = (stage: number) => {
+    if (currentSession && Number.isFinite(stage)) {
+      currentSession.debugSetBattleZone(Math.max(0, Number(stage)));
+    }
+    return window.render_game_to_text();
+  };
+
+  window.debug_backend_login_demo = async () => {
+    const res = await authService.login({
+      method: "password",
+      payload: {
+        account: "demo",
+        password: "demo123456",
+      },
     });
-  } catch (error) {
+
+    if (res.ok) {
+      await syncAuthenticatedAccount(true);
+      clearBackendAccountState();
+    } else {
+      lobbyUI.refreshAuthStatus();
+    }
+
+    return JSON.stringify({
+      ok: res.ok,
+      userId: res.ok ? res.data.user.userId : null,
+      message: res.ok ? "demo login ok" : res.error.message,
+    });
+  };
+
+  window.debug_backend_guest_login = async (
+    guestId = `guest_${Math.random().toString(36).slice(2, 8)}`,
+  ) => {
     return JSON.stringify({
       ok: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "backend matchmaking status failed",
+      userId: null,
+      guestId,
+      message: "guest login is disabled in the current backend flow",
     });
-  }
-};
+  };
+
+  window.debug_backend_logout = async () => {
+    await logoutToAnonymousScope();
+    return JSON.stringify({
+      ok: true,
+      message: "logout ok",
+    });
+  };
+
+  window.debug_backend_match_start = async (modeId: LobbyModeId = "classic") => {
+    if (!networkConfig.useBackendMatching) {
+      return JSON.stringify({
+        ok: false,
+        message: "backend matching is disabled by VITE_USE_BACKEND_MATCHING",
+      });
+    }
+
+    const session = authService.getSession();
+    if (!session) {
+      return JSON.stringify({
+        ok: false,
+        message: "not logged in",
+      });
+    }
+
+    try {
+      const data = await backendMatchmaking.start({
+        modeId: mapLobbyModeToQueueMode(modeId),
+      });
+      backendTicketId = data.ticketId;
+      return JSON.stringify({
+        ok: true,
+        ticketId: data.ticketId,
+        modeId: data.modeId,
+        stage: data.stage,
+      });
+    } catch (error) {
+      return JSON.stringify({
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "backend matchmaking start failed",
+      });
+    }
+  };
+
+  window.debug_backend_match_cancel = async () => {
+    if (!backendTicketId) {
+      return JSON.stringify({
+        ok: false,
+        message: "no active backend ticket",
+      });
+    }
+
+    try {
+      const data = await backendMatchmaking.cancel(
+        backendTicketId,
+        "user_cancelled",
+      );
+      backendTicketId = null;
+      stopBackendMatchmakingPolling();
+      return JSON.stringify({
+        ok: true,
+        ticketId: data.ticketId,
+        stage: data.stage,
+      });
+    } catch (error) {
+      return JSON.stringify({
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "backend matchmaking cancel failed",
+      });
+    }
+  };
+
+  window.debug_backend_match_status = async () => {
+    if (!backendTicketId) {
+      return JSON.stringify({
+        ok: false,
+        message: "no active backend ticket",
+      });
+    }
+
+    try {
+      const data = await backendMatchmaking.getTicketStatus(backendTicketId);
+      if (
+        data.stage === "cancelled" ||
+        data.stage === "failed" ||
+        data.stage === "matched"
+      ) {
+        backendTicketId = data.stage === "matched" ? backendTicketId : null;
+      }
+      return JSON.stringify({
+        ok: true,
+        ticketId: data.ticketId,
+        stage: data.stage,
+        currentPlayers: data.currentPlayers,
+        targetPlayers: data.targetPlayers,
+        etaSeconds: data.estimatedWaitSeconds,
+      });
+    } catch (error) {
+      return JSON.stringify({
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "backend matchmaking status failed",
+      });
+    }
+  };
+}
+
+registerDeveloperDebugApis();
+window.addEventListener("bop:auth-session-changed", () => {
+  registerDeveloperDebugApis();
+});
+

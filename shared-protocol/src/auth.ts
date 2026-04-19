@@ -6,6 +6,30 @@ export type LoginMethod =
   | 'wechat'
   | 'platform';
 
+export type DeveloperToolKey =
+  | 'debug_console'
+  | 'player_account_admin'
+  | 'match_live_ops'
+  | 'economy_tuning'
+  | 'content_pipeline'
+  | 'analytics_center';
+
+export type RestrictedFeatureKey =
+  | 'exit_match'
+  | 'ranked_queue'
+  | 'social_chat'
+  | 'advanced_matchmaking';
+
+/** User role — determines dev-tool access, game exit rules, and admin capabilities. */
+export type UserRole = 'player' | 'developer' | 'admin' | 'super_admin';
+
+/**
+ * Developer account prefix.
+ * Any account whose lowercased form starts with this prefix
+ * will automatically be assigned the "developer" role on registration.
+ */
+export const DEVELOPER_ACCOUNT_PREFIX = 'dev_';
+
 export type DevicePlatform = 'web' | 'android' | 'ios' | 'windows' | 'macos' | 'linux';
 
 export interface DeviceInfo {
@@ -35,6 +59,19 @@ export interface AuthUser {
   banned: boolean;
   banReason?: string;
   banUntil?: string;
+  role: UserRole;
+  developerToolbox: {
+    enabled: boolean;
+    toolKeys: DeveloperToolKey[];
+  };
+  playtimePolicy: {
+    requiredSeconds: number;
+    accumulatedSeconds: number;
+    remainingSeconds: number;
+    canExitMatch: boolean;
+    unlockedFeatureKeys: RestrictedFeatureKey[];
+    pendingFeatureKeys: RestrictedFeatureKey[];
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +86,8 @@ export interface RegisterByPasswordRequest {
   account: string;
   password: string;
   nickname?: string;
+  registerAsDeveloper?: boolean;
+  developerRegistrationCode?: string;
   email?: string;
   emailCode?: string;
   mobileCountryCode?: string;

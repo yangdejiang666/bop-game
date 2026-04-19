@@ -1,55 +1,74 @@
 import type {
+  CheckFeatureAccessRequest,
+  CheckFeatureAccessResponse,
+  FinishPlaytimeSessionRequest,
+  FinishPlaytimeSessionResponse,
   GetDeveloperAccountsOverviewResponse,
+  HeartbeatPlaytimeSessionRequest,
+  HeartbeatPlaytimeSessionResponse,
+  StartPlaytimeSessionRequest,
+  StartPlaytimeSessionResponse,
+  UserAuthorization,
   UserBootstrapRequest,
   UserBootstrapResponse,
-} from "../../shared-protocol/src/user";
-import { HttpClient } from "./http";
-import { networkConfig } from "./config";
-import { authService } from "./authService";
+} from "../../shared-protocol/src";
+import { BaseService } from "./BaseService";
 
-export class UserService {
-  private readonly http: HttpClient;
-
-  constructor() {
-    this.http = new HttpClient({
-      baseUrl: networkConfig.apiBaseUrl,
-      prepareAuth: () => authService.refreshToken(),
-      getAccessToken: () => authService.getSession()?.accessToken ?? null,
-      timeoutMs: networkConfig.requestTimeoutMs,
-    });
-  }
-
+/**
+ * 用户服务 — 本地引导配置、开发者账号概览。
+ */
+export class UserService extends BaseService {
   async bootstrapLocalProfile(
     payload: UserBootstrapRequest,
   ): Promise<UserBootstrapResponse> {
-    const response = await this.http.post<UserBootstrapResponse, UserBootstrapRequest>(
+    return this.authPost<UserBootstrapResponse, UserBootstrapRequest>(
       "/user/bootstrap",
       payload,
-      {
-        withAuth: true,
-      },
     );
-
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
-
-    return response.data;
   }
 
   async getDeveloperAccountsOverview(): Promise<GetDeveloperAccountsOverviewResponse> {
-    const response = await this.http.get<GetDeveloperAccountsOverviewResponse>(
-      "/user/dev/accounts-overview",
-      {
-        withAuth: true,
-      },
+    return this.authGet<GetDeveloperAccountsOverviewResponse>("/user/dev/accounts-overview");
+  }
+
+  async getAuthorization(): Promise<{ authorization: UserAuthorization }> {
+    return this.authGet<{ authorization: UserAuthorization }>("/user/authorization");
+  }
+
+  async startPlaytimeSession(
+    payload: StartPlaytimeSessionRequest,
+  ): Promise<StartPlaytimeSessionResponse> {
+    return this.authPost<StartPlaytimeSessionResponse, StartPlaytimeSessionRequest>(
+      "/user/playtime/start",
+      payload,
     );
+  }
 
-    if (!response.ok) {
-      throw new Error(response.error.message);
-    }
+  async heartbeatPlaytimeSession(
+    payload: HeartbeatPlaytimeSessionRequest,
+  ): Promise<HeartbeatPlaytimeSessionResponse> {
+    return this.authPost<HeartbeatPlaytimeSessionResponse, HeartbeatPlaytimeSessionRequest>(
+      "/user/playtime/heartbeat",
+      payload,
+    );
+  }
 
-    return response.data;
+  async finishPlaytimeSession(
+    payload: FinishPlaytimeSessionRequest,
+  ): Promise<FinishPlaytimeSessionResponse> {
+    return this.authPost<FinishPlaytimeSessionResponse, FinishPlaytimeSessionRequest>(
+      "/user/playtime/finish",
+      payload,
+    );
+  }
+
+  async checkFeatureAccess(
+    payload: CheckFeatureAccessRequest,
+  ): Promise<CheckFeatureAccessResponse> {
+    return this.authPost<CheckFeatureAccessResponse, CheckFeatureAccessRequest>(
+      "/user/feature/check",
+      payload,
+    );
   }
 }
 

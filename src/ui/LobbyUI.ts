@@ -5,18 +5,41 @@ import {
   loadPlayerProgression,
 } from "../app/progression";
 import {
+  buildRankEmblemSvg,
+  getRankTierLabel,
+  RANK_TIERS,
+  type RankInfo,
+} from "./modeHallRender";
+import {
   type SkinOption,
   SKIN_OPTIONS,
   getSkinOption,
   resolveSkinId,
 } from "../app/skins";
-import type { DeveloperAccountsOverview } from "../../shared-protocol/src/user";
+import type {
+  DeveloperAccountsOverview,
+  UserSummary,
+} from "../../shared-protocol/src/user";
+import type {
+  RankQueueId,
+  RankingLeaderboardEntry,
+  RankingOverview,
+} from "../../shared-protocol/src/ranking";
+import { rankingService } from "../network/rankingService";
 import type {
   SocialOverview,
   SocialRelationship,
   SocialSearchResult,
 } from "../../shared-protocol/src/social";
-import { lobbyService, type LobbyTask, type LobbyFriend } from "../network/lobbyService";
+import type { InGameMailItem } from "../../shared-protocol/src/mail";
+import { networkConfig } from "../network/config";
+import {
+  lobbyService,
+  type LobbyTask,
+  type LobbyFriend,
+  type LobbyModeSnapshot,
+} from "../network/lobbyService";
+import { mailService } from "../network/mailService";
 
 export type LobbyModeId =
   | "ranked"
@@ -28,6 +51,7 @@ export interface LobbyAuthStatus {
   loggedIn: boolean;
   userLabel: string;
   accountLabel?: string;
+  gameId?: string;
 }
 
 export interface LobbyLoginPayload {
@@ -43,7 +67,7 @@ export interface LobbyRegisterPayload {
   emailCode?: string;
 }
 
-export type LobbyFeatureId = "shop" | "magic" | "friends";
+export type LobbyFeatureId = "shop" | "magic" | "friends" | "leaderboard" | "activity" | "signin";
 type AuthMode = "login" | "register" | "reset";
 type AuthBusyAction =
   | "login"
@@ -128,7 +152,7 @@ interface StitchModeCard {
   tags: string[];
   icon: string;
   theme: "cyan" | "violet" | "gold" | "neutral" | "red" | "amber" | "purple";
-  status: "已开放" | "测试中" | "训练";
+  status: string;
   bgImage: string;
 }
 
@@ -160,14 +184,14 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     subtitle: "向最高荣誉发起冲锋",
     intro: "正式上分入口，节奏稳定，适合盯段位、盯晋级、盯赛季窗口。",
     metrics: [
-      { label: "当前段位", value: "黄金 II" },
-      { label: "预计匹配", value: "7.2 秒" },
-      { label: "赛季", value: "S3" },
+      { label: "当前段位", value: "暂无" },
+      { label: "排位分", value: "暂无" },
+      { label: "当前赛季", value: "未开启" },
     ],
-    tags: ["晋级保护", "单排优先", "连胜修正"],
+    tags: [],
     icon: "trophy",
     theme: "gold",
-    status: "已开放",
+    status: "暂无数据",
     bgImage: "/assets/images/ranked_bg.png"
   },
   {
@@ -178,14 +202,14 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     subtitle: "冷感冲榜，争夺更高席位",
     intro: "榜位压力更强，收益更高，适合盯前百和冲资格窗口的人。",
     metrics: [
-      { label: "当前榜位", value: "#178" },
-      { label: "巅峰分", value: "2164" },
-      { label: "开放时段", value: "20-24点" },
+      { label: "当前榜位", value: "未上榜" },
+      { label: "巅峰分", value: "暂无" },
+      { label: "当前赛季", value: "未开启" },
     ],
-    tags: ["资格已开", "高压冲榜", "复盘优先"],
+    tags: [],
     icon: "military_tech",
     theme: "violet",
-    status: "已开放",
+    status: "暂无数据",
     bgImage: "/assets/images/peak_bg.png"
   },
   {
@@ -196,14 +220,14 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     subtitle: "主球体舞台，轻快又熟悉",
     intro: "最稳的练手区，适合练球感、刷最佳质量、拉一位好友随时开球。",
     metrics: [
-      { label: "今日推荐", value: "海潮遗迹" },
-      { label: "最佳纪录", value: "1324kg" },
-      { label: "预计匹配", value: "6.6 秒" },
+      { label: "最佳纪录", value: "暂无" },
+      { label: "总场次", value: "暂无" },
+      { label: "胜场", value: "暂无" },
     ],
-    tags: ["球感最强", "自由开球", "成长稳定"],
+    tags: [],
     icon: "view_cozy",
     theme: "cyan",
-    status: "已开放",
+    status: "暂无数据",
     bgImage: "/assets/images/classic_bg.png"
   },
   {
@@ -214,14 +238,14 @@ const STITCH_MODE_CARDS: StitchModeCard[] = [
     subtitle: "缩圈压迫，活到最后",
     intro: "危险圈、终圈运营和风险收益都被拉满，适合硬核求生和残局拉扯。",
     metrics: [
-      { label: "首次缩圈", value: "40 秒" },
-      { label: "圈外伤害", value: "18 / 秒" },
-      { label: "预计匹配", value: "8.4 秒" },
+      { label: "最佳纪录", value: "暂无" },
+      { label: "总场次", value: "暂无" },
+      { label: "胜率", value: "暂无" },
     ],
-    tags: ["危险热区", "终圈决策", "高风险收益"],
+    tags: [],
     icon: "local_fire_department",
     theme: "red",
-    status: "已开放",
+    status: "暂无数据",
     bgImage: "/assets/images/royale_bg.png"
   },
 ];
@@ -230,6 +254,9 @@ const FEATURE_TIPS: Record<LobbyFeatureId, string> = {
   shop: "商店入口已预留，可继续接皮肤与道具接口。",
   magic: "魔法屋入口已预留，可继续接抽取与升级接口。",
   friends: "好友入口已预留，可继续接本地/联机社交关系。",
+  leaderboard: "排行榜入口已预留，可继续接排名数据接口。",
+  activity: "已打开活动与邮件中心，可查看封禁通知和申诉回信。",
+  signin: "签到入口已预留，可继续接签到数据接口。",
 };
 
 // 提示：静态的 TASK_PRESETS 和 FRIEND_PRESETS 已被移除
@@ -252,10 +279,12 @@ export class LobbyUI {
   private tipTimer: number | null = null;
   private tasks: LobbyTask[] = [];
   private friends: LobbyFriend[] = [];
+  private modeSnapshots: Partial<Record<StitchModeCardId, LobbyModeSnapshot>> = {};
   private socialOverview: SocialOverview | null = null;
   private socialSearchResult: SocialSearchResult | null = null;
   private socialBusy = false;
   private socialError = "";
+  private lobbyRankInfo: RankInfo = { tierIndex: 0, division: 1, points: 0, stars: 0, totalPoints: 0 };
   private authMode: AuthMode = "login";
   private authBusy = false;
   private authBusyAction: AuthBusyAction = null;
@@ -278,6 +307,16 @@ export class LobbyUI {
   private developerOverviewBusy = false;
   private developerOverviewError = "";
   private developerOverviewRequestVersion = 0;
+  private rankingOverview: RankingOverview | null = null;
+  private rankingLeaderboard: RankingLeaderboardEntry[] = [];
+  private rankingSelectedQueue: RankQueueId = "ranked";
+  private rankingBusy = false;
+  private mailInbox: InGameMailItem[] = [];
+  private mailBusy = false;
+  private mailError = "";
+  private mailDraftByNoticeId: Record<string, string> = {};
+  private signinCheckedDays = 0;
+  private signinTodayDone = false;
 
   constructor(options: LobbyUIOptions) {
     this.options = options;
@@ -309,6 +348,7 @@ export class LobbyUI {
     this.renderAuthPanel();
     this.renderDeveloperToolbox();
     this.renderSocialCenter();
+    this.renderActivityCenter();
     this.syncDocumentScrollLock();
     this.syncLobbyFit();
   }
@@ -395,22 +435,55 @@ export class LobbyUI {
       const data = await lobbyService.fetchLobbyData();
       this.tasks = data.tasks;
       this.friends = data.friends;
+      this.modeSnapshots = data.modeSnapshots;
       this.socialOverview = data.overview;
       this.socialError = "";
       this.socialSearchResult = null;
+      if (data.summary) {
+        this.progression = this.toProgression(data.summary);
+        this.applyProgressionToView();
+      }
 
-      const modeStatusEl = this.root.querySelector<HTMLElement>("[data-mode-status]");
-      if (modeStatusEl) modeStatusEl.textContent = data.modeStatus;
+      const modeGridEl = this.root.querySelector<HTMLElement>("[data-mode-grid]");
+      if (modeGridEl) {
+        modeGridEl.innerHTML = this.buildModeCards();
+      }
+      this.applySelectedModeUI();
 
       const taskListEl = this.root.querySelector<HTMLElement>("[data-task-list-root]");
       if (taskListEl) taskListEl.innerHTML = this.buildTaskRows();
+      const taskCounterEl = this.root.querySelector<HTMLElement>("[data-task-counter]");
+      if (taskCounterEl) {
+        taskCounterEl.textContent = this.buildTaskCounterLabel();
+      }
       this.renderFriendsToLobby();
       this.renderSocialCenter();
+      void this.refreshBackendPing();
       this.scheduleTrayBottomAlignment(160);
     } catch (e) {
       console.error("Failed to load lobby data", e);
       this.socialError = e instanceof Error ? e.message : "社交数据读取失败。";
+      this.modeSnapshots = {};
+      this.tasks = [];
+      this.friends = [];
+      this.socialOverview = null;
+      this.socialSearchResult = null;
+      const modeGridEl = this.root.querySelector<HTMLElement>("[data-mode-grid]");
+      if (modeGridEl) {
+        modeGridEl.innerHTML = this.buildModeCards();
+      }
+      this.applySelectedModeUI();
+      const taskListEl = this.root.querySelector<HTMLElement>("[data-task-list-root]");
+      if (taskListEl) {
+        taskListEl.innerHTML = this.buildTaskRows();
+      }
+      const taskCounterEl = this.root.querySelector<HTMLElement>("[data-task-counter]");
+      if (taskCounterEl) {
+        taskCounterEl.textContent = this.buildTaskCounterLabel();
+      }
+      this.renderFriendsToLobby();
       this.renderSocialCenter();
+      void this.refreshBackendPing();
       this.scheduleTrayBottomAlignment(160);
     }
   }
@@ -548,44 +621,83 @@ export class LobbyUI {
                     <span class="stitch-streak stitch-streak--one"></span>
                     <span class="stitch-streak stitch-streak--two"></span>
                 </div>
+
+                <!-- 虚化光球 Bokeh -->
+                <div class="stitch-bokeh-layer" aria-hidden="true">
+                    <div class="stitch-bokeh stitch-bokeh--1"></div>
+                    <div class="stitch-bokeh stitch-bokeh--2"></div>
+                    <div class="stitch-bokeh stitch-bokeh--3"></div>
+                    <div class="stitch-bokeh stitch-bokeh--4"></div>
+                </div>
+
+                <!-- 浮动粒子 -->
+                <div class="stitch-particles" aria-hidden="true">
+                    <span class="stitch-particle stitch-particle--1"></span>
+                    <span class="stitch-particle stitch-particle--2"></span>
+                    <span class="stitch-particle stitch-particle--3"></span>
+                    <span class="stitch-particle stitch-particle--4"></span>
+                    <span class="stitch-particle stitch-particle--5"></span>
+                    <span class="stitch-particle stitch-particle--6"></span>
+                    <span class="stitch-particle stitch-particle--7"></span>
+                    <span class="stitch-particle stitch-particle--8"></span>
+                </div>
+
+                <!-- 角落装饰线 -->
+                <div class="stitch-corner-decor stitch-corner-decor--tl" aria-hidden="true"></div>
+                <div class="stitch-corner-decor stitch-corner-decor--tr" aria-hidden="true"></div>
+                <div class="stitch-corner-decor stitch-corner-decor--bl" aria-hidden="true"></div>
+                <div class="stitch-corner-decor stitch-corner-decor--br" aria-hidden="true"></div>
+
+                <!-- 扫描线 -->
+                <div class="stitch-scan-line" aria-hidden="true"></div>
+
                 <div class="stitch-scale-frame" data-lobby-scale-frame>
                     <header class="stitch-topbar stitch-hud-top">
                         <div class="stitch-brand stitch-hud-brand">
-                            <strong class="stitch-brand-title">球球实验室</strong>
-                        </div>
-
-                        <div class="stitch-resource-bar stitch-hud-resources">
-                            <article class="stitch-resource-chip">
-                                <span class="stitch-resource-icon">
-                                    ${renderMaterialSymbol("stars", "stitch-resource-symbol")}
-                                </span>
-                                <span class="stitch-resource-copy">
-                                    <small>金币</small>
-                                    <strong data-progression-coins>0</strong>
-                                </span>
-                            </article>
-                            <article class="stitch-resource-chip">
-                                <span class="stitch-resource-icon">
-                                    ${renderMaterialSymbol("diamond", "stitch-resource-symbol")}
-                                </span>
-                                <span class="stitch-resource-copy">
-                                    <small>经验</small>
-                                    <strong data-progression-xp-display>0 / 208 XP</strong>
-                                </span>
-                            </article>
-                            <button type="button" class="stitch-resource-add" data-feature="shop" aria-label="商店">
-                                ${renderMaterialSymbol("add", "stitch-resource-add-symbol")}
-                            </button>
+                            <svg class="stitch-brand-logo" viewBox="0 0 40 40" width="40" height="40" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
+                                <defs>
+                                    <radialGradient id="scifi-core" cx="50%" cy="50%" r="50%">
+                                        <stop offset="0%" stop-color="#ffffff"/>
+                                        <stop offset="30%" stop-color="#80f0ff"/>
+                                        <stop offset="100%" stop-color="#0066ff" stop-opacity="0"/>
+                                    </radialGradient>
+                                    <linearGradient id="scifi-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#00f0ff"/>
+                                        <stop offset="50%" stop-color="#b05cff"/>
+                                        <stop offset="100%" stop-color="#00f0ff"/>
+                                    </linearGradient>
+                                    <filter id="scifi-glow" x="-50%" y="-50%" width="200%" height="200%">
+                                        <feGaussianBlur stdDeviation="3" result="blur"/>
+                                        <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+                                    </filter>
+                                </defs>
+                                <circle cx="20" cy="20" r="16" stroke="url(#scifi-ring)" stroke-width="1.5" stroke-dasharray="60 20" opacity="0.9" filter="url(#scifi-glow)">
+                                    <animateTransform attributeName="transform" type="rotate" from="0 20 20" to="360 20 20" dur="8s" repeatCount="indefinite" />
+                                </circle>
+                                <circle cx="20" cy="20" r="12" stroke="url(#scifi-ring)" stroke-width="1" stroke-dasharray="25 15" opacity="0.6">
+                                    <animateTransform attributeName="transform" type="rotate" from="360 20 20" to="0 20 20" dur="5s" repeatCount="indefinite" />
+                                </circle>
+                                <circle cx="20" cy="20" r="7" fill="url(#scifi-core)" filter="url(#scifi-glow)">
+                                    <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite" />
+                                </circle>
+                                <circle cx="20" cy="2" r="1.5" fill="#ffffff" filter="url(#scifi-glow)">
+                                    <animateTransform attributeName="transform" type="rotate" from="0 20 20" to="360 20 20" dur="4s" repeatCount="indefinite" />
+                                </circle>
+                                <circle cx="20" cy="38" r="1.5" fill="#80f0ff" filter="url(#scifi-glow)">
+                                    <animateTransform attributeName="transform" type="rotate" from="180 20 20" to="540 20 20" dur="4s" repeatCount="indefinite" />
+                                </circle>
+                            </svg>
+                            <div class="stitch-brand-text">
+                                <strong class="stitch-brand-title">无畏球球</strong>
+                                <div class="stitch-online-counter">
+                                    <span class="stitch-online-dot"></span>
+                                    <span class="stitch-online-num" data-online-count>1,247</span>
+                                    <span>在线</span>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="stitch-top-actions stitch-hud-actions">
-                            <button type="button" class="stitch-hud-btn" data-top-action="activity" aria-label="活动">
-                                ${renderMaterialSymbol("notifications", "stitch-hud-btn-symbol")}
-                            </button>
-                            <button type="button" class="stitch-hud-btn-text" data-open-settings aria-label="修改名字">
-                                ${renderMaterialSymbol("edit_square", "stitch-hud-btn-symbol")}
-                                <span>身份设置</span>
-                            </button>
                             <button type="button" class="stitch-auth-btn stitch-hud-btn-text stitch-hud-btn-text--accent" data-auth-action aria-label="账号操作">
                                 ${renderMaterialSymbol("fingerprint", "stitch-hud-btn-symbol")}
                                 <span class="stitch-auth-btn-label" data-auth-label>未接入</span>
@@ -596,120 +708,78 @@ export class LobbyUI {
                         </div>
                     </header>
 
+                    <!-- 活动公告横幅 -->
+                    <div class="stitch-event-banner" data-event-banner>
+                        <span class="stitch-event-badge">限时</span>
+                        <span class="stitch-event-text">🎉 新赛季「星际征途」已开启 — 首胜获得限定皮肤「极光幻影」</span>
+                        <span class="stitch-event-timer">剩余 6天 12:34:56</span>
+                    </div>
+
                     <main class="stitch-main">
                         <aside class="stitch-left-col stitch-tac-sidebar glass-panel">
-                            <div class="stitch-tac-drawer">
-                                <!-- 窄身常驻监控区 -->
-                                <div class="stitch-tac-collapsed">
-                                    <div class="stitch-tac-badge" data-progression-level>1 级</div>
-                                    <div class="stitch-tac-online-dot"></div>
-                                    <div class="stitch-tac-vert-name" data-player-name>勇者球球</div>
+                            <!-- 皮肤预览舞台 -->
+                            <div class="stitch-skin-preview-stage">
+                                <div class="stitch-preview-label-id">S-GRADE // PREVIEW</div>
+                                <div class="stitch-preview-ball-wrap">
+                                    <div class="stitch-preview-ring stitch-preview-ring--outer" aria-hidden="true"></div>
+                                    <div class="stitch-preview-ring" aria-hidden="true"></div>
+                                    <div class="stitch-preview-ball" data-preview-ball></div>
+                                    <div class="stitch-preview-hologram-glow"></div>
+                                    <div class="stitch-preview-particles"></div>
                                 </div>
+                                <div class="stitch-preview-pedestal"></div>
+                                <div class="stitch-preview-skin-name-plate">
+                                    <small>CURRENT NEURAL SKIN</small>
+                                    <strong data-active-skin-title>经典蓝</strong>
+                                </div>
+                            </div>
+
+                            <!-- 玩家信息 -->
+                            <div class="stitch-player-info-section">
+                                <div class="stitch-section-header">PROFILE // ENTITY</div>
+                                <div class="stitch-player-name-row">
+                                    <span class="stitch-player-name-display" data-player-name>勇者球球</span>
+                                    <span class="stitch-player-tag">#7788</span>
+                                </div>
+                                <div class="stitch-player-uid-row">
+                                    <span class="stitch-uid-label">ID</span>
+                                    <span class="stitch-uid-value" data-player-uid></span>
+                                </div>
+                                <div class="stitch-rank-badge-row" data-lobby-rank-badge></div>
                                 
-                                <!-- 展开后的战术详图区 -->
-                                <div class="stitch-tac-expanded">
-                                    <div class="stitch-tac-head">
-                                        <div class="stitch-tac-kicker"><span class="stitch-tac-kicker-dot"></span> 皮肤战术档案 // TAC-NET </div>
-                                        <h2 class="stitch-tac-name" data-player-name>勇者球球</h2>
-                                        <div class="stitch-tac-meta">
-                                            <span class="stitch-online-state">信号在线</span>
-                                            <span class="stitch-current-mode" data-current-mode-name>排位赛</span>
+                                <div class="stitch-player-stats-grid">
+                                    <div class="stitch-stat-box">
+                                        <div class="stitch-stat-icon">${renderMaterialSymbol("stars", "")}</div>
+                                        <div class="stitch-stat-data">
+                                            <small>等级</small>
+                                            <strong data-progression-level>1</strong>
                                         </div>
                                     </div>
-
-                                    <div class="stitch-tac-model-stage">
-                                        <div class="stitch-ball-stage">
-                                            <span class="stitch-ring stitch-ring--outer"></span>
-                                            <span class="stitch-ring stitch-ring--mid"></span>
-                                            <span class="stitch-ring stitch-ring--inner"></span>
-                                            <span class="stitch-crosshair stitch-crosshair--h"></span>
-                                            <span class="stitch-crosshair stitch-crosshair--v"></span>
-                                            <div class="stitch-ball-core ball-glow">
-                                                <span class="stitch-ball-surface"></span>
-                                                <span class="stitch-ball-highlight"></span>
-                                                <span class="stitch-ball-sheen"></span>
-                                            </div>
-                                            <span class="stitch-ball-skin-name" data-active-skin-label>挂载中 · 经典蓝</span>
-                                            <button type="button" class="stitch-stage-bolt" data-toggle-skins aria-label="切换挂载">
-                                                ${renderMaterialSymbol("palette", "stitch-stage-bolt-symbol")}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <section class="stitch-skin-profile">
-                                        <div class="stitch-skin-profile-head">
-                                            <small>当前挂载 / SKIN DOSSIER</small>
-                                            <strong data-active-skin-title>经典蓝</strong>
-                                            <span data-active-skin-signature>蓝白双层护膜，轮廓稳定，适合长时间主界面展示。</span>
-                                        </div>
-                                        <div class="stitch-skin-spectrum">
-                                            <span class="stitch-skin-swatch stitch-skin-swatch--a" aria-hidden="true"></span>
-                                            <span class="stitch-skin-swatch stitch-skin-swatch--b" aria-hidden="true"></span>
-                                            <span class="stitch-skin-spectrum-copy" data-active-skin-palette>#81ECFF / #4F7DFF</span>
-                                        </div>
-                                        <div class="stitch-skin-meta-grid">
-                                            <article class="stitch-skin-meta-card">
-                                                <small>代号</small>
-                                                <strong data-active-skin-code>AX-01</strong>
-                                            </article>
-                                            <article class="stitch-skin-meta-card">
-                                                <small>系列</small>
-                                                <strong data-active-skin-series>标准竞技</strong>
-                                            </article>
-                                            <article class="stitch-skin-meta-card">
-                                                <small>稀有度</small>
-                                                <strong data-active-skin-rarity>标准</strong>
-                                            </article>
-                                            <article class="stitch-skin-meta-card">
-                                                <small>工艺</small>
-                                                <strong data-active-skin-finish>冷光镜面</strong>
-                                            </article>
-                                            <article class="stitch-skin-meta-card">
-                                                <small>场景</small>
-                                                <strong data-active-skin-scenario>大厅常驻</strong>
-                                            </article>
-                                            <article class="stitch-skin-meta-card">
-                                                <small>信号</small>
-                                                <strong data-active-skin-signal>冷调清晰</strong>
-                                            </article>
-                                        </div>
-                                    </section>
-
-                                    <div class="stitch-tac-data-grid">
-                                        <article class="stitch-tac-radar">
-                                            <small>全局表现 / WR</small>
+                                    <div class="stitch-stat-box">
+                                        <div class="stitch-stat-icon">${renderMaterialSymbol("trending_up", "")}</div>
+                                        <div class="stitch-stat-data">
+                                            <small>胜率</small>
                                             <strong data-progression-winrate>0%</strong>
-                                            <span data-progression-growth-meta>0 胜 / 0 局</span>
-                                        </article>
-                                        <article class="stitch-tac-radar is-accent">
-                                            <small>峰值质量 / PI PEAK</small>
-                                            <strong data-progression-best-mass>0 kg</strong>
-                                        </article>
-                                        <article class="stitch-tac-radar stitch-tac-badge-showcase">
-                                            <div class="stitch-badge-container">
-                                                <img src="/assets/images/rank_badge.png" class="stitch-rank-badge-img" alt="段位" />
-                                                <img src="/assets/images/trophy_icon.png" class="stitch-trophy-icon-img" alt="荣誉杯" />
-                                            </div>
-                                            <div class="stitch-badge-info">
-                                                <small>当前战区名分</small>
-                                                <strong>不屈青铜 III</strong>
-                                            </div>
-                                        </article>
+                                        </div>
                                     </div>
-
-                                    <button type="button" class="stitch-tac-action-btn btn-sweep" data-toggle-skins aria-expanded="false">
-                                        :: 变更装甲贴花
-                                    </button>
-
-                                    <section class="stitch-skin-drawer" data-skin-drawer>
-                                        <div class="stitch-skin-drawer-head">
-                                            <strong>本地烤漆方案</strong>
-                                            <small>点击注入主球外观</small>
+                                    <div class="stitch-stat-box">
+                                        <div class="stitch-stat-icon">${renderMaterialSymbol("weight", "")}</div>
+                                        <div class="stitch-stat-data">
+                                            <small>最佳</small>
+                                            <strong data-progression-best-mass>0</strong>
                                         </div>
-                                        <div class="stitch-skin-list">
-                                            ${this.buildSkinButtons("main")}
-                                        </div>
-                                    </section>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 皮肤选择网格 -->
+                            <div class="stitch-skin-select-section">
+                                <div class="stitch-skin-select-head">
+                                    <strong>皮肤</strong>
+                                    <small>${SKIN_OPTIONS.length}款</small>
+                                </div>
+                                <div class="stitch-skin-select-grid">
+                                    ${this.buildSkinSelectGrid()}
                                 </div>
                             </div>
                         </aside>
@@ -721,9 +791,9 @@ export class LobbyUI {
                                         <strong>模式选择</strong>
                                         <small>选择一个模式，直接进入对应分厅</small>
                                     </div>
-                                    <span class="stitch-mode-status" data-mode-status>已开放</span>
+                                    <span class="stitch-mode-status" data-mode-status>暂无数据</span>
                                 </div>
-                                    <div class="stitch-mode-grid">
+                                    <div class="stitch-mode-grid" data-mode-grid>
                                         ${this.buildModeCards()}
                                     </div>
                                 </section>
@@ -735,23 +805,21 @@ export class LobbyUI {
                                     <span class="stitch-launch-brief-kicker">当前入口 / 准备就绪</span>
                                     <div class="stitch-launch-brief-head">
                                         <strong data-selected-mode-name>排位赛</strong>
-                                        <span class="stitch-launch-brief-status" data-mode-status>已开放</span>
+                                        <span class="stitch-launch-brief-status" data-mode-status>暂无数据</span>
                                     </div>
                                     <p data-selected-mode-subtitle>向最高荣誉发起冲锋</p>
                                     <div class="stitch-launch-brief-stats">
                                         <article class="stitch-launch-brief-stat">
                                             <span>主轴情报</span>
-                                            <strong data-selected-mode-metric-a>黄金 II</strong>
+                                            <strong data-selected-mode-metric-a>暂无</strong>
                                         </article>
                                         <article class="stitch-launch-brief-stat">
                                             <span>排队焦点</span>
-                                            <strong data-selected-mode-metric-b>7.2 秒</strong>
+                                            <strong data-selected-mode-metric-b>暂无</strong>
                                         </article>
                                     </div>
                                     <div class="stitch-launch-brief-tags" data-selected-mode-tags>
-                                        <span class="stitch-launch-brief-tag">晋级保护</span>
-                                        <span class="stitch-launch-brief-tag">单排优先</span>
-                                        <span class="stitch-launch-brief-tag">连胜修正</span>
+                                        <span class="stitch-launch-brief-tag">暂无后端统计</span>
                                     </div>
                                 </section>
                                 <button type="button" class="stitch-launch-btn" data-start-game>
@@ -770,28 +838,42 @@ export class LobbyUI {
                     <!-- 悬浮 Dock 和 抽屉遮罩 -->
                     <div class="stitch-drawer-backdrop" data-drawer-backdrop></div>
                     
+                    <!-- 实时信息横条 -->
+                    <div class="stitch-live-ticker">
+                        <span class="stitch-ticker-icon">📢</span>
+                        <div class="stitch-ticker-track">
+                            <div class="stitch-ticker-content">
+                                <span class="stitch-ticker-item"><strong>球球小明</strong> 刚刚在大逃杀中获得第1名！</span>
+                                <span class="stitch-ticker-item"><strong>暗夜猎手</strong> 解锁了传说皮肤「星河之翼」</span>
+                                <span class="stitch-ticker-item"><strong>系统公告</strong> 新模式「团队风暴」即将上线</span>
+                                <span class="stitch-ticker-item"><strong>球球大师</strong> 排位赛连胜12局！</span>
+                                <span class="stitch-ticker-item"><strong>新赛季</strong> S12「星际征途」火热进行中</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <footer class="stitch-base-tray">
                         <div class="stitch-tray-plate"></div>
                         <div class="stitch-hud-server-ping stitch-hud-server-ping--bottom">
                             <span class="ping-dot"></span>
-                            <span class="ping-ms">网络延迟: 18ms | 系统在线</span>
+                            <span class="ping-ms" data-backend-ping>网络延迟: 检测中 | 正在探测后端</span>
                         </div>
                         <nav class="stitch-tray-nav">
-                            <button type="button" class="stitch-tray-btn" data-toggle-drawer="tasks" aria-label="任务中心">
-                                ${renderMaterialSymbol("library_add_check", "stitch-tray-symbol")}
-                                <span>指令站</span>
+                            <button type="button" class="stitch-tray-btn" data-toggle-drawer="friends" aria-label="好友">
+                                ${renderMaterialSymbol("group", "stitch-tray-symbol")}
+                                <span>好友</span>
                             </button>
-                            <button type="button" class="stitch-tray-btn" data-toggle-drawer="friends" aria-label="好友列表">
-                                ${renderMaterialSymbol("groups", "stitch-tray-symbol")}
-                                <span>通讯栈</span>
+                            <button type="button" class="stitch-tray-btn" data-toggle-drawer="leaderboard" aria-label="排行榜">
+                                ${renderMaterialSymbol("leaderboard", "stitch-tray-symbol")}
+                                <span>排行榜</span>
                             </button>
-                            <button type="button" class="stitch-tray-btn" data-feature="shop" aria-label="商城">
-                                ${renderMaterialSymbol("storefront", "stitch-tray-symbol")}
-                                <span>黑市交易</span>
+                            <button type="button" class="stitch-tray-btn" data-toggle-drawer="shop" aria-label="商店">
+                                ${renderMaterialSymbol("shopping_bag", "stitch-tray-symbol")}
+                                <span>商店</span>
                             </button>
-                            <button type="button" class="stitch-tray-btn" data-feature="magic" aria-label="魔法屋">
-                                ${renderMaterialSymbol("auto_awesome", "stitch-tray-symbol")}
-                                <span>量子祈愿</span>
+                            <button type="button" class="stitch-tray-btn" data-toggle-drawer="activity" aria-label="活动">
+                                ${renderMaterialSymbol("celebration", "stitch-tray-symbol")}
+                                <span>活动</span>
                             </button>
                         </nav>
                         <div class="stitch-tray-glowline"></div>
@@ -806,7 +888,7 @@ export class LobbyUI {
                                     <span class="stitch-z4-kicker">/ MISSION LOG</span>
                                     <strong>每日签发指令</strong>
                                 </div>
-                                <span class="stitch-z4-counter">2 / 5</span>
+                                <span class="stitch-z4-counter" data-task-counter>暂无任务</span>
                             </div>
                             <div class="stitch-z4-body">
                                 <div class="stitch-task-list" data-task-list-root>
@@ -816,24 +898,189 @@ export class LobbyUI {
                         </div>
                     </aside>
 
-                    <!-- 右侧情报抽屉：星港通讯录 -->
+                    <!-- 右侧情报抽屉：好友中心 -->
                     <aside class="stitch-z4-drawer is-right" data-drawer-name="friends">
                         <div class="stitch-z4-content glass-panel" style="margin: 20px; border-radius: 20px;">
                             <div class="stitch-z4-head">
                                 <div class="stitch-z4-headline">
-                                    <span class="stitch-z4-kicker">/ SOCIAL LINK</span>
-                                    <strong>星港突击小队</strong>
+                                    <span class="stitch-z4-kicker">/ SOCIAL HUB</span>
+                                    <strong>好友中心</strong>
                                 </div>
-                                <button type="button" class="stitch-z4-link" data-feature="friends">:: 同步全站</button>
+                                <button type="button" class="stitch-ghost-btn stitch-friend-refresh-btn" data-social-refresh>
+                                    ${renderMaterialSymbol("sync", "stitch-friend-refresh-icon")}
+                                    <span>刷新</span>
+                                </button>
                             </div>
-                            <div class="stitch-z4-body">
-                                <div class="stitch-friend-list" data-friend-list-root>
-                                    ${this.buildFriendRows()}
+
+                            <!-- 统计概览 -->
+                            <div class="stitch-social-overview-bar" data-social-center>
+                                <div class="stitch-social-stat">
+                                    <strong data-social-count-friends>--</strong>
+                                    <span>好友</span>
+                                </div>
+                                <div class="stitch-social-stat stitch-social-stat--alert">
+                                    <strong data-social-count-incoming>--</strong>
+                                    <span>待处理</span>
+                                </div>
+                                <div class="stitch-social-stat">
+                                    <strong data-social-count-outgoing>--</strong>
+                                    <span>已发送</span>
+                                </div>
+                                <div class="stitch-social-stat">
+                                    <strong data-social-count-blocks>--</strong>
+                                    <span>黑名单</span>
+                                </div>
+                            </div>
+
+                            <!-- UID 搜索栏 -->
+                            <div class="stitch-social-search-bar">
+                                <div class="stitch-social-search-input-wrap">
+                                    ${renderMaterialSymbol("search", "stitch-social-search-icon")}
+                                    <input type="text" inputmode="numeric" pattern="\\d*" maxlength="9"
+                                    placeholder="输入 1-11 位 UID 查找玩家"
+                                           data-social-search-input
+                                           class="stitch-social-search-input" />
+                                </div>
+                                <button type="button" class="stitch-social-search-btn" data-social-search-btn>
+                                    ${renderMaterialSymbol("person_search", "")}
+                                </button>
+                            </div>
+                            <div class="stitch-social-search-result" data-social-search-result></div>
+
+                            <!-- 分页标签 -->
+                            <div class="stitch-social-tabs" data-social-tabs>
+                                <button type="button" class="stitch-social-tab is-active" data-social-tab="friends">
+                                    ${renderMaterialSymbol("group", "")}
+                                    <span>好友</span>
+                                </button>
+                                <button type="button" class="stitch-social-tab" data-social-tab="requests">
+                                    ${renderMaterialSymbol("mail", "")}
+                                    <span>申请</span>
+                                </button>
+                                <button type="button" class="stitch-social-tab" data-social-tab="blacklist">
+                                    ${renderMaterialSymbol("block", "")}
+                                    <span>黑名单</span>
+                                </button>
+                            </div>
+
+                            <!-- 好友列表 -->
+                            <div class="stitch-social-panel" data-social-panel="friends">
+                                <div class="stitch-social-list" data-social-friend-list></div>
+                            </div>
+
+                            <!-- 申请列表 (收到 + 发出) -->
+                            <div class="stitch-social-panel is-hidden" data-social-panel="requests">
+                                <div class="stitch-social-sub-label">
+                                    ${renderMaterialSymbol("call_received", "")}
+                                    <span>收到的申请</span>
+                                </div>
+                                <div class="stitch-social-list" data-social-incoming-list></div>
+                                <div class="stitch-social-sub-label" style="margin-top:12px;">
+                                    ${renderMaterialSymbol("call_made", "")}
+                                    <span>我发出的</span>
+                                </div>
+                                <div class="stitch-social-list" data-social-outgoing-list></div>
+                            </div>
+
+                            <!-- 黑名单列表 -->
+                            <div class="stitch-social-panel is-hidden" data-social-panel="blacklist">
+                                <div class="stitch-social-list" data-social-block-list></div>
+                            </div>
+
+                            <div class="stitch-social-status-bar" data-social-status>登录后可通过 UID 查找好友。</div>
+                        </div>
+                        <div class="stitch-z4-glow-edge"></div>
+                    </aside>
+
+                    <!-- 排行榜抽屉 -->
+                    <aside class="stitch-z4-drawer is-right" data-drawer-name="leaderboard">
+                        <div class="stitch-z4-content glass-panel" style="margin: 20px; border-radius: 20px;">
+                            <div class="stitch-z4-head">
+                                <div class="stitch-z4-headline">
+                                    <span class="stitch-z4-kicker">/ RANKING</span>
+                                    <strong>段位排行榜</strong>
+                                </div>
+                                <button type="button" class="stitch-ghost-btn" data-ranking-refresh>刷新</button>
+                            </div>
+                            <div class="stitch-z4-body" data-ranking-body>
+                                <div class="stitch-drawer-tabs" data-ranking-tabs>
+                                    <button type="button" class="stitch-drawer-tab is-active" data-ranking-queue="ranked">排位赛</button>
+                                    <button type="button" class="stitch-drawer-tab" data-ranking-queue="peak">巅峰赛</button>
+                                    <button type="button" class="stitch-drawer-tab" data-ranking-queue="battleRoyale">大逃杀</button>
+                                </div>
+                                <div class="stitch-ranking-season" data-ranking-season>
+                                    <span class="stitch-z4-kicker">当前赛季</span>
+                                    <strong data-ranking-season-name>加载中...</strong>
+                                </div>
+                                <div class="stitch-ranking-my-rank" data-ranking-myrank>
+                                    <div class="stitch-ranking-my-card">
+                                        <span class="stitch-ranking-my-label">我的段位</span>
+                                        <strong data-ranking-my-tier>--</strong>
+                                        <span data-ranking-my-score>排位分: --</span>
+                                        <span data-ranking-my-winrate>胜率: --</span>
+                                    </div>
+                                </div>
+                                <div class="stitch-ranking-list" data-ranking-list>
+                                    <div class="stitch-drawer-empty">
+                                        ${renderMaterialSymbol("emoji_events", "stitch-drawer-empty-icon")}
+                                        <strong>登录后查看排行榜</strong>
+                                        <small>排行数据将从服务器实时拉取</small>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div class="stitch-z4-glow-edge"></div>
                     </aside>
+
+                    <!-- 商店抽屉 -->
+                    <aside class="stitch-z4-drawer is-right" data-drawer-name="shop">
+                        <div class="stitch-z4-content glass-panel" style="margin: 20px; border-radius: 20px;">
+                            <div class="stitch-z4-head">
+                                <div class="stitch-z4-headline">
+                                    <span class="stitch-z4-kicker">/ STORE</span>
+                                    <strong>皮肤商店</strong>
+                                </div>
+                                <div class="stitch-shop-coins">
+                                    ${renderMaterialSymbol("stars", "stitch-shop-coin-icon")}
+                                    <strong data-shop-coins>0</strong>
+                                </div>
+                            </div>
+                            <div class="stitch-z4-body" data-shop-body>
+                                <div class="stitch-shop-grid" data-shop-grid>
+                                    ${this.buildShopItems()}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stitch-z4-glow-edge"></div>
+                    </aside>
+
+                    <!-- 活动抽屉 -->
+                    <aside class="stitch-z4-drawer is-right" data-drawer-name="activity">
+                        <div class="stitch-z4-content glass-panel" style="margin: 20px; border-radius: 20px;">
+                            <div class="stitch-z4-head">
+                                <div class="stitch-z4-headline">
+                                    <span class="stitch-z4-kicker">/ EVENTS</span>
+                                    <strong>活动与邮件中心</strong>
+                                </div>
+                                <button type="button" class="stitch-z4-link" data-mail-refresh>
+                                    ${renderMaterialSymbol("refresh", "")}
+                                    <span>刷新</span>
+                                </button>
+                            </div>
+                            <div class="stitch-z4-body" data-activity-body>
+                                <div class="stitch-social-status" data-mail-status>点击刷新加载邮件。</div>
+                                <div class="stitch-activity-list" data-activity-list>
+                                    <article class="stitch-social-card stitch-social-card--empty">
+                                        <span class="material-symbols-outlined">mail</span>
+                                        <strong>邮件中心</strong>
+                                        <small>登录后查看封禁通知、申诉进度和系统回信。</small>
+                                    </article>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stitch-z4-glow-edge"></div>
+                    </aside>
+
                 </div>
 
                 <div class="stitch-inline-tip" data-inline-tip aria-live="polite"></div>
@@ -845,129 +1092,220 @@ export class LobbyUI {
                 <div class="stitch-settings-panel" role="dialog" aria-modal="true" aria-labelledby="stitch-settings-title">
                     <div class="stitch-settings-head">
                         <div>
-                            <small>本地设置</small>
-                            <h2 id="stitch-settings-title">账号与显示配置</h2>
+                            <small>SETTINGS</small>
+                            <h2 id="stitch-settings-title">游戏设置</h2>
                         </div>
                         <button type="button" class="stitch-settings-close" data-close-settings aria-label="关闭设置">×</button>
                     </div>
 
-                    <div class="stitch-settings-avatar-row">
-                        <span class="stitch-avatar-slot stitch-avatar-slot--settings" data-avatar-slot>
-                            <img class="stitch-avatar-img" data-avatar-img alt="头像" />
-                            <span class="stitch-avatar-fallback" data-avatar-fallback>球</span>
-                        </span>
-                        <div class="stitch-settings-avatar-actions">
-                            <button type="button" class="stitch-ghost-btn" data-avatar-trigger>上传头像</button>
-                            <button type="button" class="stitch-ghost-btn" data-avatar-clear>清空头像</button>
-                        </div>
-                    </div>
+                    <div class="stitch-settings-scroll">
 
-                    <label class="stitch-settings-field">
-                        <span>玩家昵称</span>
-                        <input type="text" name="playerName" maxlength="${MAX_PLAYER_NAME_LENGTH}" />
-                    </label>
-
-                    <div class="stitch-settings-section">
-                        <div class="stitch-settings-title">皮肤预设</div>
-                        <div class="stitch-skin-list stitch-skin-list--settings">
-                            ${this.buildSkinButtons("settings")}
-                        </div>
-                    </div>
-
-                    <div class="stitch-settings-grid">
-                        <label class="stitch-settings-toggle">
-                            <input type="checkbox" name="showFps" />
-                            <span>显示 FPS</span>
-                        </label>
-                        <label class="stitch-settings-toggle">
-                            <input type="checkbox" name="showMinimap" />
-                            <span>显示小地图</span>
-                        </label>
-                        <label class="stitch-settings-toggle">
-                            <input type="checkbox" name="developerMode" />
-                            <span>开发者模式（默认关闭）</span>
-                        </label>
-                        <label class="stitch-settings-toggle stitch-settings-toggle--wide">
-                            <input type="checkbox" name="reducedMotion" />
-                            <span>减少动效</span>
-                        </label>
-                    </div>
-
-                    <section class="stitch-settings-section stitch-settings-section--social" data-social-center>
-                        <div class="stitch-settings-section-head">
-                            <div>
-                                <div class="stitch-settings-title">好友与黑名单</div>
-                                <small>通过 9 位 UID 查找好友，打通申请、取关与黑名单链路。</small>
+                        <!-- 账号概览 -->
+                        <section class="stitch-account-hero" aria-label="账号信息">
+                            <div class="stitch-account-hero-main">
+                                <span class="stitch-avatar-slot stitch-avatar-slot--settings" data-avatar-slot>
+                                    <img class="stitch-avatar-img" data-avatar-img alt="头像" />
+                                    <span class="stitch-avatar-fallback" data-avatar-fallback>球</span>
+                                </span>
+                                <div class="stitch-account-hero-meta">
+                                    <strong data-settings-account-name>游客</strong>
+                                    <div class="stitch-account-hero-badges">
+                                        <span class="stitch-account-pill" data-settings-account-badge>游客模式</span>
+                                        <span class="stitch-account-pill stitch-account-pill--sub" data-settings-account-state>未登录</span>
+                                    </div>
+                                    <span class="stitch-account-hero-hint" data-settings-account-hint>登录后同步进度</span>
+                                </div>
+                                <div class="stitch-settings-avatar-actions">
+                                    <button type="button" class="stitch-ghost-btn" data-avatar-trigger>上传头像</button>
+                                    <button type="button" class="stitch-ghost-btn" data-avatar-clear>清空</button>
+                                </div>
                             </div>
-                            <button type="button" class="stitch-ghost-btn" data-social-refresh>刷新社交</button>
-                        </div>
+                        </section>
 
-                        <div class="stitch-devtool-summary stitch-social-summary">
-                            <article class="stitch-devtool-metric">
-                                <strong data-social-count-friends>--</strong>
-                                <span>好友数</span>
-                            </article>
-                            <article class="stitch-devtool-metric">
-                                <strong data-social-count-incoming>--</strong>
-                                <span>待处理申请</span>
-                            </article>
-                            <article class="stitch-devtool-metric">
-                                <strong data-social-count-outgoing>--</strong>
-                                <span>我发出的申请</span>
-                            </article>
-                            <article class="stitch-devtool-metric">
-                                <strong data-social-count-blocks>--</strong>
-                                <span>黑名单</span>
-                            </article>
-                        </div>
-
-                        <div class="stitch-social-search-row">
-                            <label class="stitch-settings-field stitch-social-search-field">
-                                <span>UID 查找</span>
-                                <input type="text" inputmode="numeric" pattern="\\d*" maxlength="9" placeholder="输入 9 位 UID" data-social-search-input />
+                        <!-- 昵称 -->
+                        <section class="stitch-settings-section stitch-settings-card">
+                            <div class="stitch-settings-section-head">
+                                <div><div class="stitch-settings-title">${renderMaterialSymbol("badge", "stitch-settings-icon")} 昵称</div></div>
+                            </div>
+                            <label class="stitch-settings-field">
+                                <span>玩家昵称</span>
+                                <input type="text" name="playerName" maxlength="${MAX_PLAYER_NAME_LENGTH}" placeholder="输入展示昵称" />
                             </label>
-                            <button type="button" class="stitch-ghost-btn" data-social-search-btn>查找</button>
-                        </div>
+                        </section>
 
-                        <div class="stitch-devtool-list" data-social-search-result></div>
-                        <div class="stitch-devtool-list" data-social-friend-list></div>
-                        <div class="stitch-devtool-list" data-social-incoming-list></div>
-                        <div class="stitch-devtool-list" data-social-outgoing-list></div>
-                        <div class="stitch-devtool-list" data-social-block-list></div>
-                        <div class="stitch-devtool-status" data-social-status>登录后可通过 UID 查找好友、处理申请和管理黑名单。</div>
-                    </section>
-
-                    <section class="stitch-settings-section stitch-settings-section--developer">
-                        <div class="stitch-settings-section-head">
-                            <div>
-                                <div class="stitch-settings-title">开发者工具箱</div>
-                                <small>确认账号注册、保存和读取链路已经打通。</small>
+                        <!-- 画面与帧率 -->
+                        <section class="stitch-settings-section stitch-settings-card">
+                            <div class="stitch-settings-section-head">
+                                <div><div class="stitch-settings-title">${renderMaterialSymbol("monitor", "stitch-settings-icon")} 画面与帧率</div></div>
                             </div>
-                            <button type="button" class="stitch-ghost-btn" data-devtool-refresh>刷新链路</button>
-                        </div>
-                        <div class="stitch-devtool-summary" data-devtool-summary></div>
-                        <div class="stitch-devtool-current" data-devtool-current></div>
-                        <div class="stitch-devtool-list" data-devtool-list></div>
-                        <div class="stitch-devtool-status" data-devtool-status>登录后可查看账号数量与基本信息。</div>
-                    </section>
+                            <div class="stitch-settings-grid">
+                                <label class="stitch-settings-toggle">
+                                    <input type="checkbox" name="showFps" />
+                                    <span>显示帧率 (FPS)</span>
+                                </label>
+                                <label class="stitch-settings-toggle">
+                                    <input type="checkbox" name="reducedMotion" />
+                                    <span>减少动效（低配模式）</span>
+                                </label>
+                                <label class="stitch-settings-toggle">
+                                    <input type="checkbox" name="showMinimap" />
+                                    <span>显示小地图</span>
+                                </label>
+                                <label class="stitch-settings-toggle">
+                                    <input type="checkbox" name="showLeaderboard" />
+                                    <span>显示排行榜</span>
+                                </label>
+                            </div>
+                        </section>
+
+                        <!-- 声音与音效 -->
+                        <section class="stitch-settings-section stitch-settings-card">
+                            <div class="stitch-settings-section-head">
+                                <div><div class="stitch-settings-title">${renderMaterialSymbol("volume_up", "stitch-settings-icon")} 声音与音效</div></div>
+                            </div>
+                            <div class="stitch-settings-slider-group">
+                                <label class="stitch-settings-slider">
+                                    <span>主音量</span>
+                                    <input type="range" name="masterVolume" min="0" max="100" value="80" />
+                                    <output>80%</output>
+                                </label>
+                                <label class="stitch-settings-slider">
+                                    <span>音效</span>
+                                    <input type="range" name="sfxVolume" min="0" max="100" value="100" />
+                                    <output>100%</output>
+                                </label>
+                                <label class="stitch-settings-slider">
+                                    <span>背景音乐</span>
+                                    <input type="range" name="bgmVolume" min="0" max="100" value="50" />
+                                    <output>50%</output>
+                                </label>
+                            </div>
+                        </section>
+
+                        <!-- 操作与按键 -->
+                        <section class="stitch-settings-section stitch-settings-card">
+                            <div class="stitch-settings-section-head">
+                                <div><div class="stitch-settings-title">${renderMaterialSymbol("sports_esports", "stitch-settings-icon")} 操作与按键</div></div>
+                            </div>
+                            <div class="stitch-settings-keybind-list">
+                                <div class="stitch-settings-keybind-row">
+                                    <span>移动</span><kbd>鼠标 / 触屏拖动</kbd>
+                                </div>
+                                <div class="stitch-settings-keybind-row">
+                                    <span>分裂</span><kbd>空格键</kbd>
+                                </div>
+                                <div class="stitch-settings-keybind-row">
+                                    <span>吐球</span><kbd>W</kbd>
+                                </div>
+                                <div class="stitch-settings-keybind-row">
+                                    <span>加速</span><kbd>Shift / 双击</kbd>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- 好友管理 -->
+                        <section class="stitch-settings-section stitch-settings-card" data-social-center>
+                            <div class="stitch-settings-section-head">
+                                <div><div class="stitch-settings-title">${renderMaterialSymbol("group", "stitch-settings-icon")} 好友管理</div></div>
+                                <button type="button" class="stitch-ghost-btn" data-social-refresh>刷新</button>
+                            </div>
+                            <div class="stitch-devtool-summary stitch-social-summary">
+                                <article class="stitch-devtool-metric"><strong data-social-count-friends>--</strong><span>好友</span></article>
+                                <article class="stitch-devtool-metric"><strong data-social-count-incoming>--</strong><span>待处理</span></article>
+                                <article class="stitch-devtool-metric"><strong data-social-count-outgoing>--</strong><span>已申请</span></article>
+                                <article class="stitch-devtool-metric"><strong data-social-count-blocks>--</strong><span>黑名单</span></article>
+                            </div>
+                            <div class="stitch-social-search-row">
+                                <label class="stitch-settings-field stitch-social-search-field">
+                                    <span>UID 查找</span>
+                                    <input type="text" inputmode="numeric" pattern="\\d*" maxlength="11" placeholder="输入 UID" data-social-search-input />
+                                </label>
+                                <button type="button" class="stitch-ghost-btn" data-social-search-btn>查找</button>
+                            </div>
+                            <div class="stitch-devtool-list" data-social-search-result></div>
+                            <div class="stitch-devtool-list" data-social-friend-list></div>
+                            <div class="stitch-devtool-list" data-social-incoming-list></div>
+                            <div class="stitch-devtool-list" data-social-outgoing-list></div>
+                            <div class="stitch-devtool-list" data-social-block-list></div>
+                            <div class="stitch-devtool-status" data-social-status>登录后可查找好友</div>
+                        </section>
+
+                        <!-- 开发者（隐藏） -->
+                        <section class="stitch-settings-section stitch-settings-card" style="display:none">
+                            <div class="stitch-settings-section-head">
+                                <div><div class="stitch-settings-title">开发者工具箱</div></div>
+                                <button type="button" class="stitch-ghost-btn" data-devtool-refresh>刷新链路</button>
+                            </div>
+                            <div class="stitch-devtool-summary" data-devtool-summary></div>
+                            <div class="stitch-devtool-current" data-devtool-current></div>
+                            <div class="stitch-devtool-list" data-devtool-list></div>
+                            <div class="stitch-devtool-status" data-devtool-status></div>
+                        </section>
+                    </div>
 
                     <footer class="stitch-settings-foot">
-                        <small>显示设置保存在浏览器，账号与基础资料会同步到后端。</small>
                         <button type="button" class="stitch-main-cta stitch-main-cta--small" data-close-settings>完成</button>
                     </footer>
                 </div>
             </div>
 
+
             <div class="stitch-auth-overlay" data-auth-overlay>
+                <div class="stitch-auth-dynamic-bg" aria-hidden="true">
+                    <svg class="stitch-auth-grid-map" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <pattern id="auth-grid-pattern" width="60" height="60" patternUnits="userSpaceOnUse">
+                                <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(0, 240, 255, 0.05)" stroke-width="1"/>
+                                <circle cx="60" cy="60" r="1.5" fill="rgba(0, 240, 255, 0.2)"/>
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#auth-grid-pattern)" style="transform: perspective(1000px) rotateX(60deg) scale(2); transform-origin: top center;" />
+                    </svg>
+                    <div class="stitch-dynamic-ball ball-1"></div>
+                    <div class="stitch-dynamic-ball ball-2"></div>
+                    <div class="stitch-dynamic-ball ball-3"></div>
+                </div>
+
                 <div class="stitch-auth-shell stitch-auth-shell--compact">
                     <div class="stitch-auth-panel" role="dialog" aria-modal="true" aria-labelledby="stitch-auth-title">
                         <span class="stitch-auth-panel-topline" aria-hidden="true"></span>
 
                         <div class="stitch-auth-head">
-                            <div class="stitch-auth-head-copy">
-                                <small data-auth-head-kicker>账号中心</small>
-                                <h2 id="stitch-auth-title" data-auth-head-title>账号登录</h2>
-                                <span class="stitch-auth-brand-mark">球球实验室</span>
+                            <div class="stitch-auth-brand-center">
+                                <svg class="stitch-brand-logo" viewBox="0 0 40 40" width="56" height="56" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
+                                    <defs>
+                                        <radialGradient id="auth-scifi-core" cx="50%" cy="50%" r="50%">
+                                            <stop offset="0%" stop-color="#ffffff"/>
+                                            <stop offset="30%" stop-color="#80f0ff"/>
+                                            <stop offset="100%" stop-color="#0066ff" stop-opacity="0"/>
+                                        </radialGradient>
+                                        <linearGradient id="auth-scifi-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stop-color="#00f0ff"/>
+                                            <stop offset="50%" stop-color="#b05cff"/>
+                                            <stop offset="100%" stop-color="#00f0ff"/>
+                                        </linearGradient>
+                                        <filter id="auth-scifi-glow" x="-50%" y="-50%" width="200%" height="200%">
+                                            <feGaussianBlur stdDeviation="3" result="blur"/>
+                                            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+                                        </filter>
+                                    </defs>
+                                    <circle cx="20" cy="20" r="16" stroke="url(#auth-scifi-ring)" stroke-width="1.5" stroke-dasharray="60 20" opacity="0.9" filter="url(#auth-scifi-glow)">
+                                        <animateTransform attributeName="transform" type="rotate" from="0 20 20" to="360 20 20" dur="8s" repeatCount="indefinite" />
+                                    </circle>
+                                    <circle cx="20" cy="20" r="12" stroke="url(#auth-scifi-ring)" stroke-width="1" stroke-dasharray="25 15" opacity="0.6">
+                                        <animateTransform attributeName="transform" type="rotate" from="360 20 20" to="0 20 20" dur="5s" repeatCount="indefinite" />
+                                    </circle>
+                                    <circle cx="20" cy="20" r="7" fill="url(#auth-scifi-core)" filter="url(#auth-scifi-glow)">
+                                        <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite" />
+                                    </circle>
+                                    <circle cx="20" cy="2" r="1.5" fill="#ffffff" filter="url(#auth-scifi-glow)">
+                                        <animateTransform attributeName="transform" type="rotate" from="0 20 20" to="360 20 20" dur="4s" repeatCount="indefinite" />
+                                    </circle>
+                                    <circle cx="20" cy="38" r="1.5" fill="#80f0ff" filter="url(#auth-scifi-glow)">
+                                        <animateTransform attributeName="transform" type="rotate" from="180 20 20" to="540 20 20" dur="4s" repeatCount="indefinite" />
+                                    </circle>
+                                </svg>
+                                <h2 id="stitch-auth-title" class="stitch-auth-hero-title">无畏球球</h2>
                             </div>
                             <button
                                 type="button"
@@ -979,10 +1317,10 @@ export class LobbyUI {
                             </button>
                         </div>
 
-                        <section class="stitch-auth-intro" data-auth-intro>
+                        <section class="stitch-auth-intro" data-auth-intro style="display: none;">
                             <div class="stitch-auth-intro-copy-wrap">
-                                <strong data-auth-intro-title>用账号直接进入大厅</strong>
-                                <p data-auth-intro-copy>输入账号和密码，继续你的当前云端进度。</p>
+                                <strong data-auth-intro-title></strong>
+                                <p data-auth-intro-copy></p>
                             </div>
                         </section>
 
@@ -990,6 +1328,22 @@ export class LobbyUI {
                             <span class="stitch-auth-account-chip">当前账号</span>
                             <strong data-auth-account-name>未登录</strong>
                             <small data-auth-account-label>云存档未接入</small>
+                            <div class="stitch-auth-account-actions">
+                                <button
+                                    type="button"
+                                    class="stitch-main-cta stitch-main-cta--small"
+                                    data-auth-switch-mode="login"
+                                >
+                                    退出并切换账号
+                                </button>
+                                <button
+                                    type="button"
+                                    class="stitch-main-cta stitch-main-cta--small"
+                                    data-auth-switch-mode="register"
+                                >
+                                    退出并注册新号
+                                </button>
+                            </div>
                             <button
                                 type="button"
                                 class="stitch-main-cta stitch-main-cta--small stitch-auth-logout-btn"
@@ -1207,118 +1561,133 @@ export class LobbyUI {
                             </div>
                         </form>
 
-                        <form class="stitch-auth-form" data-auth-form="reset">
-                            <div class="stitch-auth-form-grid">
-                                <label class="stitch-auth-field" data-auth-field="authResetAccount">
-                                    <span class="stitch-auth-field-label">
-                                        ${renderMaterialSymbol("person_search", "stitch-auth-field-symbol")}
-                                        <span>账号</span>
-                                    </span>
-                                    <input
-                                        type="text"
-                                        name="authResetAccount"
-                                        minlength="${AUTH_ACCOUNT_MIN_LENGTH}"
-                                        maxlength="64"
-                                        autocomplete="username"
-                                        placeholder="输入已注册账号"
-                                    />
-                                    <span
-                                        class="stitch-auth-field-popover"
-                                        data-auth-field-popover="authResetAccount"
-                                        aria-live="polite"
-                                    ></span>
-                                </label>
-                                <div class="stitch-auth-verify-block" data-auth-verify-block="reset-email">
-                                    <div class="stitch-auth-verify-row" data-auth-verify-row="reset-email">
-                                        <label class="stitch-auth-field" data-auth-field="authResetCode">
+                        <div class="stitch-auth-reset-dialog" data-auth-reset-dialog>
+                            <button
+                                type="button"
+                                class="stitch-auth-reset-dialog-backdrop"
+                                data-auth-link="back-login"
+                                aria-label="关闭找回密码弹窗"
+                            ></button>
+                            <div class="stitch-auth-reset-dialog-card">
+                                <div class="stitch-auth-reset-dialog-head">
+                                    <div class="stitch-auth-reset-dialog-copy">
+                                        <span class="stitch-auth-reset-dialog-kicker">邮箱找回</span>
+                                        <strong>通过绑定邮箱重置密码</strong>
+                                        <p>输入账号后发送邮箱验证码，验证通过后设置新密码。</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="stitch-auth-reset-dialog-close"
+                                        data-auth-link="back-login"
+                                        aria-label="关闭找回密码"
+                                    >
+                                        ${renderMaterialSymbol("close", "stitch-auth-reset-dialog-close-symbol")}
+                                    </button>
+                                </div>
+
+                                <form class="stitch-auth-form stitch-auth-form--reset-dialog" data-auth-form="reset">
+                                    <div class="stitch-auth-form-grid">
+                                        <label class="stitch-auth-field" data-auth-field="authResetAccount">
                                             <span class="stitch-auth-field-label">
-                                                ${renderMaterialSymbol("mail_lock", "stitch-auth-field-symbol")}
-                                                <span>邮箱验证码</span>
+                                                ${renderMaterialSymbol("person_search", "stitch-auth-field-symbol")}
+                                                <span>账号</span>
                                             </span>
                                             <input
                                                 type="text"
-                                                name="authResetCode"
-                                                inputmode="numeric"
-                                                maxlength="6"
-                                                autocomplete="one-time-code"
-                                                placeholder="输入 6 位验证码"
+                                                name="authResetAccount"
+                                                minlength="${AUTH_ACCOUNT_MIN_LENGTH}"
+                                                maxlength="64"
+                                                autocomplete="username"
+                                                placeholder="输入已注册账号"
                                             />
                                             <span
                                                 class="stitch-auth-field-popover"
-                                                data-auth-field-popover="authResetCode"
+                                                data-auth-field-popover="authResetAccount"
                                                 aria-live="polite"
                                             ></span>
                                         </label>
+                                        <div class="stitch-auth-verify-block" data-auth-verify-block="reset-email">
+                                            <div class="stitch-auth-verify-row" data-auth-verify-row="reset-email">
+                                                <label class="stitch-auth-field" data-auth-field="authResetCode">
+                                                    <span class="stitch-auth-field-label">
+                                                        ${renderMaterialSymbol("mail_lock", "stitch-auth-field-symbol")}
+                                                        <span>邮箱验证码</span>
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        name="authResetCode"
+                                                        inputmode="numeric"
+                                                        maxlength="6"
+                                                        autocomplete="one-time-code"
+                                                        placeholder="输入 6 位验证码"
+                                                    />
+                                                    <span
+                                                        class="stitch-auth-field-popover"
+                                                        data-auth-field-popover="authResetCode"
+                                                        aria-live="polite"
+                                                    ></span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    class="stitch-auth-send-code-btn"
+                                                    data-auth-send-code="reset-email"
+                                                >
+                                                    发送找回验证码
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <label class="stitch-auth-field" data-auth-field="authResetPassword">
+                                            <span class="stitch-auth-field-label">
+                                                ${renderMaterialSymbol("lock_reset", "stitch-auth-field-symbol")}
+                                                <span>新密码</span>
+                                            </span>
+                                            <input
+                                                type="password"
+                                                name="authResetPassword"
+                                                minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                                maxlength="64"
+                                                autocomplete="new-password"
+                                                placeholder="输入新的登录密码"
+                                            />
+                                            <span
+                                                class="stitch-auth-field-popover"
+                                                data-auth-field-popover="authResetPassword"
+                                                aria-live="polite"
+                                            ></span>
+                                        </label>
+                                        <label class="stitch-auth-field" data-auth-field="authResetConfirmPassword">
+                                            <span class="stitch-auth-field-label">
+                                                ${renderMaterialSymbol("task_alt", "stitch-auth-field-symbol")}
+                                                <span>确认新密码</span>
+                                            </span>
+                                            <input
+                                                type="password"
+                                                name="authResetConfirmPassword"
+                                                minlength="${AUTH_PASSWORD_MIN_LENGTH}"
+                                                maxlength="64"
+                                                autocomplete="new-password"
+                                                placeholder="再次输入新密码"
+                                            />
+                                            <span
+                                                class="stitch-auth-field-popover"
+                                                data-auth-field-popover="authResetConfirmPassword"
+                                                aria-live="polite"
+                                            ></span>
+                                        </label>
+                                    </div>
+                                    <div class="stitch-auth-form-foot">
+                                        <p class="stitch-auth-form-note" data-auth-form-note="reset">输入账号后发送验证码，邮件会发到该账号绑定邮箱。</p>
                                         <button
-                                            type="button"
-                                            class="stitch-auth-send-code-btn"
-                                            data-auth-send-code="reset-email"
+                                            type="submit"
+                                            class="stitch-main-cta stitch-auth-submit-btn"
+                                            data-auth-submit="reset"
                                         >
-                                            发送找回验证码
+                                            重置密码并返回登录
                                         </button>
                                     </div>
-                                </div>
-                                <label class="stitch-auth-field" data-auth-field="authResetPassword">
-                                    <span class="stitch-auth-field-label">
-                                        ${renderMaterialSymbol("lock_reset", "stitch-auth-field-symbol")}
-                                        <span>新密码</span>
-                                    </span>
-                                    <input
-                                        type="password"
-                                        name="authResetPassword"
-                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
-                                        maxlength="64"
-                                        autocomplete="new-password"
-                                        placeholder="输入新的登录密码"
-                                    />
-                                    <span
-                                        class="stitch-auth-field-popover"
-                                        data-auth-field-popover="authResetPassword"
-                                        aria-live="polite"
-                                    ></span>
-                                </label>
-                                <label class="stitch-auth-field" data-auth-field="authResetConfirmPassword">
-                                    <span class="stitch-auth-field-label">
-                                        ${renderMaterialSymbol("task_alt", "stitch-auth-field-symbol")}
-                                        <span>确认新密码</span>
-                                    </span>
-                                    <input
-                                        type="password"
-                                        name="authResetConfirmPassword"
-                                        minlength="${AUTH_PASSWORD_MIN_LENGTH}"
-                                        maxlength="64"
-                                        autocomplete="new-password"
-                                        placeholder="再次输入新密码"
-                                    />
-                                    <span
-                                        class="stitch-auth-field-popover"
-                                        data-auth-field-popover="authResetConfirmPassword"
-                                        aria-live="polite"
-                                    ></span>
-                                </label>
+                                </form>
                             </div>
-                            <div class="stitch-auth-secondary-link-row">
-                                <span class="stitch-auth-secondary-link-line" aria-hidden="true"></span>
-                                <button
-                                    type="button"
-                                    class="stitch-auth-secondary-link"
-                                    data-auth-link="back-login"
-                                >
-                                    返回登录
-                                </button>
-                                <span class="stitch-auth-secondary-link-line" aria-hidden="true"></span>
-                            </div>
-                            <div class="stitch-auth-form-foot">
-                                <p class="stitch-auth-form-note" data-auth-form-note="reset">输入账号后发送验证码，邮件会发到该账号绑定邮箱。</p>
-                                <button
-                                    type="submit"
-                                    class="stitch-main-cta stitch-auth-submit-btn"
-                                    data-auth-submit="reset"
-                                >
-                                    重置密码并返回登录
-                                </button>
-                            </div>
-                        </form>
+                        </div>
 
                         <div class="stitch-auth-provider-row" data-auth-provider-row>
                             <span class="stitch-auth-provider-note">其他登录方式</span>
@@ -1343,9 +1712,9 @@ export class LobbyUI {
 
   private buildModeCards(): string {
     return STITCH_MODE_CARDS.map((card) => {
+      const presentation = this.getModeCardPresentation(card);
       const activeClass = card.id === this.selectedCardId ? " is-active" : "";
       const themeClass = ` is-theme-${card.theme}`;
-
 
       return `
                 <article
@@ -1370,24 +1739,27 @@ export class LobbyUI {
                         <p class="stitch-mode-card-subtitle">${card.subtitle}</p>
                         <div class="stitch-mode-card-brief">${card.intro}</div>
                         <div class="stitch-mode-card-metrics">
-                            ${card.metrics
-                              .map(
-                                (metric) => `
+                            ${presentation.metrics
+          .map(
+            (metric) => `
                                     <article class="stitch-mode-card-metric">
                                         <span>${this.escapeHtml(metric.label)}</span>
                                         <strong>${this.escapeHtml(metric.value)}</strong>
                                     </article>
                                 `,
-                              )
-                              .join("")}
+          )
+          .join("")}
                         </div>
                         <div class="stitch-mode-card-tags">
-                            ${card.tags
-                              .map(
-                                (tag) =>
-                                  `<span class="stitch-mode-card-tag">${this.escapeHtml(tag)}</span>`,
-                              )
-                              .join("")}
+                            ${presentation.tags.length > 0
+          ? presentation.tags
+            .map(
+              (tag) =>
+                `<span class="stitch-mode-card-tag">${this.escapeHtml(tag)}</span>`,
+            )
+            .join("")
+          : '<span class="stitch-mode-card-tag">暂无后端统计</span>'
+        }
                         </div>
                     </div>
 
@@ -1397,6 +1769,17 @@ export class LobbyUI {
   }
 
   private buildTaskRows(): string {
+    if (!this.tasks.length) {
+      return `
+            <article class="stitch-task-row stitch-task-row--empty">
+                <div class="stitch-task-copy">
+                    <strong>暂无后端任务数据</strong>
+                    <span>任务接口接通后，这里只显示真实进度。</span>
+                </div>
+            </article>
+        `;
+    }
+
     return this.tasks.map(
       (task) => {
         const ratio = task.total > 0 ? Math.min(task.progress / task.total, 1) : 0;
@@ -1419,6 +1802,18 @@ export class LobbyUI {
   }
 
   private buildFriendRows(): string {
+    if (!this.friends.length) {
+      return `
+            <article class="stitch-friend-item stitch-friend-item--empty">
+                <strong>暂无好友</strong>
+                <small>后端返回好友后会显示在这里</small>
+            </article>
+            <button type="button" class="stitch-friend-item stitch-friend-add" data-feature="friends" aria-label="邀请好友">
+                ${renderMaterialSymbol("add", "stitch-friend-add-symbol")}
+            </button>
+        `;
+    }
+
     const rows = this.friends.map(
       (friend) => `
             <article class="stitch-friend-item">
@@ -1458,6 +1853,52 @@ export class LobbyUI {
       hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
     }
     return palette[hash % palette.length];
+  }
+
+  private buildShopItems(): string {
+    return SKIN_OPTIONS.map((skin) => {
+      const isEquipped = this.settings.equippedSkinId === skin.id;
+      const price = skin.id === "classic_blue" ? 0 : 200;
+      return `
+        <article class="stitch-shop-item${isEquipped ? " is-equipped" : ""}" data-shop-skin="${skin.id}">
+            <div class="stitch-shop-item-preview" style="background: ${skin.colorB};">
+                <div class="stitch-shop-item-ball" style="background: radial-gradient(circle at 35% 35%, ${skin.colorA}, ${skin.colorB});"></div>
+            </div>
+            <div class="stitch-shop-item-info">
+                <strong>${skin.name}</strong>
+                <span class="stitch-shop-item-price">
+                    ${price === 0 ? "免费" : `${renderMaterialSymbol("stars", "stitch-shop-price-icon")} ${price}`}
+                </span>
+            </div>
+            <button type="button" class="stitch-shop-item-btn${isEquipped ? " is-equipped" : ""}" data-shop-equip="${skin.id}">
+                ${isEquipped ? "已装备" : "装备"}
+            </button>
+        </article>
+      `;
+    }).join("");
+  }
+
+  private buildSigninDays(): string {
+    const rewards = [
+      { day: 1, reward: "50 金币", icon: "stars" },
+      { day: 2, reward: "100 金币", icon: "stars" },
+      { day: 3, reward: "经验卡", icon: "card_giftcard" },
+      { day: 4, reward: "200 金币", icon: "stars" },
+      { day: 5, reward: "皮肤碎片", icon: "auto_awesome" },
+      { day: 6, reward: "300 金币", icon: "stars" },
+      { day: 7, reward: "稀有宝箱", icon: "redeem" },
+    ];
+    const checkedDays = this.signinCheckedDays;
+    return rewards.map((r) => {
+      const checked = checkedDays >= r.day;
+      return `
+        <div class="stitch-signin-day${checked ? " is-checked" : ""}">
+            <span class="stitch-signin-day-num">Day ${r.day}</span>
+            ${renderMaterialSymbol(checked ? "check_circle" : r.icon, "stitch-signin-day-icon")}
+            <span class="stitch-signin-day-reward">${r.reward}</span>
+        </div>
+      `;
+    }).join("");
   }
 
   private renderFriendsToLobby() {
@@ -1555,21 +1996,27 @@ export class LobbyUI {
     const searchHost = this.root.querySelector<HTMLElement>("[data-social-search-result]");
     if (searchHost) {
       if (!status.loggedIn) {
-        searchHost.innerHTML = `<article class="stitch-devtool-row stitch-devtool-row--empty"><strong>UID 查找</strong><span>登录后可通过 9 位 UID 搜索好友。</span></article>`;
+        searchHost.innerHTML = "";
       } else if (!this.socialSearchResult) {
-        searchHost.innerHTML = `<article class="stitch-devtool-row stitch-devtool-row--empty"><strong>UID 查找</strong><span>输入 9 位 UID 可发起好友申请或加入黑名单。</span></article>`;
+        searchHost.innerHTML = "";
       } else if (!this.socialSearchResult.found || !this.socialSearchResult.user) {
-        searchHost.innerHTML = `<article class="stitch-devtool-row stitch-devtool-row--empty"><strong>未找到该 UID</strong><span>请确认对方 UID 是否正确。</span></article>`;
+        searchHost.innerHTML = `<div class="stitch-social-card stitch-social-card--empty"><span class="material-symbols-outlined">person_off</span><strong>未找到该 UID</strong><small>请确认对方 UID 是否正确</small></div>`;
       } else {
         const user = this.socialSearchResult.user;
+        const accent = this.resolveFriendAccent(user.gameId);
         searchHost.innerHTML = `
-          <article class="stitch-devtool-row">
-            <strong>${this.escapeHtml(user.nickname)} · UID ${this.escapeHtml(user.gameId)}</strong>
-            <span>${this.escapeHtml(this.getSocialRelationshipLabel(this.socialSearchResult.relationship))}</span>
-            <div class="stitch-social-actions-inline">
+          <div class="stitch-social-card stitch-social-card--search" data-social-center>
+            <div class="stitch-social-card-left">
+              <span class="stitch-social-avatar" style="--friend-accent:${accent}">${this.escapeHtml(user.nickname.charAt(0))}</span>
+            </div>
+            <div class="stitch-social-card-body">
+              <strong>${this.escapeHtml(user.nickname)}</strong>
+              <small>UID ${this.escapeHtml(user.gameId)} · ${this.escapeHtml(this.getSocialRelationshipLabel(this.socialSearchResult.relationship))}</small>
+            </div>
+            <div class="stitch-social-card-actions">
               ${this.buildSearchActionButtons(this.socialSearchResult)}
             </div>
-          </article>
+          </div>
         `;
       }
     }
@@ -1577,23 +2024,35 @@ export class LobbyUI {
     const friendListHost = this.root.querySelector<HTMLElement>("[data-social-friend-list]");
     if (friendListHost) {
       if (!status.loggedIn) {
-        friendListHost.innerHTML = "";
+        friendListHost.innerHTML = `<div class="stitch-social-card stitch-social-card--empty"><span class="material-symbols-outlined">lock</span><strong>未登录</strong><small>登录后查看好友列表</small></div>`;
       } else if (!this.socialOverview?.friends.length) {
-        friendListHost.innerHTML = `<article class="stitch-devtool-row stitch-devtool-row--empty"><strong>好友列表</strong><span>当前暂无好友。</span></article>`;
+        friendListHost.innerHTML = `<div class="stitch-social-card stitch-social-card--empty"><span class="material-symbols-outlined">group_off</span><strong>暂无好友</strong><small>通过 UID 搜索添加好友</small></div>`;
       } else {
         friendListHost.innerHTML = this.socialOverview.friends
-          .map(
-            (friend) => `
-              <article class="stitch-devtool-row">
-                <strong>${this.escapeHtml(friend.nickname)} · UID ${this.escapeHtml(friend.gameId)}</strong>
-                <span>${friend.isOnline ? "在线" : "离线"} · 上次活跃 ${this.escapeHtml(this.formatDateTime(friend.lastSeenAt))}</span>
-                <div class="stitch-social-actions-inline">
-                  <button type="button" class="stitch-ghost-btn" data-social-action="remove-friend" data-game-id="${this.escapeHtml(friend.gameId)}">取关好友</button>
-                  <button type="button" class="stitch-ghost-btn" data-social-action="block" data-game-id="${this.escapeHtml(friend.gameId)}">加入黑名单</button>
+          .map((friend) => {
+            const accent = this.resolveFriendAccent(friend.gameId);
+            const onlineClass = friend.isOnline ? "is-online" : "is-offline";
+            return `
+              <div class="stitch-social-card ${onlineClass}" data-social-center>
+                <div class="stitch-social-card-left">
+                  <span class="stitch-social-avatar" style="--friend-accent:${accent}">${this.escapeHtml(friend.nickname.charAt(0))}</span>
+                  <span class="stitch-social-status-dot ${onlineClass}"></span>
                 </div>
-              </article>
-            `,
-          )
+                <div class="stitch-social-card-body">
+                  <strong>${this.escapeHtml(friend.nickname)}</strong>
+                  <small>UID ${this.escapeHtml(friend.gameId)} · ${friend.isOnline ? "在线" : `离线 · ${this.escapeHtml(this.formatDateTime(friend.lastSeenAt))}`}</small>
+                </div>
+                <div class="stitch-social-card-actions">
+                  <button type="button" class="stitch-social-action-btn stitch-social-action-btn--danger" data-social-action="remove-friend" data-game-id="${this.escapeHtml(friend.gameId)}" title="取关好友">
+                    <span class="material-symbols-outlined">person_remove</span>
+                  </button>
+                  <button type="button" class="stitch-social-action-btn stitch-social-action-btn--danger" data-social-action="block" data-game-id="${this.escapeHtml(friend.gameId)}" title="加入黑名单">
+                    <span class="material-symbols-outlined">block</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          })
           .join("");
       }
     }
@@ -1603,22 +2062,34 @@ export class LobbyUI {
       if (!status.loggedIn) {
         incomingHost.innerHTML = "";
       } else if (!this.socialOverview?.incomingRequests.length) {
-        incomingHost.innerHTML = `<article class="stitch-devtool-row stitch-devtool-row--empty"><strong>待处理申请</strong><span>暂无待处理申请。</span></article>`;
+        incomingHost.innerHTML = `<div class="stitch-social-card stitch-social-card--empty"><span class="material-symbols-outlined">inbox</span><small>暂无待处理申请</small></div>`;
       } else {
         incomingHost.innerHTML = this.socialOverview.incomingRequests
-          .map(
-            (request) => `
-              <article class="stitch-devtool-row">
-                <strong>${this.escapeHtml(request.counterpart.nickname)} · UID ${this.escapeHtml(request.counterpart.gameId)}</strong>
-                <span>申请时间 · ${this.escapeHtml(this.formatDateTime(request.createdAt))}</span>
-                <div class="stitch-social-actions-inline">
-                  <button type="button" class="stitch-ghost-btn" data-social-action="accept-request" data-request-id="${this.escapeHtml(request.requestId)}">同意</button>
-                  <button type="button" class="stitch-ghost-btn" data-social-action="reject-request" data-request-id="${this.escapeHtml(request.requestId)}">拒绝</button>
-                  <button type="button" class="stitch-ghost-btn" data-social-action="block" data-game-id="${this.escapeHtml(request.counterpart.gameId)}">拉黑</button>
+          .map((request) => {
+            const accent = this.resolveFriendAccent(request.counterpart.gameId);
+            return `
+              <div class="stitch-social-card stitch-social-card--request" data-social-center>
+                <div class="stitch-social-card-left">
+                  <span class="stitch-social-avatar" style="--friend-accent:${accent}">${this.escapeHtml(request.counterpart.nickname.charAt(0))}</span>
                 </div>
-              </article>
-            `,
-          )
+                <div class="stitch-social-card-body">
+                  <strong>${this.escapeHtml(request.counterpart.nickname)}</strong>
+                  <small>UID ${this.escapeHtml(request.counterpart.gameId)} · ${this.escapeHtml(this.formatDateTime(request.createdAt))}</small>
+                </div>
+                <div class="stitch-social-card-actions">
+                  <button type="button" class="stitch-social-action-btn stitch-social-action-btn--accept" data-social-action="accept-request" data-request-id="${this.escapeHtml(request.requestId)}" title="同意">
+                    <span class="material-symbols-outlined">check_circle</span>
+                  </button>
+                  <button type="button" class="stitch-social-action-btn stitch-social-action-btn--reject" data-social-action="reject-request" data-request-id="${this.escapeHtml(request.requestId)}" title="拒绝">
+                    <span class="material-symbols-outlined">cancel</span>
+                  </button>
+                  <button type="button" class="stitch-social-action-btn stitch-social-action-btn--danger" data-social-action="block" data-game-id="${this.escapeHtml(request.counterpart.gameId)}" title="拉黑">
+                    <span class="material-symbols-outlined">block</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          })
           .join("");
       }
     }
@@ -1628,17 +2099,26 @@ export class LobbyUI {
       if (!status.loggedIn) {
         outgoingHost.innerHTML = "";
       } else if (!this.socialOverview?.outgoingRequests.length) {
-        outgoingHost.innerHTML = `<article class="stitch-devtool-row stitch-devtool-row--empty"><strong>我发出的申请</strong><span>暂无待同意申请。</span></article>`;
+        outgoingHost.innerHTML = `<div class="stitch-social-card stitch-social-card--empty"><span class="material-symbols-outlined">send</span><small>暂无已发送申请</small></div>`;
       } else {
         outgoingHost.innerHTML = this.socialOverview.outgoingRequests
-          .map(
-            (request) => `
-              <article class="stitch-devtool-row">
-                <strong>${this.escapeHtml(request.counterpart.nickname)} · UID ${this.escapeHtml(request.counterpart.gameId)}</strong>
-                <span>申请中 · ${this.escapeHtml(this.formatDateTime(request.createdAt))}</span>
-              </article>
-            `,
-          )
+          .map((request) => {
+            const accent = this.resolveFriendAccent(request.counterpart.gameId);
+            return `
+              <div class="stitch-social-card stitch-social-card--pending" data-social-center>
+                <div class="stitch-social-card-left">
+                  <span class="stitch-social-avatar" style="--friend-accent:${accent}">${this.escapeHtml(request.counterpart.nickname.charAt(0))}</span>
+                </div>
+                <div class="stitch-social-card-body">
+                  <strong>${this.escapeHtml(request.counterpart.nickname)}</strong>
+                  <small>UID ${this.escapeHtml(request.counterpart.gameId)} · 等待对方同意</small>
+                </div>
+                <div class="stitch-social-card-actions">
+                  <span class="stitch-social-pending-badge">待确认</span>
+                </div>
+              </div>
+            `;
+          })
           .join("");
       }
     }
@@ -1648,20 +2128,28 @@ export class LobbyUI {
       if (!status.loggedIn) {
         blockHost.innerHTML = "";
       } else if (!this.socialOverview?.blocks.length) {
-        blockHost.innerHTML = `<article class="stitch-devtool-row stitch-devtool-row--empty"><strong>黑名单</strong><span>当前没有拉黑记录。</span></article>`;
+        blockHost.innerHTML = `<div class="stitch-social-card stitch-social-card--empty"><span class="material-symbols-outlined">shield</span><strong>黑名单为空</strong><small>当前没有拉黑记录</small></div>`;
       } else {
         blockHost.innerHTML = this.socialOverview.blocks
-          .map(
-            (blocked) => `
-              <article class="stitch-devtool-row">
-                <strong>${this.escapeHtml(blocked.nickname)} · UID ${this.escapeHtml(blocked.gameId)}</strong>
-                <span>拉黑于 · ${this.escapeHtml(this.formatDateTime(blocked.blockedAt))}</span>
-                <div class="stitch-social-actions-inline">
-                  <button type="button" class="stitch-ghost-btn" data-social-action="unblock" data-game-id="${this.escapeHtml(blocked.gameId)}">解除拉黑</button>
+          .map((blocked) => {
+            const accent = this.resolveFriendAccent(blocked.gameId);
+            return `
+              <div class="stitch-social-card stitch-social-card--blocked" data-social-center>
+                <div class="stitch-social-card-left">
+                  <span class="stitch-social-avatar stitch-social-avatar--blocked" style="--friend-accent:${accent}">${this.escapeHtml(blocked.nickname.charAt(0))}</span>
                 </div>
-              </article>
-            `,
-          )
+                <div class="stitch-social-card-body">
+                  <strong>${this.escapeHtml(blocked.nickname)}</strong>
+                  <small>UID ${this.escapeHtml(blocked.gameId)} · ${this.escapeHtml(this.formatDateTime(blocked.blockedAt))}</small>
+                </div>
+                <div class="stitch-social-card-actions">
+                  <button type="button" class="stitch-social-action-btn stitch-social-action-btn--accept" data-social-action="unblock" data-game-id="${this.escapeHtml(blocked.gameId)}" title="解除拉黑">
+                    <span class="material-symbols-outlined">lock_open</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          })
           .join("");
       }
     }
@@ -1671,7 +2159,6 @@ export class LobbyUI {
     );
     if (socialRefreshButton) {
       socialRefreshButton.disabled = this.socialBusy || !status.loggedIn;
-      socialRefreshButton.textContent = this.socialBusy ? "同步中..." : "刷新社交";
     }
 
     const socialStatus = this.root.querySelector<HTMLElement>("[data-social-status]");
@@ -1679,32 +2166,149 @@ export class LobbyUI {
       if (!status.loggedIn) {
         socialStatus.textContent = "登录后可通过 UID 查找好友、处理申请和管理黑名单。";
       } else if (this.socialBusy) {
-        socialStatus.textContent = "正在同步社交链路...";
+        socialStatus.textContent = "正在同步社交数据...";
       } else if (this.socialError) {
         socialStatus.textContent = this.socialError;
       } else if (this.socialOverview) {
-        socialStatus.textContent = `好友 ${this.socialOverview.counts.friends} 人，待处理申请 ${this.socialOverview.counts.incomingRequests} 条。`;
+        socialStatus.textContent = `在线好友 ${this.socialOverview.friends.filter(f => f.isOnline).length}/${this.socialOverview.counts.friends}，待处理 ${this.socialOverview.counts.incomingRequests} 条申请`;
       } else {
-        socialStatus.textContent = "点击“刷新社交”读取好友与黑名单状态。";
+        socialStatus.textContent = "点击刷新加载好友数据";
       }
     }
   }
 
-  private buildSkinButtons(group: "main" | "settings"): string {
-    return SKIN_OPTIONS.map(
-      (skin) => `
+  private getMailCategoryLabel(mail: InGameMailItem): string {
+    if (mail.category === "ban_notice") return "封禁通知";
+    if (mail.category === "ban_appeal") return "申诉提交";
+    if (mail.category === "appeal_reply") return "申诉回信";
+    return "系统邮件";
+  }
+
+  private shouldShowAppealComposer(mail: InGameMailItem): boolean {
+    return (
+      mail.category === "ban_notice" &&
+      (mail.appealStatus === "pending" || mail.appealStatus === "submitted" || mail.appealStatus === "reviewing")
+    );
+  }
+
+  private renderActivityCenter() {
+    const status = this.options.getAuthStatus?.() ?? {
+      loggedIn: false,
+      userLabel: "游客",
+    };
+    const listHost = this.root.querySelector<HTMLElement>("[data-activity-list]");
+    const statusHost = this.root.querySelector<HTMLElement>("[data-mail-status]");
+    const refreshButton = this.root.querySelector<HTMLButtonElement>("[data-mail-refresh]");
+
+    if (refreshButton) {
+      refreshButton.disabled = this.mailBusy || !status.loggedIn;
+    }
+
+    if (!status.loggedIn) {
+      if (statusHost) {
+        statusHost.textContent = "登录后查看封禁通知、申诉进度和系统回信。";
+      }
+      if (listHost) {
+        listHost.innerHTML = `
+          <article class="stitch-social-card stitch-social-card--empty">
+            <span class="material-symbols-outlined">lock</span>
+            <strong>未登录</strong>
+            <small>登录后可使用游戏内邮件申诉封禁。</small>
+          </article>
+        `;
+      }
+      return;
+    }
+
+    if (statusHost) {
+      if (this.mailBusy) {
+        statusHost.textContent = "正在同步邮件...";
+      } else if (this.mailError) {
+        statusHost.textContent = this.mailError;
+      } else {
+        const unreadCount = this.mailInbox.filter((item) => !item.readAt).length;
+        statusHost.textContent = `共 ${this.mailInbox.length} 封邮件，未读 ${unreadCount} 封。`;
+      }
+    }
+
+    if (!listHost) {
+      return;
+    }
+
+    if (!this.mailInbox.length) {
+      listHost.innerHTML = `
+        <article class="stitch-social-card stitch-social-card--empty">
+          <span class="material-symbols-outlined">mark_email_unread</span>
+          <strong>暂无邮件</strong>
+          <small>当前没有系统通知或申诉记录。</small>
+        </article>
+      `;
+      return;
+    }
+
+    listHost.innerHTML = this.mailInbox
+      .map((mail) => {
+        const unreadBadge = !mail.readAt
+          ? `<span class="stitch-social-pending-badge">未读</span>`
+          : "";
+        const appealDraft = this.mailDraftByNoticeId[mail.id] ?? "";
+        const categoryLabel = this.escapeHtml(this.getMailCategoryLabel(mail));
+        const canAppeal = this.shouldShowAppealComposer(mail);
+        const appealStatus = this.escapeHtml(mail.appealStatus);
+        const metaTime = this.escapeHtml(this.formatDateTime(mail.createdAt));
+        return `
+          <article class="stitch-social-card stitch-social-card--search" data-social-center>
+            <div class="stitch-social-card-body" style="width:100%">
+              <strong>${this.escapeHtml(mail.subject)}</strong>
+              <small>${categoryLabel} · ${metaTime} · 状态 ${appealStatus}</small>
+              <small style="white-space:pre-wrap;margin-top:8px;">${this.escapeHtml(mail.body)}</small>
+              <div class="stitch-social-actions-inline">
+                ${unreadBadge}
+                ${!mail.readAt ? `<button type="button" class="stitch-ghost-btn" data-mail-action="mark-read" data-mail-id="${this.escapeHtml(mail.id)}">标记已读</button>` : ""}
+              </div>
+              ${canAppeal ? `
+                <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+                  <textarea
+                    class="stitch-social-search-input"
+                    rows="3"
+                    maxlength="2000"
+                    data-mail-appeal-input="${this.escapeHtml(mail.id)}"
+                    placeholder="填写申诉理由（会通过游戏内邮件发给管理员）"
+                  >${this.escapeHtml(appealDraft)}</textarea>
+                  <div class="stitch-social-actions-inline">
+                    <button type="button" class="stitch-ghost-btn" data-mail-action="submit-appeal" data-mail-id="${this.escapeHtml(mail.id)}">提交申诉</button>
+                  </div>
+                </div>
+              ` : ""}
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  private buildSkinSelectGrid(): string {
+    return SKIN_OPTIONS.map((skin, idx) => {
+      const rarity = idx % 5 === 0 ? "mythic" : idx % 3 === 0 ? "epic" : "rare";
+      return `
             <button
                 type="button"
-                class="stitch-skin-chip"
+                class="stitch-skin-select-item"
                 data-skin-id="${skin.id}"
-                data-skin-group="${group}"
+                data-skin-group="main"
+                data-rarity="${rarity}"
                 style="--skin-a:${skin.colorA};--skin-b:${skin.colorB};"
             >
-                <span class="stitch-skin-chip-dot"></span>
-                <span>${skin.name}</span>
+                <div class="stitch-skin-item-bg"></div>
+                <div class="stitch-skin-select-ball"
+                     style="background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.3), transparent 50%), radial-gradient(circle, ${skin.colorA}, ${skin.colorB});">
+                </div>
+                <div class="stitch-skin-rarity-bar"></div>
+                <span class="stitch-skin-select-label">${skin.name}</span>
+                <div class="stitch-skin-selection-indicator"></div>
             </button>
-        `,
-    ).join("");
+        `;
+    }).join("");
   }
 
   private bindEvents() {
@@ -1718,6 +2322,10 @@ export class LobbyUI {
             this.root.dataset.activeDrawer = "";
           } else {
             this.root.dataset.activeDrawer = targetDrawer;
+            if (targetDrawer === "friends") void this.refreshSocialOverview();
+            if (targetDrawer === "leaderboard") void this.refreshRankingDrawer();
+            if (targetDrawer === "shop") this.refreshShopDrawer();
+            if (targetDrawer === "activity") void this.refreshActivityCenter();
           }
         });
       });
@@ -1747,6 +2355,50 @@ export class LobbyUI {
       });
 
     this.root
+      .querySelector<HTMLElement>("[data-mail-refresh]")
+      ?.addEventListener("click", () => {
+        void this.refreshActivityCenter();
+      });
+
+    this.root
+      .querySelector<HTMLElement>("[data-ranking-refresh]")
+      ?.addEventListener("click", () => {
+        void this.refreshRankingDrawer();
+      });
+
+    this.root
+      .querySelectorAll<HTMLElement>("[data-ranking-queue]")
+      .forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const queueId = tab.dataset.rankingQueue as RankQueueId;
+          this.rankingSelectedQueue = queueId;
+          this.root.querySelectorAll<HTMLElement>("[data-ranking-queue]").forEach((t) =>
+            t.classList.toggle("is-active", t.dataset.rankingQueue === queueId),
+          );
+          void this.refreshRankingDrawer();
+        });
+      });
+
+    this.root
+      .querySelector<HTMLElement>("[data-shop-grid]")
+      ?.addEventListener("click", (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-shop-equip]");
+        if (!btn) return;
+        const skinId = btn.dataset.shopEquip ?? "";
+        if (skinId) {
+          this.updateSettings({ equippedSkinId: skinId });
+          this.refreshShopDrawer();
+          this.showFeatureTip(`已装备皮肤: ${getSkinOption(skinId).name}`);
+        }
+      });
+
+    this.root
+      .querySelector<HTMLElement>("[data-signin-action]")
+      ?.addEventListener("click", () => {
+        this.handleSigninAction();
+      });
+
+    this.root
       .querySelector<HTMLElement>("[data-social-search-btn]")
       ?.addEventListener("click", () => {
         void this.handleSocialSearch();
@@ -1763,18 +2415,40 @@ export class LobbyUI {
       });
 
     this.root
-      .querySelector<HTMLElement>("[data-social-center]")
+      .querySelector<HTMLElement>('[data-drawer-name="friends"]')
       ?.addEventListener("click", (event) => {
         const target = event.target as HTMLElement | null;
         const actionEl = target?.closest<HTMLElement>("[data-social-action]");
+        if (actionEl) {
+          const action = actionEl.dataset.socialAction ?? "";
+          const requestId = actionEl.dataset.requestId ?? "";
+          const gameId = actionEl.dataset.gameId ?? "";
+          void this.handleSocialAction(action, { requestId, gameId });
+          return;
+        }
+        const tabEl = target?.closest<HTMLElement>("[data-social-tab]");
+        if (tabEl) {
+          const tabName = tabEl.dataset.socialTab ?? "friends";
+          this.root.querySelectorAll<HTMLElement>("[data-social-tab]").forEach((t) =>
+            t.classList.toggle("is-active", t.dataset.socialTab === tabName),
+          );
+          this.root.querySelectorAll<HTMLElement>("[data-social-panel]").forEach((p) =>
+            p.classList.toggle("is-hidden", p.dataset.socialPanel !== tabName),
+          );
+        }
+      });
+
+    this.root
+      .querySelector<HTMLElement>('[data-drawer-name="activity"]')
+      ?.addEventListener("click", (event) => {
+        const target = event.target as HTMLElement | null;
+        const actionEl = target?.closest<HTMLElement>("[data-mail-action]");
         if (!actionEl) {
           return;
         }
-
-        const action = actionEl.dataset.socialAction ?? "";
-        const requestId = actionEl.dataset.requestId ?? "";
-        const gameId = actionEl.dataset.gameId ?? "";
-        void this.handleSocialAction(action, { requestId, gameId });
+        const action = actionEl.dataset.mailAction ?? "";
+        const mailId = actionEl.dataset.mailId ?? "";
+        void this.handleMailAction(action, mailId);
       });
 
     this.root
@@ -1794,7 +2468,7 @@ export class LobbyUI {
     this.root
       .querySelector<HTMLElement>("[data-top-action]")
       ?.addEventListener("click", () => {
-        this.showFeatureTip("活动中心正在整理新的实验任务与限时挑战。");
+        this.showFeatureTip("已打开活动与邮件中心，可查看系统通知和申诉处理。");
       });
 
     this.root
@@ -1832,12 +2506,7 @@ export class LobbyUI {
       .forEach((element) => {
         element.addEventListener("click", () => {
           const nextMode = element.dataset.authTab;
-          const mode: AuthMode =
-            nextMode === "register"
-              ? "register"
-              : nextMode === "reset"
-                ? "reset"
-                : "login";
+          const mode: AuthMode = nextMode === "register" ? "register" : "login";
           this.setAuthMode(mode);
         });
       });
@@ -1939,6 +2608,17 @@ export class LobbyUI {
           this.authBusyMessage = "";
           this.renderAuthPanel();
         }
+      });
+
+    this.root
+      .querySelectorAll<HTMLElement>("[data-auth-switch-mode]")
+      .forEach((element) => {
+        element.addEventListener("click", async () => {
+          const nextMode: AuthMode = element.dataset.authSwitchMode === "register"
+            ? "register"
+            : "login";
+          await this.handleLogoutAndSwitchMode(nextMode);
+        });
       });
 
     this.root
@@ -2060,7 +2740,6 @@ export class LobbyUI {
         const confirmPassword = this.root
           .querySelector<HTMLInputElement>('input[name="authRegisterConfirmPassword"]')
           ?.value ?? "";
-
         if (account.length < AUTH_ACCOUNT_MIN_LENGTH) {
           this.showAuthValidationError(
             ["authRegisterAccount"],
@@ -2075,21 +2754,19 @@ export class LobbyUI {
           );
           return;
         }
-        if (email || emailCode) {
-          if (!this.isValidEmail(email)) {
-            this.showAuthValidationError(
-              ["authRegisterEmail"],
-              "邮箱格式不正确，请检查后再发送验证码。",
-            );
-            return;
-          }
-          if (!/^\d{6}$/.test(emailCode)) {
-            this.showAuthValidationError(
-              ["authRegisterEmailCode"],
-              "请输入 6 位邮箱验证码。",
-            );
-            return;
-          }
+        if (!this.isValidEmail(email)) {
+          this.showAuthValidationError(
+            ["authRegisterEmail"],
+            "注册必须填写有效邮箱。",
+          );
+          return;
+        }
+        if (!/^\d{6}$/.test(emailCode)) {
+          this.showAuthValidationError(
+            ["authRegisterEmailCode"],
+            "注册必须填写 6 位邮箱验证码。",
+          );
+          return;
         }
         if (password !== confirmPassword) {
           this.showAuthValidationError(
@@ -2258,24 +2935,37 @@ export class LobbyUI {
           return;
         }
         this.hideAll();
+        console.log("[LobbyUI] calling onOpenModeHall", this.selectedModeId);
         this.options.onOpenModeHall(this.selectedModeId);
       });
 
     this.root
-      .querySelectorAll<HTMLElement>("[data-mode-card-id]")
-      .forEach((card) => {
-        card.addEventListener("click", () => {
+      .querySelector<HTMLElement>("[data-mode-grid]")
+      ?.addEventListener("click", (event) => {
+        const card = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+          "[data-mode-card-id]",
+        );
+        if (!card) {
+          return;
+        }
+        const cardId = card.dataset.modeCardId ?? "";
+        this.selectModeCard(cardId);
+      });
+
+    this.root
+      .querySelector<HTMLElement>("[data-mode-grid]")
+      ?.addEventListener("keydown", (event) => {
+        const card = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+          "[data-mode-card-id]",
+        );
+        if (!card) {
+          return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
           const cardId = card.dataset.modeCardId ?? "";
           this.selectModeCard(cardId);
-        });
-
-        card.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            const cardId = card.dataset.modeCardId ?? "";
-            this.selectModeCard(cardId);
-          }
-        });
+        }
       });
 
     this.root
@@ -2297,8 +2987,8 @@ export class LobbyUI {
           }
           this.selectedFeatureId = feature;
           this.applyFeatureSelection();
-          this.showFeatureTip(FEATURE_TIPS[feature]);
           void this.options.onFeatureAction?.(feature);
+          this.showFeatureTip(FEATURE_TIPS[feature]);
         });
       });
 
@@ -2396,8 +3086,8 @@ export class LobbyUI {
 
     const input = this.root.querySelector<HTMLInputElement>("[data-social-search-input]");
     const gameId = input?.value.trim() ?? "";
-    if (!/^\d{9}$/.test(gameId)) {
-      this.socialError = "请输入 9 位数字 UID。";
+    if (!/^\d{1,11}$/.test(gameId)) {
+      this.socialError = "请输入 1-11 位数字 UID。";
       this.renderSocialCenter();
       return;
     }
@@ -2442,6 +3132,74 @@ export class LobbyUI {
     } finally {
       this.socialBusy = false;
       this.renderSocialCenter();
+    }
+  }
+
+  private async refreshActivityCenter() {
+    const status = this.options.getAuthStatus?.() ?? {
+      loggedIn: false,
+      userLabel: "游客",
+    };
+    if (!status.loggedIn) {
+      this.mailInbox = [];
+      this.mailError = "";
+      this.mailBusy = false;
+      this.renderActivityCenter();
+      return;
+    }
+
+    this.mailBusy = true;
+    this.mailError = "";
+    this.renderActivityCenter();
+    try {
+      const inbox = await mailService.getInbox();
+      this.mailInbox = inbox.items;
+      this.mailError = "";
+    } catch (error) {
+      this.mailError = error instanceof Error ? error.message : "邮件刷新失败。";
+    } finally {
+      this.mailBusy = false;
+      this.renderActivityCenter();
+    }
+  }
+
+  private async handleMailAction(action: string, mailId: string) {
+    const trimmedMailId = mailId.trim();
+    if (!trimmedMailId || this.mailBusy) {
+      return;
+    }
+
+    this.mailBusy = true;
+    this.mailError = "";
+    this.renderActivityCenter();
+    try {
+      if (action === "mark-read") {
+        await mailService.markRead(trimmedMailId);
+        this.showFeatureTip("邮件已标记为已读。");
+      } else if (action === "submit-appeal") {
+        const input = this.root.querySelector<HTMLTextAreaElement>(
+          `[data-mail-appeal-input="${trimmedMailId}"]`,
+        );
+        const message = input?.value.trim() ?? "";
+        this.mailDraftByNoticeId[trimmedMailId] = message;
+        if (!message) {
+          this.mailError = "请先填写申诉理由。";
+          return;
+        }
+        await mailService.submitBanAppeal({
+          banNoticeMailId: trimmedMailId,
+          message,
+        });
+        this.mailDraftByNoticeId[trimmedMailId] = "";
+        this.showFeatureTip("申诉已提交，管理员会通过游戏内邮件回信。");
+      }
+      const inbox = await mailService.getInbox();
+      this.mailInbox = inbox.items;
+    } catch (error) {
+      this.mailError = error instanceof Error ? error.message : "邮件操作失败。";
+    } finally {
+      this.mailBusy = false;
+      this.renderActivityCenter();
     }
   }
 
@@ -2497,6 +3255,144 @@ export class LobbyUI {
     }
   }
 
+  private async refreshRankingDrawer() {
+    const status = this.options.getAuthStatus?.() ?? { loggedIn: false, userLabel: "游客" };
+    if (!status.loggedIn) {
+      this.renderRankingList();
+      return;
+    }
+    if (this.rankingBusy) return;
+    this.rankingBusy = true;
+    this.renderRankingList();
+    try {
+      const [overviewRes, leaderboardRes] = await Promise.allSettled([
+        rankingService.getOverview(),
+        rankingService.getLeaderboard(this.rankingSelectedQueue),
+      ]);
+      if (overviewRes.status === "fulfilled") {
+        this.rankingOverview = overviewRes.value.overview;
+      }
+      if (leaderboardRes.status === "fulfilled") {
+        this.rankingLeaderboard = leaderboardRes.value.entries;
+      }
+    } catch {
+      /* silently fail */
+    } finally {
+      this.rankingBusy = false;
+      this.renderRankingList();
+    }
+  }
+
+  private renderRankingList() {
+    const status = this.options.getAuthStatus?.() ?? { loggedIn: false, userLabel: "游客" };
+    const seasonEl = this.root.querySelector<HTMLElement>("[data-ranking-season-name]");
+    if (seasonEl) {
+      seasonEl.textContent = this.rankingOverview?.currentSeason?.name ?? "暂无赛季";
+    }
+
+    const myRankEl = this.root.querySelector<HTMLElement>("[data-ranking-myrank]");
+    if (myRankEl) {
+      const queue = this.rankingOverview?.queues.find(
+        (q) => q.queueId === this.rankingSelectedQueue,
+      );
+      const tierEl = myRankEl.querySelector<HTMLElement>("[data-ranking-my-tier]");
+      const scoreEl = myRankEl.querySelector<HTMLElement>("[data-ranking-my-score]");
+      const winrateEl = myRankEl.querySelector<HTMLElement>("[data-ranking-my-winrate]");
+      if (tierEl) tierEl.textContent = queue ? `${queue.tier} ${queue.division}` : "--";
+      if (scoreEl) scoreEl.textContent = queue ? `排位分: ${queue.rankScore}` : "排位分: --";
+      if (winrateEl) winrateEl.textContent = queue ? `胜率: ${(queue.winRate * 100).toFixed(1)}%` : "胜率: --";
+    }
+
+    const listEl = this.root.querySelector<HTMLElement>("[data-ranking-list]");
+    if (!listEl) return;
+
+    if (!status.loggedIn) {
+      listEl.innerHTML = `<div class="stitch-drawer-empty">
+        ${renderMaterialSymbol("emoji_events", "stitch-drawer-empty-icon")}
+        <strong>登录后查看排行榜</strong><small>排行数据将从服务器实时拉取</small></div>`;
+      return;
+    }
+    if (this.rankingBusy) {
+      listEl.innerHTML = `<div class="stitch-drawer-empty">
+        ${renderMaterialSymbol("sync", "stitch-drawer-empty-icon stitch-spin")}
+        <strong>正在加载排行榜...</strong></div>`;
+      return;
+    }
+    if (!this.rankingLeaderboard.length) {
+      listEl.innerHTML = `<div class="stitch-drawer-empty">
+        ${renderMaterialSymbol("emoji_events", "stitch-drawer-empty-icon")}
+        <strong>暂无排行数据</strong><small>参加比赛后将显示排名</small></div>`;
+      return;
+    }
+
+    listEl.innerHTML = `
+      <div class="stitch-ranking-table">
+        <div class="stitch-ranking-table-head">
+          <span>#</span><span>玩家</span><span>段位</span><span>分数</span><span>胜率</span>
+        </div>
+        ${this.rankingLeaderboard.slice(0, 50).map((entry, i) => `
+          <div class="stitch-ranking-table-row${i < 3 ? ` is-top-${i + 1}` : ""}">
+            <span class="stitch-ranking-pos">${entry.rankPosition}</span>
+            <span class="stitch-ranking-name">${this.escapeHtml(entry.nickname)}</span>
+            <span class="stitch-ranking-tier">${entry.tier} ${entry.division}</span>
+            <span class="stitch-ranking-score">${entry.rankScore}</span>
+            <span class="stitch-ranking-wr">${entry.matchesPlayed > 0 ? ((entry.wins / entry.matchesPlayed) * 100).toFixed(1) : 0}%</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  private refreshShopDrawer() {
+    const gridEl = this.root.querySelector<HTMLElement>("[data-shop-grid]");
+    if (gridEl) gridEl.innerHTML = this.buildShopItems();
+    const coinsEl = this.root.querySelector<HTMLElement>("[data-shop-coins]");
+    if (coinsEl) {
+      const summary = this.options.getAuthStatus?.()?.loggedIn ? "0" : "0";
+      coinsEl.textContent = summary;
+    }
+  }
+
+  private refreshSigninDrawer() {
+    const gridEl = this.root.querySelector<HTMLElement>("[data-signin-grid]");
+    if (gridEl) gridEl.innerHTML = this.buildSigninDays();
+    const streakEl = this.root.querySelector<HTMLElement>("[data-signin-streak]");
+    if (streakEl) streakEl.textContent = `${this.signinCheckedDays}`;
+    const btnEl = this.root.querySelector<HTMLElement>("[data-signin-action]");
+    if (btnEl) {
+      const btn = btnEl as HTMLButtonElement;
+      btn.disabled = this.signinTodayDone;
+      if (this.signinTodayDone) {
+        btn.innerHTML = `${renderMaterialSymbol("check_circle", "")} <span>今日已签到</span>`;
+      }
+    }
+    const statusEl = this.root.querySelector<HTMLElement>("[data-signin-status]");
+    if (statusEl) {
+      const status = this.options.getAuthStatus?.() ?? { loggedIn: false, userLabel: "游客" };
+      statusEl.textContent = !status.loggedIn
+        ? "登录后可每日签到领取奖励"
+        : this.signinTodayDone
+          ? `已连续签到 ${this.signinCheckedDays} 天，明天继续！`
+          : "点击按钮完成今日签到";
+    }
+  }
+
+  private handleSigninAction() {
+    const status = this.options.getAuthStatus?.() ?? { loggedIn: false, userLabel: "游客" };
+    if (!status.loggedIn) {
+      this.showFeatureTip("请先登录后再签到。");
+      return;
+    }
+    if (this.signinTodayDone) {
+      this.showFeatureTip("今日已签到，明天再来！");
+      return;
+    }
+    this.signinCheckedDays += 1;
+    this.signinTodayDone = true;
+    this.refreshSigninDrawer();
+    this.showFeatureTip(`签到成功！已连续签到 ${this.signinCheckedDays} 天`);
+  }
+
   private selectModeCard(cardId: string) {
     if (!this.isStitchModeCardId(cardId)) {
       return;
@@ -2510,6 +3406,7 @@ export class LobbyUI {
 
   private applySelectedModeUI() {
     const selectedCard = this.getSelectedCard();
+    const presentation = this.getModeCardPresentation(selectedCard);
 
     this.root
       .querySelectorAll<HTMLElement>("[data-mode-card-id]")
@@ -2537,17 +3434,17 @@ export class LobbyUI {
     this.root
       .querySelectorAll<HTMLElement>("[data-selected-mode-metric-a]")
       .forEach((el) => {
-        el.textContent = selectedCard.metrics[0]?.value ?? "待同步";
+        el.textContent = presentation.metrics[0]?.value ?? "暂无";
       });
     this.root
       .querySelectorAll<HTMLElement>("[data-selected-mode-metric-b]")
       .forEach((el) => {
-        el.textContent = selectedCard.metrics[1]?.value ?? "待同步";
+        el.textContent = presentation.metrics[1]?.value ?? "暂无";
       });
     this.root
       .querySelectorAll<HTMLElement>("[data-mode-status]")
       .forEach((el) => {
-        el.textContent = selectedCard.status;
+        el.textContent = presentation.status;
       });
     this.root
       .querySelectorAll<HTMLElement>("[data-launch-label]")
@@ -2557,15 +3454,27 @@ export class LobbyUI {
     this.root
       .querySelectorAll<HTMLElement>("[data-launch-code]")
       .forEach((el) => {
-        el.textContent = `// ${selectedCard.name}频道就绪`;
+        el.textContent = `// ${selectedCard.name}${presentation.status === "实时同步" ? "统计已同步" : "等待后端数据"}`;
       });
 
     const launchTags = this.root.querySelector<HTMLElement>("[data-selected-mode-tags]");
     if (launchTags) {
-      launchTags.innerHTML = selectedCard.tags
-        .map((tag) => `<span class="stitch-launch-brief-tag">${this.escapeHtml(tag)}</span>`)
-        .join("");
+      launchTags.innerHTML = presentation.tags.length > 0
+        ? presentation.tags
+          .map((tag) => `<span class="stitch-launch-brief-tag">${this.escapeHtml(tag)}</span>`)
+          .join("")
+        : '<span class="stitch-launch-brief-tag">暂无后端统计</span>';
     }
+
+    const rankedTierLabel =
+      this.modeSnapshots.ranked?.rankLabel ??
+      presentation.rankLabel ??
+      "暂无数据";
+    this.root
+      .querySelectorAll<HTMLElement>("[data-ranked-tier-label]")
+      .forEach((el) => {
+        el.textContent = rankedTierLabel;
+      });
 
     this.root.dataset.modeTheme = selectedCard.theme;
   }
@@ -2622,14 +3531,13 @@ export class LobbyUI {
     };
     const capabilities = this.getAuthCapabilities();
     const authLocked = this.isAuthGateLocked();
-    const usingRegisterMode = !status.loggedIn && this.authMode === "register";
+    const authBaseMode = this.authMode === "register" ? "register" : "login";
+    const usingRegisterMode = !status.loggedIn && authBaseMode === "register";
     const usingResetMode = !status.loggedIn && this.authMode === "reset";
     const sceneBadge = authLocked
       ? "账号验证"
       : status.loggedIn
         ? "云存档在线"
-        : usingResetMode
-          ? "邮箱找回"
         : usingRegisterMode
           ? "创建账号"
           : "账号登录";
@@ -2637,8 +3545,6 @@ export class LobbyUI {
       ? "完成验证后解锁作战大厅"
       : status.loggedIn
         ? `${status.userLabel} 已接入星港网络`
-        : usingResetMode
-          ? "通过绑定邮箱找回密码"
         : usingRegisterMode
           ? "创建你的球球作战身份"
           : "使用已有账号返回战场";
@@ -2646,8 +3552,6 @@ export class LobbyUI {
       ? "账号是进入大厅、匹配和私人模式的前置条件"
       : status.loggedIn
         ? "当前账号正在托管你的资料、战绩与本地进度"
-        : usingResetMode
-          ? "验证码会发到账号绑定邮箱，验证通过后即可设置新密码"
         : usingRegisterMode
           ? "注册成功后自动登录，并立即接管当前本地档案"
           : "输入账号与密码，继续你的上一段作战记录";
@@ -2655,8 +3559,6 @@ export class LobbyUI {
       ? "先完成账号注册或登录，后面的大厅、匹配、私人模式和开发者链路才会全部点亮。"
       : status.loggedIn
         ? "账号已经在线，接下来可以直接进入模式大厅，也能继续查看当前账号的云端标签。"
-        : usingResetMode
-          ? "输入账号后发送邮箱验证码，收到验证码后设置新密码，再返回登录继续大厅流程。"
         : usingRegisterMode
           ? "建议先注册一个稳定账号，后续昵称、战绩、私人房和功能联调都会挂在这份身份上。"
           : "如果你已经有账号，直接输入账号和密码即可回到上一次的云端作战进度。";
@@ -2664,8 +3566,6 @@ export class LobbyUI {
       ? "先完成账号验证"
       : status.loggedIn
         ? "当前账号已接入"
-        : usingResetMode
-          ? "邮箱验证码找回密码"
         : usingRegisterMode
           ? "注册后立即进入大厅"
           : "账号密码直接进入";
@@ -2673,8 +3573,6 @@ export class LobbyUI {
       ? "登录或注册后即可进入大厅。"
       : status.loggedIn
         ? "当前账号已在线，可直接继续。"
-        : usingResetMode
-          ? "只需账号、邮箱验证码和新密码，不改账号资料。"
         : usingRegisterMode
           ? "只保留必要字段，注册完成后自动登录。"
           : "输入账号和密码，继续当前进度。";
@@ -2682,21 +3580,19 @@ export class LobbyUI {
       ? "完成账号验证后即可进入大厅。"
       : status.loggedIn
         ? "当前账号已接管本地资料。"
-        : usingResetMode
-          ? "忘记密码时可直接用绑定邮箱找回。"
         : usingRegisterMode
           ? "注册成功后会自动登录。"
           : "没有账号时切到注册即可。";
     const registerNoteText = usingRegisterMode
-      ? [
-          capabilities.emailVerificationEnabled
-            ? `邮箱验证已开启，填写邮箱与验证码后完成注册。`
-            : "当前只需账号、密码和确认密码。",
-        ].join(" ")
+      ? capabilities.emailVerificationEnabled
+        ? "注册时必须填写邮箱并完成邮箱验证码验证。"
+        : "注册界面会要求邮箱和验证码；如果云端邮件服务未就绪，发送时会直接报错。"
       : "登录后自动接管当前本地进度。";
     const resetNoteText = this.authResetChallengeId
       ? "验证码已发出，输入邮箱验证码与新密码后即可完成找回。"
-      : "输入账号后发送验证码，邮件会发到该账号绑定邮箱。";
+      : capabilities.emailVerificationEnabled
+        ? "输入账号后发送验证码，邮件会发到该账号绑定邮箱。"
+        : "输入账号后可尝试发送验证码；如果云端邮件服务未就绪，接口会直接返回错误。";
 
     this.root.dataset.authMode = this.authMode;
     this.root.classList.toggle("is-auth-busy", this.authBusy);
@@ -2713,8 +3609,6 @@ export class LobbyUI {
         ? "完成账号验证后才能开始游戏"
         : status.loggedIn
           ? "当前账号"
-          : usingResetMode
-            ? "邮箱找回密码"
           : usingRegisterMode
             ? "创建新账号"
             : "账号登录";
@@ -2753,7 +3647,7 @@ export class LobbyUI {
     this.root
       .querySelectorAll<HTMLElement>("[data-auth-tab]")
       .forEach((element) => {
-        const active = element.dataset.authTab === this.authMode;
+        const active = element.dataset.authTab === authBaseMode;
         element.classList.toggle("is-active", active);
         element.setAttribute("aria-pressed", active ? "true" : "false");
       });
@@ -2778,9 +3672,20 @@ export class LobbyUI {
           return;
         }
         const formMode = (element as HTMLElement).dataset.authForm;
-        const visible = !status.loggedIn && formMode === this.authMode;
+        const visible =
+          !status.loggedIn &&
+          ((formMode === "login" && authBaseMode === "login") ||
+            (formMode === "register" && authBaseMode === "register") ||
+            (formMode === "reset" && usingResetMode));
         (element as HTMLElement).style.display = visible ? "grid" : "none";
       });
+
+    const resetDialog = this.root.querySelector<HTMLElement>("[data-auth-reset-dialog]");
+    if (resetDialog) {
+      const visible = !status.loggedIn && usingResetMode;
+      resetDialog.style.display = visible ? "grid" : "none";
+      resetDialog.setAttribute("aria-hidden", visible ? "false" : "true");
+    }
 
     AUTH_FIELD_NAMES.forEach((fieldName) => {
       const fieldHost = this.root.querySelector<HTMLElement>(
@@ -2919,10 +3824,8 @@ export class LobbyUI {
       .querySelectorAll<HTMLElement>("[data-auth-verify-block]")
       .forEach((element) => {
         const blockType = element.dataset.authVerifyBlock ?? "";
-        const enabled = capabilities.emailVerificationEnabled;
         const visible =
           !status.loggedIn &&
-          enabled &&
           ((blockType === "register-email" && usingRegisterMode) ||
             (blockType === "reset-email" && usingResetMode));
         element.style.display = visible ? "grid" : "none";
@@ -2943,20 +3846,60 @@ export class LobbyUI {
             ? "发送中..."
             : this.authBusyAction === "resetRequest" && sendMode === "reset-email"
               ? "发送中..."
-            : cooldown > 0
-              ? `${cooldown}s 后重发`
-              : sendMode === "reset-email"
-                ? "发送找回验证码"
-                : "发送邮箱验证码";
+              : cooldown > 0
+                ? `${cooldown}s 后重发`
+                : sendMode === "reset-email"
+                  ? "发送找回验证码"
+                  : "发送邮箱验证码";
       });
 
     this.root
       .querySelectorAll<HTMLButtonElement>(
-        "[data-auth-submit], [data-auth-logout], [data-auth-clerk], [data-auth-link]",
+        "[data-auth-submit], [data-auth-logout], [data-auth-clerk], [data-auth-link], [data-auth-switch-mode]",
       )
       .forEach((button) => {
         button.disabled = this.authBusy;
       });
+  }
+
+  private async handleLogoutAndSwitchMode(nextMode: AuthMode) {
+    if (this.authBusy) {
+      return;
+    }
+
+    const targetMode: AuthMode = nextMode === "register" ? "register" : "login";
+    this.authBusy = true;
+    this.authBusyAction = "logout";
+    this.authBusyMessage = targetMode === "register"
+      ? "正在退出当前账号并切换到注册..."
+      : "正在退出当前账号并切换到登录...";
+    this.resetAuthFeedbackState();
+    this.authNoticeTone = "busy";
+    this.renderAuthPanel();
+
+    try {
+      await this.options.onLogoutSubmit?.();
+      this.clearAuthForms();
+      this.setAuthMode(targetMode);
+      this.showFeatureTip(
+        targetMode === "register"
+          ? "已退出当前账号，请直接注册新账号。"
+          : "已退出当前账号，请登录其他账号。",
+      );
+    } catch (error) {
+      this.authError = this.formatAuthErrorMessage(
+        error instanceof Error ? error.message : "退出登录失败，请重试。",
+        "logout",
+      );
+      this.authNoticeTone = "error";
+      this.triggerAuthFeedbackMotion();
+    } finally {
+      this.authBusy = false;
+      this.authBusyAction = null;
+      this.authBusyMessage = "";
+      this.applyAuthStatusToView();
+      this.renderAuthPanel();
+    }
   }
 
   private renderDeveloperToolbox() {
@@ -3179,6 +4122,25 @@ export class LobbyUI {
       .forEach((el) => {
         el.textContent = `${totalWins} 胜 / ${totalMatches} 局`;
       });
+    this.renderLobbyRankBadge();
+  }
+
+  setLobbyRankInfo(rank: RankInfo) {
+    this.lobbyRankInfo = rank;
+    this.renderLobbyRankBadge();
+  }
+
+  private renderLobbyRankBadge() {
+    const tier = RANK_TIERS[this.lobbyRankInfo.tierIndex];
+    if (!tier) return;
+    const label = getRankTierLabel(this.lobbyRankInfo);
+    const chipHtml = `
+      <div class="stitch-rank-chip">
+        <div class="stitch-rank-chip-icon">${buildRankEmblemSvg(this.lobbyRankInfo, 24)}</div>
+        <span class="stitch-rank-chip-label" style="color:${tier.color1}">${label}</span>
+      </div>`;
+    const el = this.root.querySelector<HTMLElement>("[data-lobby-rank-badge]");
+    if (el) el.innerHTML = chipHtml;
   }
 
   private syncAvatarSlots() {
@@ -3319,61 +4281,12 @@ export class LobbyUI {
       this.fitLayoutTimeout = null;
     }
 
-    if (window.innerWidth <= 1024) {
-      this.root.style.setProperty("--stitch-fit-scale", "1");
-      this.root.style.setProperty("--stitch-fit-bottom-offset", "0px");
-      return;
-    }
-
     this.root.style.setProperty("--stitch-fit-scale", "1");
     this.root.style.setProperty("--stitch-fit-bottom-offset", "0px");
 
-    const rootStyle = window.getComputedStyle(this.root);
-    const horizontalPadding =
-      Number.parseFloat(rootStyle.paddingLeft) +
-      Number.parseFloat(rootStyle.paddingRight);
-    const verticalPadding =
-      Number.parseFloat(rootStyle.paddingTop) +
-      Number.parseFloat(rootStyle.paddingBottom);
-
-    const availableWidth = Math.max(0, this.root.clientWidth - horizontalPadding);
-    const availableHeight = Math.max(
-      0,
-      this.root.clientHeight - verticalPadding,
-    );
-
-    if (availableWidth <= 0 || availableHeight <= 0) {
+    if (window.innerWidth <= 1024) {
       return;
     }
-
-    const naturalWidth = Math.max(frame.scrollWidth, frame.offsetWidth);
-    const naturalHeight = Math.max(frame.scrollHeight, frame.offsetHeight);
-    if (naturalWidth <= 0 || naturalHeight <= 0) {
-      return;
-    }
-
-    const safeInset = 6;
-    const scale = Math.min(
-      1,
-      (availableWidth - safeInset) / naturalWidth,
-      (availableHeight - safeInset) / naturalHeight,
-    );
-
-    const appliedScale = Math.max(0.72, scale);
-
-    this.root.style.setProperty(
-      "--stitch-fit-scale",
-      String(appliedScale).slice(0, 6),
-    );
-
-    this.fitLayoutFrame = window.requestAnimationFrame(() => {
-      this.alignTrayToViewportBottom();
-      this.fitLayoutFrame = null;
-    });
-    this.fitLayoutTimeout = window.setTimeout(() => {
-      this.alignTrayToViewportBottom();
-      this.fitLayoutTimeout = null;
-    }, 48);
   }
 
   private scheduleTrayBottomAlignment(delayMs = 96) {
@@ -3407,15 +4320,11 @@ export class LobbyUI {
 
     const trayRect = tray.getBoundingClientRect();
     const visualBottomGap = Math.max(0, window.innerHeight - trayRect.bottom);
-    if (visualBottomGap <= 0.5) {
-      return;
-    }
+    const nextOffset =
+      visualBottomGap <= 0.5
+        ? 0
+        : Math.min(240, visualBottomGap / appliedScale);
 
-    const currentOffset =
-      Number.parseFloat(
-        rootStyle.getPropertyValue("--stitch-fit-bottom-offset"),
-      ) || 0;
-    const nextOffset = currentOffset + visualBottomGap / appliedScale;
     this.root.style.setProperty(
       "--stitch-fit-bottom-offset",
       `${nextOffset.toFixed(2)}px`,
@@ -3439,6 +4348,11 @@ export class LobbyUI {
       userLabel: "游客",
     };
     const label = status.loggedIn ? `已登录 · ${status.userLabel}` : "注册后开始";
+    const accountBadge = status.loggedIn ? "云端在线" : "游客模式";
+    const accountState = status.loggedIn ? "已认证账号" : "未登录";
+    const accountHint = status.loggedIn
+      ? status.accountLabel ?? "云存档已连接"
+      : "登录后可同步资料与进度";
 
     this.root
       .querySelectorAll<HTMLElement>("[data-auth-label]")
@@ -3446,18 +4360,70 @@ export class LobbyUI {
         el.textContent = label;
       });
 
+    this.root
+      .querySelectorAll<HTMLElement>("[data-settings-account-name]")
+      .forEach((el) => {
+        el.textContent = status.loggedIn ? status.userLabel : "游客";
+      });
+
+    this.root
+      .querySelectorAll<HTMLElement>("[data-settings-account-badge]")
+      .forEach((el) => {
+        el.textContent = accountBadge;
+      });
+
+    this.root
+      .querySelectorAll<HTMLElement>("[data-settings-account-state]")
+      .forEach((el) => {
+        el.textContent = accountState;
+      });
+
+    this.root
+      .querySelectorAll<HTMLElement>("[data-settings-account-hint]")
+      .forEach((el) => {
+        el.textContent = accountHint;
+      });
+
+    const uid = status.gameId ?? "";
+    this.root
+      .querySelectorAll<HTMLElement>("[data-player-uid]")
+      .forEach((el) => {
+        el.textContent = uid ? uid : "—";
+      });
+
     this.root.dataset.authState = status.loggedIn ? "loggedIn" : "guest";
+
     if (!status.loggedIn) {
       if (this.root.classList.contains("is-visible")) {
         this.root.classList.add("is-auth-required");
       }
+      this.modeSnapshots = {};
+      this.tasks = [];
       this.socialOverview = null;
       this.socialSearchResult = null;
       this.socialError = "";
       this.friends = [];
+      this.mailInbox = [];
+      this.mailError = "";
+      this.mailBusy = false;
+      this.mailDraftByNoticeId = {};
+      const modeGridEl = this.root.querySelector<HTMLElement>("[data-mode-grid]");
+      if (modeGridEl) {
+        modeGridEl.innerHTML = this.buildModeCards();
+      }
+      this.applySelectedModeUI();
+      const taskListEl = this.root.querySelector<HTMLElement>("[data-task-list-root]");
+      if (taskListEl) {
+        taskListEl.innerHTML = this.buildTaskRows();
+      }
+      const taskCounterEl = this.root.querySelector<HTMLElement>("[data-task-counter]");
+      if (taskCounterEl) {
+        taskCounterEl.textContent = this.buildTaskCounterLabel();
+      }
       this.renderFriendsToLobby();
     }
     this.renderSocialCenter();
+    this.renderActivityCenter();
     this.renderDeveloperToolbox();
     this.renderAuthPanel();
   }
@@ -3523,15 +4489,6 @@ export class LobbyUI {
     if (this.authBusy) {
       return;
     }
-
-    const capabilities = this.getAuthCapabilities();
-    if (!capabilities.emailVerificationEnabled) {
-      this.showAuthValidationError(
-        ["authRegisterEmail"],
-        "邮箱验证码服务暂时还没开启。",
-      );
-      return;
-    }
     if (this.authCodeCooldowns.registerEmail > 0) {
       return;
     }
@@ -3557,11 +4514,11 @@ export class LobbyUI {
     try {
       const result = this.options.onSendRegisterEmailCode
         ? await this.options.onSendRegisterEmailCode({
-            email,
-          })
+          email,
+        })
         : (() => {
-            throw new Error("邮箱验证码服务尚未接入。");
-          })();
+          throw new Error("邮箱验证码服务尚未接入。");
+        })();
 
       this.startAuthCodeCooldown(
         "registerEmail",
@@ -3599,15 +4556,6 @@ export class LobbyUI {
 
   private async handleSendPasswordResetCode() {
     if (this.authBusy) {
-      return;
-    }
-
-    const capabilities = this.getAuthCapabilities();
-    if (!capabilities.emailVerificationEnabled) {
-      this.showAuthValidationError(
-        ["authResetAccount"],
-        "邮箱找回功能暂时还没开启。",
-      );
       return;
     }
     if (this.authCodeCooldowns.resetEmail > 0) {
@@ -3881,10 +4829,14 @@ export class LobbyUI {
     };
 
     const updateMotion = (clientX: number, clientY: number) => {
+      if (!showcase.isConnected) {
+        return;
+      }
       const rect = showcase.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) {
         return;
       }
+
 
       const ratioX = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
       const ratioY = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
@@ -4009,9 +4961,9 @@ export class LobbyUI {
         ? `input[name="${fieldName}"]`
         : this.authMode === "reset"
           ? 'input[name="authResetAccount"]'
-        : this.authMode === "register"
-          ? 'input[name="authRegisterAccount"]'
-          : 'input[name="authLoginAccount"]';
+          : this.authMode === "register"
+            ? 'input[name="authRegisterAccount"]'
+            : 'input[name="authLoginAccount"]';
     this.root.querySelector<HTMLInputElement>(selector)?.focus();
   }
 
@@ -4047,6 +4999,38 @@ export class LobbyUI {
     return `${month}-${day} ${hours}:${minutes}`;
   }
 
+  private getModeCardPresentation(card: StitchModeCard) {
+    const snapshot = this.modeSnapshots[card.id];
+    return {
+      metrics: snapshot?.metrics?.length ? snapshot.metrics : card.metrics,
+      tags: snapshot?.tags ?? card.tags,
+      status: snapshot?.status ?? card.status,
+      rankLabel: snapshot?.rankLabel ?? "暂无数据",
+    };
+  }
+
+  private buildTaskCounterLabel() {
+    if (!this.tasks.length) {
+      return "暂无任务";
+    }
+    const finishedCount = this.tasks.filter(
+      (task) => task.progress >= task.total,
+    ).length;
+    return `${finishedCount} / ${this.tasks.length}`;
+  }
+
+  private toProgression(summary: UserSummary): PlayerProgression {
+    return {
+      level: summary.profile.level,
+      currentXp: summary.profile.currentXp,
+      totalXp: summary.profile.totalXp,
+      coins: summary.profile.coins,
+      totalMatches: summary.profile.totalMatches,
+      totalWins: summary.profile.totalWins,
+      bestMass: summary.profile.bestMass,
+    };
+  }
+
   private escapeHtml(value: string) {
     return value
       .replaceAll("&", "&amp;")
@@ -4078,7 +5062,7 @@ export class LobbyUI {
   }
 
   private isLobbyFeatureId(value: string): value is LobbyFeatureId {
-    return value === "shop" || value === "magic" || value === "friends";
+    return value === "shop" || value === "magic" || value === "friends" || value === "leaderboard" || value === "activity" || value === "signin";
   }
 
   private formatMass(rawMass: number): string {
@@ -4087,6 +5071,44 @@ export class LobbyUI {
       return `${(value / 1_000_000).toFixed(1)}M`;
     }
     return `${value} kg`;
+  }
+
+  private resolveBackendHealthUrl() {
+    try {
+      const baseUrl = networkConfig.apiBaseUrl.startsWith("http")
+        ? new URL(networkConfig.apiBaseUrl)
+        : new URL(networkConfig.apiBaseUrl, window.location.origin);
+      baseUrl.pathname = "/healthz";
+      baseUrl.search = "";
+      baseUrl.hash = "";
+      return baseUrl.toString();
+    } catch {
+      return `${window.location.origin}/healthz`;
+    }
+  }
+
+  private async refreshBackendPing() {
+    const pingLabel = this.root.querySelector<HTMLElement>("[data-backend-ping]");
+    if (!pingLabel) {
+      return;
+    }
+
+    pingLabel.textContent = "网络延迟: 检测中 | 正在探测后端";
+    const startedAt = performance.now();
+
+    try {
+      const response = await fetch(this.resolveBackendHealthUrl(), {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        pingLabel.textContent = "网络延迟: -- | 后端响应异常";
+        return;
+      }
+      const elapsedMs = Math.max(1, Math.round(performance.now() - startedAt));
+      pingLabel.textContent = `网络延迟: ${elapsedMs}ms | 后端在线`;
+    } catch {
+      pingLabel.textContent = "网络延迟: -- | 后端暂不可达";
+    }
   }
 
   private readFileAsDataUrl(file: File): Promise<string> {

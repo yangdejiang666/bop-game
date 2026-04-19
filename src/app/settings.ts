@@ -61,16 +61,65 @@ export function mergeGameSettings(settings?: LegacyGameSettingsShape): GameSetti
     };
 }
 
+/**
+ * Check if current user is a developer (from auth session).
+ * Returns true if authService reports isDeveloper=true.
+ */
+function _isDeveloperUser(): boolean {
+    try {
+        const raw = typeof window !== 'undefined'
+            ? window.localStorage.getItem('bop:auth-session')
+            : null;
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        return parsed.isDeveloper === true;
+    } catch {
+        return false;
+    }
+}
+
+/** Minimum match time (seconds) before a non-developer can exit. */
+export const MIN_EXIT_TIME_SECONDS = 6 * 60; // 6 minutes
+
+export function getCurrentMinExitTimeSeconds(): number {
+    try {
+        const raw = typeof window !== 'undefined'
+            ? window.localStorage.getItem('bop:auth-session')
+            : null;
+        if (!raw) {
+            return MIN_EXIT_TIME_SECONDS;
+        }
+        const parsed = JSON.parse(raw) as {
+            playtimePolicy?: {
+                requiredSeconds?: number;
+            };
+        };
+        const configuredSeconds = parsed.playtimePolicy?.requiredSeconds;
+        return typeof configuredSeconds === 'number' && configuredSeconds >= 0
+            ? configuredSeconds
+            : MIN_EXIT_TIME_SECONDS;
+    } catch {
+        return MIN_EXIT_TIME_SECONDS;
+    }
+}
+
 export function loadGameSettings(scope?: StorageScope): GameSettings {
     try {
         const raw = readScopedStorageValue(SETTINGS_STORAGE_KEY, { scope });
         if (!raw) {
-            return { ...DEFAULT_GAME_SETTINGS };
+            return {
+                ...DEFAULT_GAME_SETTINGS,
+                developerMode: _isDeveloperUser(),
+            };
         }
 
         const parsed = JSON.parse(raw) as LegacyGameSettingsShape;
         const merged = mergeGameSettings(parsed);
-        // Keep developer mode opt-in on every fresh page load.
+        // Developer accounts always get dev mode enabled (opt-in not needed).
+        // Regular players must re-enable on each page load.
+        if (_isDeveloperUser()) {
+            return { ...merged, developerMode: true };
+        }
         return {
             ...merged,
             developerMode: false

@@ -1,5 +1,8 @@
 import type { PlayerProgression } from "./progression.js";
 
+import type { UserAuthorization } from "./access.js";
+import type { UserRole } from "./auth.js";
+
 export type UserId = string;
 export type DeviceId = string;
 export type ISODateTimeString = string;
@@ -17,6 +20,7 @@ export interface UserBase {
   id: UserId;
   gameId: string;
   status: UserStatus;
+  role: UserRole;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
   lastLoginAt: ISODateTimeString | null;
@@ -86,6 +90,7 @@ export interface UserSummary {
   profile: UserProfile;
   ban: UserBanInfo;
   identities: UserIdentity[];
+  authorization: UserAuthorization;
 }
 
 export interface PublicUserCard {

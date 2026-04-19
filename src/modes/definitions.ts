@@ -107,6 +107,7 @@ export interface ModeQueueVariant {
   subtitle: string;
   hint: string;
   etaMultiplier: number;
+  teamSize?: number;
 }
 
 export interface ModeSidebarSummary {
@@ -199,12 +200,12 @@ export interface ModeDefinition {
   name: string;
   theme: ModeTheme;
   iconId:
-    | "mode_ranked"
-    | "mode_peak"
-    | "mode_classic"
-    | "mode_speed"
-    | "mode_team"
-    | "mode_battleRoyale";
+  | "mode_ranked"
+  | "mode_peak"
+  | "mode_classic"
+  | "mode_speed"
+  | "mode_team"
+  | "mode_battleRoyale";
   heroModelPath: string;
   hall: ModeHallContent;
   gameplay: ModeGameplayRules;
@@ -273,9 +274,9 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
         ],
       },
       queueVariants: [
-        { id: "solo", label: "单排", subtitle: "纯个人上分", hint: "最稳", etaMultiplier: 1 },
-        { id: "duo", label: "双排", subtitle: "双人冲星", hint: "更重配合", etaMultiplier: 1.1 },
-        { id: "trio", label: "三排", subtitle: "稳健抱团", hint: "保位更强", etaMultiplier: 1.18 },
+        { id: "solo", label: "单排", subtitle: "纯个人上分", hint: "最稳", etaMultiplier: 1, teamSize: 1 },
+        { id: "duo", label: "双排", subtitle: "双人冲星", hint: "更重配合", etaMultiplier: 1.1, teamSize: 2 },
+        { id: "trio", label: "三排", subtitle: "稳健抱团", hint: "保位更强", etaMultiplier: 1.18, teamSize: 3 },
       ],
       sidebarSummary: {
         kicker: "赛季摘要",
@@ -372,8 +373,8 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
         ],
       },
       queueVariants: [
-        { id: "qualification", label: "资格场", subtitle: "保位局", hint: "更稳守资格", etaMultiplier: 1 },
-        { id: "ladder", label: "冲榜局", subtitle: "高压争榜", hint: "收益更高", etaMultiplier: 1.08 },
+        { id: "qualification", label: "资格场", subtitle: "保位局", hint: "更稳守资格", etaMultiplier: 1, teamSize: 1 },
+        { id: "ladder", label: "冲榜局", subtitle: "高压争榜", hint: "收益更高", etaMultiplier: 1.08, teamSize: 1 },
       ],
       sidebarSummary: {
         kicker: "精英摘要",
@@ -470,8 +471,8 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
         ],
       },
       queueVariants: [
-        { id: "solo", label: "单人", subtitle: "纯个人手感", hint: "最适合练基本功", etaMultiplier: 1 },
-        { id: "duo", label: "双人", subtitle: "轻社交开局", hint: "拉一位好友一起打", etaMultiplier: 1.05 },
+        { id: "solo", label: "单人", subtitle: "纯个人手感", hint: "最适合练基本功", etaMultiplier: 1, teamSize: 1 },
+        { id: "duo", label: "双人", subtitle: "轻社交开局", hint: "拉一位好友一起打", etaMultiplier: 1.05, teamSize: 2 },
         { id: "free", label: "自由", subtitle: "随到随打", hint: "球感最轻快", etaMultiplier: 0.94 },
       ],
       sidebarSummary: {
@@ -569,9 +570,9 @@ export const MODE_DEFINITIONS: Record<LobbyModeId, ModeDefinition> = {
         ],
       },
       queueVariants: [
-        { id: "solo", label: "单人求生", subtitle: "纯生存", hint: "更适合稳扎稳打", etaMultiplier: 1 },
-        { id: "duo", label: "双人求生", subtitle: "双核互保", hint: "适合边缘运营", etaMultiplier: 1.08 },
-        { id: "squad", label: "四人求生", subtitle: "高压编队", hint: "风险更高收益更足", etaMultiplier: 1.12 },
+        { id: "solo", label: "单人求生", subtitle: "纯生存", hint: "更适合稳扎稳打", etaMultiplier: 1, teamSize: 1 },
+        { id: "duo", label: "双人求生", subtitle: "双核互保", hint: "适合边缘运营", etaMultiplier: 1.08, teamSize: 2 },
+        { id: "squad", label: "四人求生", subtitle: "高压编队", hint: "风险更高收益更足", etaMultiplier: 1.12, teamSize: 4 },
       ],
       sidebarSummary: {
         kicker: "生存摘要",

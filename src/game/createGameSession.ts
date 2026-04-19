@@ -20,6 +20,7 @@ import { Virus } from '../entities/Virus';
 import { Blob } from '../entities/Blob';
 import { EjectedMass } from '../entities/EjectedMass';
 import type { GameSettings } from '../app/settings';
+import { getCurrentMinExitTimeSeconds } from '../app/settings';
 import {
     applyMatchRewardsToProgression,
     computeMatchRewards,
@@ -29,6 +30,10 @@ import {
     type MatchRewardBreakdown,
     type PlayerProgression
 } from '../app/progression';
+import {
+    finishPlaytimeTracking,
+    startPlaytimeTracking
+} from '../app/playtimeTracking';
 import { loadBestMassRecord, saveBestMassRecord } from '../app/bestMassRecord';
 import { getSkinOption } from '../app/skins';
 import { gameplayTuning } from '../gameplay/tuning';
@@ -466,6 +471,7 @@ export interface GameSession {
 
 interface CreateGameSessionOptions {
     settings: GameSettings;
+    isDeveloper: boolean;
     modeId: LobbyModeId;
     onReturnToLobby: () => void;
     onOpenSettings: () => void;
@@ -623,10 +629,14 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
 
         const panel = hudRefs.resultPanelEl;
         const overlay = hudRefs.resultOverlay;
+        if (!panel || !overlay) {
+            return;
+        }
         panel.style.setProperty('--result-fit-scale', '1');
         panel.classList.remove('is-fit-scaled');
 
         const panelRect = panel.getBoundingClientRect();
+
         const actionsWrap = hudRefs.resultActions.lobby.parentElement as HTMLElement | null;
         const rewardsWrap = hudRefs.resultRewardXpEl.closest('.match-result-rewards') as HTMLElement | null;
         const growthWrap = hudRefs.resultGrowthFillEl.closest('.match-result-growth') as HTMLElement | null;
@@ -1357,6 +1367,20 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         lobbyButton.className = 'hud-action-button';
         lobbyButton.textContent = '返回大厅';
         lobbyButton.addEventListener('click', () => {
+            // Developers can exit anytime; regular players must satisfy the server-defined playtime gate.
+            if (!options.isDeveloper && modeConfig.timed) {
+                const minExitTimeSeconds = getCurrentMinExitTimeSeconds();
+                const elapsed = getElapsedSeconds();
+                const remaining = minExitTimeSeconds - elapsed;
+                if (remaining > 0) {
+                    alert(`请至少游玩 ${Math.ceil(remaining)} 秒后再退出`);
+                    return;
+                }
+            }
+            void finishPlaytimeTracking({
+                modeId: options.modeId,
+                reason: 'user_exit'
+            });
             stop();
             options.onReturnToLobby();
         });
@@ -2894,12 +2918,19 @@ export function createGameSession(options: CreateGameSessionOptions): GameSessio
         audioManager?.requestMusicStart();
         gameLoop?.start();
         isRunning = true;
+        void startPlaytimeTracking({
+            modeId: options.modeId
+        });
     }
 
     function stop() {
         gameLoop?.stop();
         audioManager?.stopMusic();
         isRunning = false;
+        void finishPlaytimeTracking({
+            modeId: options.modeId,
+            reason: matchFinished ? 'completed' : 'disconnect'
+        });
     }
 
     function destroy() {
